@@ -388,22 +388,7 @@ bot.on('message', async (msg) => {
         return;
     }
     
-    // ===== CEK USERNAME (PALING ATAS) =====
-    if (!username) {
-        await bot.sendMessage(chatId,
-            `USERNAME DIPERLUKAN\n\n` +
-            `Untuk menggunakan bot ini, Anda harus memiliki username Telegram.\n\n` +
-            `Cara membuat username:\n` +
-            `1. Buka menu Settings (Pengaturan)\n` +
-            `2. Pilih Username\n` +
-            `3. Buat username baru (minimal 5 karakter)\n` +
-            `4. Simpan perubahan\n\n` +
-            `Setelah memiliki username, silakan coba lagi.`
-        );
-        return; // PENTING! HENTIKAN PROSES
-    }
-    
-    // ===== CEK FITUR INFO AKTIF =====
+    // ===== CEK FITUR INFO AKTIF (PALING ATAS) =====
     if (text.startsWith('/info') && !db.feature.info) {
         await bot.sendMessage(chatId,
             `FITUR SEDANG NONAKTIF\n\n` +
@@ -417,10 +402,31 @@ bot.on('message', async (msg) => {
                 }
             }
         );
-        return; // PENTING! HENTIKAN PROSES
+        return; // HENTIKAN PROSES
     }
     
-    // ===== CEK JOIN =====
+    // ===== CEK USERNAME =====
+    if (!username) {
+        await bot.sendMessage(chatId,
+            `USERNAME DIPERLUKAN\n\n` +
+            `Untuk menggunakan bot ini, Anda harus memiliki username Telegram.\n\n` +
+            `Cara membuat username:\n` +
+            `1. Buka menu Settings (Pengaturan)\n` +
+            `2. Pilih Username\n` +
+            `3. Buat username baru (minimal 5 karakter)\n` +
+            `4. Simpan perubahan\n\n` +
+            `Setelah memiliki username, silakan coba lagi.`
+        );
+        return; // HENTIKAN PROSES
+    }
+    
+    // Izinkan command public tanpa proses lebih lanjut
+    const publicCommands = ['/start', '/listbanned', '/unban', '/langganan', '/status', '/cek', '/offinfo', '/oninfo', '/ranking', '/listpremium', '/addpremium'];
+    if (publicCommands.includes(text.split(' ')[0])) {
+        return;
+    }
+    
+    // CEK JOIN
     const joined = await checkJoin(userId);
     const missing = [];
 
@@ -451,12 +457,6 @@ bot.on('message', async (msg) => {
         await bot.sendMessage(chatId, message, {
             reply_markup: { inline_keyboard: buttons }
         });
-        return; // PENTING! HENTIKAN PROSES
-    }
-    
-    // Izinkan command public lainnya tanpa proses lebih lanjut
-    const publicCommands = ['/start', '/listbanned', '/unban', '/langganan', '/status', '/cek', '/offinfo', '/oninfo', '/ranking', '/listpremium', '/addpremium'];
-    if (publicCommands.includes(text.split(' ')[0])) {
         return;
     }
 });
@@ -717,9 +717,21 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
     const userId = msg.from.id;
     const username = msg.from.username;
     
+    // ===== PENGAMAN: CEK FITUR INFO LAGI =====
+    if (!db.feature.info && !isAdmin(userId)) {
+        // DIAM SAJA, TIDAK KASIH RESPON
+        console.log(`User ${userId} mencoba /info saat fitur nonaktif - diabaikan`);
+        return;
+    }
+    
+    // ===== PENGAMAN: CEK USERNAME LAGI =====
+    if (!username && !isAdmin(userId)) {
+        console.log(`User ${userId} tanpa username mencoba /info - diabaikan`);
+        return;
+    }
+    
     // ===== CEK BAN KHUSUS /INFO =====
     if (isBanned(userId) && !isAdmin(userId)) {
-        // TIDAK KASIH RESPON APAPUN - DIAM SAJA
         console.log(`User ${userId} (banned) mencoba /info - diabaikan`);
         return;
     }
@@ -761,7 +773,6 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
     // ===== CEK SPAM (HITUNG /INFO) =====
     const banned = recordInfoActivity(userId);
     if (banned) {
-        // Jika kena ban, diam saja (tidak kasih respon)
         console.log(`User ${userId} kena ban karena spam /info`);
         return;
     }
