@@ -17,6 +17,6 @@
     "moment-timezone": "^0.5.43",
     "node-cron": "^3.0.3",
     "qrcode": "^1.5.3",
-    "jimp": "^0.22.12"
+    "@yokilabs/captcha-generator": "^1.2.3"
   }
 }
