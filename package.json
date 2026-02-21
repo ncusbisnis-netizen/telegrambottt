@@ -16,7 +16,6 @@
     "moment": "^2.29.4",
     "moment-timezone": "^0.5.43",
     "node-cron": "^3.0.3",
-    "qrcode": "^1.5.3",
-    "svg-captcha": "^1.4.0"
+    "qrcode": "^1.5.3"
   }
 }
