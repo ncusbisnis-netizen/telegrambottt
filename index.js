@@ -5,6 +5,28 @@ const moment = require('moment-timezone');
 const cron = require('node-cron');
 const QRCode = require('qrcode');
 
+// ============ OPTIMASI MEMORY UNTUK HEROKU ============
+// Batasi memory usage
+process.env.NODE_OPTIONS = '--max-old-space-size=256';
+
+// Optimasi axios - kurangi memory
+axios.defaults.timeout = 15000; // 15 detik timeout
+axios.defaults.maxContentLength = 1024 * 512; // 512KB max response
+axios.defaults.maxRedirects = 3;
+
+// Cache untuk menyimpan hasil sementara
+const cache = {
+    info: {},
+    qr: {}
+};
+
+// Bersihkan cache setiap 1 jam
+setInterval(() => {
+    cache.info = {};
+    cache.qr = {};
+}, 60 * 60 * 1000);
+// =======================================================
+
 // ================== CONFIG DARI ENV ==================
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const API_URL = process.env.API_URL;
@@ -17,19 +39,31 @@ const PAKASIR_SLUG = process.env.PAKASIR_SLUG;
 const PAKASIR_API_KEY = process.env.PAKASIR_API_KEY;
 const PAKASIR_BASE_URL = process.env.PAKASIR_BASE_URL || 'https://app.pakasir.com/api';
 
-// ============ ⚠️ YANG WAJIB DIGANTI! =============
-// Daftar ID admin (pisah dengan koma)
-// Contoh: [7268861803, 123456789]
-const ADMIN_IDS = [7268861803];  // <--- GANTI DENGAN ID TELEGRAM ANDA!
-// ==================================================
+// ================== ADMIN IDS DARI ENV ==================
+const ADMIN_IDS = process.env.ADMIN_IDS 
+    ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim())) 
+    : [];
 
-// Validasi
-if (!BOT_TOKEN || !API_URL || !CHANNEL || !GROUP) {
-    console.error('❌ Missing required environment variables!');
+console.log('👑 Admin IDs:', ADMIN_IDS);
+console.log('🚀 Starting bot with memory limit: 256MB');
+
+// Validasi config minimal
+if (!BOT_TOKEN) {
+    console.error('❌ BOT_TOKEN tidak ditemukan!');
     process.exit(1);
 }
 
-const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+const bot = new TelegramBot(BOT_TOKEN, { 
+    polling: true,
+    // Optimasi polling
+    polling: {
+        interval: 300, // 300ms interval
+        autoStart: true,
+        params: {
+            timeout: 10
+        }
+    }
+});
 
 // ================== DATABASE ==================
 let db = { 
@@ -45,8 +79,10 @@ function loadDB() {
         if (fs.existsSync('database.json')) {
             const data = fs.readFileSync('database.json', 'utf8');
             db = JSON.parse(data);
+            console.log(`📊 Database loaded: ${Object.keys(db.users).length} users, ${Object.keys(db.premium).length} premium`);
         } else {
             fs.writeFileSync('database.json', JSON.stringify(db, null, 2));
+            console.log('📁 Database baru dibuat');
         }
     } catch (error) {
         console.error('Error loading database:', error);
@@ -135,7 +171,7 @@ async function createPakasirTransaction(amount, duration, userId) {
             requestBody,
             {
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 30000
+                timeout: 15000
             }
         );
 
@@ -189,23 +225,25 @@ async function checkPakasirTransaction(orderId, amount) {
         
         return 'pending';
     } catch (error) {
-        console.error('Check transaction error:', error.message);
         return 'pending';
     }
 }
 
 // ================== AUTO CHECK PAYMENT ==================
-cron.schedule('*/30 * * * * *', async () => {
+// Cron job setiap 1 menit (lebih hemat memory)
+cron.schedule('* * * * *', async () => {
     for (const [orderId, data] of Object.entries(db.pending_payments || {})) {
         if (data.status === 'pending') {
             const now = moment().tz('Asia/Jakarta').unix();
             
+            // Hapus jika expired
             if (data.expired_at < now) {
                 delete db.pending_payments[orderId];
                 saveDB();
                 continue;
             }
 
+            // Cek status
             const status = await checkPakasirTransaction(orderId, data.amount);
             
             if (status === 'completed' || status === 'paid') {
@@ -247,29 +285,27 @@ bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     
-    if (isAdmin(userId)) {
-        await bot.sendMessage(chatId,
-            `👑 *ADMIN MODE*\n\n` +
-            `Perintah:\n` +
-            `/info USER SERVER\n` +
-            `/offinfo\n` +
-            `/oninfo\n` +
-            `/ranking\n` +
-            `/status\n` +
-            `/listpremium\n` +
-            `/addpremium USERID DURASI`,
-            { parse_mode: 'Markdown' }
-        );
+    const status = getUserStatus(userId);
+    
+    let message = `👋 *Welcome to MLBB Info Bot!*\n\n`;
+    message += `📊 *Status:* ${status.type}\n`;
+    
+    if (status.type === '🆓 FREE') {
+        message += `📈 *Sisa limit:* ${status.used}/${status.limit}\n\n`;
     } else {
-        await bot.sendMessage(chatId,
-            `👋 *Welcome to MLBB Info Bot!*\n\n` +
-            `Gunakan:\n` +
-            `/info USER_ID SERVER_ID\n` +
-            `/status\n` +
-            `/langganan`,
-            { parse_mode: 'Markdown' }
-        );
+        message += `✨ *Akses:* Unlimited\n\n`;
     }
+    
+    message += `*Perintah:*\n`;
+    message += `/info ID SERVER - Cek akun MLBB\n`;
+    message += `/status - Cek status akun\n`;
+    message += `/langganan - Lihat paket premium\n`;
+    
+    if (isAdmin(userId)) {
+        message += `\n👑 *Admin:*\n/ranking\n/listpremium\n/addpremium`;
+    }
+    
+    await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
 });
 
 // ================== COMMAND /status ==================
@@ -281,23 +317,23 @@ bot.onText(/\/status/, async (msg) => {
     const remaining = getRemainingLimit(userId);
     
     let message = `📊 *STATUS AKUN*\n\n`;
-    message += `User ID: \`${userId}\`\n`;
-    message += `Tipe: *${status.type}*\n`;
+    message += `🆔 ID: \`${userId}\`\n`;
+    message += `📌 Tipe: *${status.type}*\n`;
     
     if (status.type === '🆓 FREE') {
-        message += `Limit: ${status.used}/${status.limit}\n`;
-        message += `Sisa: ${remaining}\n`;
+        message += `📊 Limit: ${status.used}/${status.limit}\n`;
+        message += `✨ Sisa: ${remaining}\n`;
         
         if (status.used >= status.limit) {
-            message += `\n⚠️ *Limit habis!*\nGunakan /langganan`;
+            message += `\n⚠️ *Limit habis!*\nGunakan /langganan untuk upgrade`;
         }
     } else {
-        message += `Limit: *Unlimited*\n`;
+        message += `✨ Akses: *Unlimited*\n`;
         
         if (status.type === '💎 PREMIUM') {
             const premium = db.premium[userId];
             const expired = moment.unix(premium.expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss');
-            message += `Berlaku sampai: ${expired} WIB\n`;
+            message += `⏳ Berlaku sampai: ${expired} WIB\n`;
         }
     }
     
@@ -315,7 +351,7 @@ bot.onText(/\/langganan/, async (msg) => {
         
         await bot.sendMessage(chatId,
             `✅ *Anda sudah premium!*\n\n` +
-            `Berlaku sampai: ${expired} WIB`,
+            `⏳ Berlaku sampai: ${expired} WIB`,
             { parse_mode: 'Markdown' }
         );
         return;
@@ -323,10 +359,12 @@ bot.onText(/\/langganan/, async (msg) => {
     
     await bot.sendMessage(chatId,
         `💎 *PAKET PREMIUM*\n\n` +
-        `/bayar 1 - 1 Hari (Rp 10.000)\n` +
-        `/bayar 3 - 3 Hari (Rp 25.000)\n` +
-        `/bayar 7 - 7 Hari (Rp 45.000)\n` +
-        `/bayar 30 - 30 Hari (Rp 100.000)`,
+        `📦 /bayar 1 - 1 Hari (Rp 10.000)\n` +
+        `📦 /bayar 3 - 3 Hari (Rp 25.000)\n` +
+        `📦 /bayar 7 - 7 Hari (Rp 45.000)\n` +
+        `📦 /bayar 30 - 30 Hari (Rp 100.000)\n\n` +
+        `✅ Unlimited akses /info\n` +
+        `✅ Prioritas response`,
         { parse_mode: 'Markdown' }
     );
 });
@@ -367,26 +405,36 @@ bot.onText(/\/bayar (.+)/, async (msg, match) => {
     
     await bot.deleteMessage(chatId, loading.message_id);
     
+    // Simpan QR di cache
+    cache.qr[payment.orderId] = payment.qrString;
+    
     try {
-        const qrBuffer = await QRCode.toBuffer(payment.qrString);
+        // Generate QR dengan kualitas rendah untuk hemat memory
+        const qrBuffer = await QRCode.toBuffer(payment.qrString, {
+            errorCorrectionLevel: 'L',
+            margin: 1,
+            width: 256
+        });
         
         await bot.sendPhoto(chatId, qrBuffer, {
             caption: 
                 `💳 *PEMBAYARAN QRIS*\n\n` +
-                `Paket: *${selected.name}*\n` +
-                `Harga: *${formatRupiah(selected.price)}*\n\n` +
-                `*Order ID:* \`${payment.orderId}\`\n` +
-                `⏳ *Berlaku sampai:* ${payment.expiredAt} WIB\n\n` +
-                `Gunakan /cek ${payment.orderId} untuk cek status`,
+                `📦 Paket: *${selected.name}*\n` +
+                `💰 Harga: *${formatRupiah(selected.price)}*\n\n` +
+                `🆔 Order: \`${payment.orderId}\`\n` +
+                `⏳ Berlaku: ${payment.expiredAt} WIB\n\n` +
+                `✅ Scan QR di atas untuk bayar\n` +
+                `🔄 Ketik /cek ${payment.orderId} untuk cek status`,
             parse_mode: 'Markdown'
         });
     } catch (qrError) {
         await bot.sendMessage(chatId,
             `💳 *PEMBAYARAN QRIS*\n\n` +
-            `Paket: *${selected.name}*\n` +
-            `Harga: *${formatRupiah(selected.price)}*\n\n` +
-            `Scan: \`${payment.qrString}\`\n\n` +
-            `*Order ID:* \`${payment.orderId}\``,
+            `📦 Paket: *${selected.name}*\n` +
+            `💰 Harga: *${formatRupiah(selected.price)}*\n\n` +
+            `🔍 QR Code:\n\`${payment.qrString}\`\n\n` +
+            `🆔 Order: \`${payment.orderId}\`\n` +
+            `⏳ Berlaku: ${payment.expiredAt} WIB`,
             { parse_mode: 'Markdown' }
         );
     }
@@ -408,10 +456,11 @@ bot.onText(/\/cek (.+)/, async (msg, match) => {
     
     await bot.sendMessage(chatId,
         `📋 *STATUS PEMBAYARAN*\n\n` +
-        `Order ID: \`${orderId}\`\n` +
-        `Paket: ${payment.duration}\n` +
-        `Status: ${status}\n` +
-        `Dibuat: ${created} WIB`,
+        `🆔 Order: \`${orderId}\`\n` +
+        `📦 Paket: ${payment.duration}\n` +
+        `💰 Harga: ${formatRupiah(payment.amount)}\n` +
+        `📌 Status: ${status}\n` +
+        `📅 Dibuat: ${created} WIB`,
         { parse_mode: 'Markdown' }
     );
 });
@@ -423,7 +472,7 @@ bot.onText(/\/info (.+)/, async (msg, match) => {
     const args = match[1].split(' ');
     
     if (args.length < 2) {
-        await bot.sendMessage(chatId, '❌ Format: /info ID SERVER');
+        await bot.sendMessage(chatId, '❌ Format: /info ID SERVER\nContoh: /info 123456 1234');
         return;
     }
     
@@ -435,29 +484,58 @@ bot.onText(/\/info (.+)/, async (msg, match) => {
         return;
     }
     
+    // Cek limit
     if (!isAdmin(userId) && !isPremium(userId)) {
         const remaining = getRemainingLimit(userId);
         if (remaining <= 0) {
-            await bot.sendMessage(chatId, '⚠️ Limit habis! /langganan');
+            await bot.sendMessage(chatId, 
+                '⚠️ *Limit habis!*\nGunakan /langganan untuk upgrade premium.',
+                { parse_mode: 'Markdown' }
+            );
             return;
         }
+    }
+    
+    // Cek cache
+    const cacheKey = `${targetId}:${serverId}`;
+    if (cache.info[cacheKey]) {
+        await bot.sendMessage(chatId, cache.info[cacheKey]);
+        return;
     }
     
     const loadingMsg = await bot.sendMessage(chatId, '⏳ Mengambil data...');
     
     try {
-        const response = await axios.get(`${API_URL}?userId=${targetId}&serverId=${serverId}`);
+        const response = await axios.get(`${API_URL}?userId=${targetId}&serverId=${serverId}`, {
+            timeout: 10000
+        });
+        
         const data = response.data;
         
+        // Parse sederhana
         const nickname = data.match(/\[username\] => (.*?)\s/)?.[1]?.replace(/\+/g, ' ') || '-';
+        const region = data.match(/\[region\] => (.*?)\s/)?.[1] || '-';
         
-        let output = `✧ ID: ${targetId}\n`;
-        output += `✧ Server: ${serverId}\n`;
-        output += `✧ Nickname: ${nickname}\n`;
+        let output = `📱 *INFO AKUN MLBB*\n\n`;
+        output += `🆔 ID: ${targetId}\n`;
+        output += `🌍 Server: ${serverId}\n`;
+        output += `👤 Nickname: ${nickname}\n`;
+        output += `📍 Region: ${region}\n`;
+        
+        // Simpan di cache
+        cache.info[cacheKey] = output;
         
         await bot.deleteMessage(chatId, loadingMsg.message_id);
-        await bot.sendMessage(chatId, output);
+        await bot.sendMessage(chatId, output, { 
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [[
+                    { text: '🛒 Stok Admin', url: STOK_ADMIN || 'https://t.me/stokadmin' }
+                ]]
+            }
+        });
         
+        // Update statistik
         if (!isAdmin(userId) && !isPremium(userId)) {
             if (!db.users[userId]) {
                 db.users[userId] = { username: msg.from.username, success: 0 };
@@ -469,7 +547,7 @@ bot.onText(/\/info (.+)/, async (msg, match) => {
         
     } catch (error) {
         await bot.deleteMessage(chatId, loadingMsg.message_id);
-        await bot.sendMessage(chatId, '❌ Gagal mengambil data');
+        await bot.sendMessage(chatId, '❌ Gagal mengambil data. Coba lagi nanti.');
     }
 });
 
@@ -495,10 +573,14 @@ bot.onText(/\/ranking/, async (msg) => {
         .sort((a, b) => (b[1].success || 0) - (a[1].success || 0))
         .slice(0, 10);
     
-    let message = '🏆 *RANKING*\n\n';
-    users.forEach(([id, data], i) => {
-        message += `${i+1}. @${data.username || 'unknown'} - ${data.success}x\n`;
-    });
+    let message = '🏆 *TOP 10 RANKING*\n\n';
+    if (users.length === 0) {
+        message += 'Belum ada data';
+    } else {
+        users.forEach(([id, data], i) => {
+            message += `${i+1}. @${data.username || 'unknown'} - ${data.success}x\n`;
+        });
+    }
     
     await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
 });
@@ -506,25 +588,37 @@ bot.onText(/\/ranking/, async (msg) => {
 bot.onText(/\/listpremium/, async (msg) => {
     if (!isAdmin(msg.from.id)) return;
     
-    const premium = Object.entries(db.premium || {}).map(([id, data]) => ({ id, ...data }));
+    const premium = Object.entries(db.premium || {});
     let message = '👑 *PREMIUM USERS*\n\n';
     
-    premium.forEach((user, i) => {
-        const expired = moment.unix(user.expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY');
-        message += `${i+1}. \`${user.id}\` - ${user.duration}\n   Exp: ${expired}\n\n`;
-    });
+    if (premium.length === 0) {
+        message += 'Belum ada user premium';
+    } else {
+        premium.forEach(([id, data], i) => {
+            const expired = moment.unix(data.expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY');
+            message += `${i+1}. \`${id}\` - ${data.duration}\n   ⏳ Exp: ${expired}\n\n`;
+        });
+    }
     
-    await bot.sendMessage(msg.chat.id, message || 'Belum ada user premium', { parse_mode: 'Markdown' });
+    await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
 });
 
 bot.onText(/\/addpremium (.+)/, async (msg, match) => {
     if (!isAdmin(msg.from.id)) return;
     
     const args = match[1].split(' ');
-    if (args.length < 2) return;
+    if (args.length < 2) {
+        await bot.sendMessage(msg.chat.id, '❌ Format: /addpremium USERID DURASI');
+        return;
+    }
     
     const targetId = parseInt(args[0]);
     const days = parseInt(args[1]);
+    
+    if (isNaN(targetId) || isNaN(days)) {
+        await bot.sendMessage(msg.chat.id, '❌ UserID dan durasi harus angka');
+        return;
+    }
     
     const now = moment().tz('Asia/Jakarta').unix();
     const expiredAt = now + (days * 24 * 60 * 60);
@@ -536,12 +630,31 @@ bot.onText(/\/addpremium (.+)/, async (msg, match) => {
     };
     saveDB();
     
-    await bot.sendMessage(msg.chat.id, `✅ Premium added for ${targetId}`);
+    await bot.sendMessage(msg.chat.id, `✅ Premium added for user \`${targetId}\` (${days} hari)`);
     
     try {
-        await bot.sendMessage(targetId, `🎉 Anda sekarang PREMIUM selama ${days} hari!`);
+        await bot.sendMessage(targetId, 
+            `🎉 *Selamat!*\n\n` +
+            `Akun Anda telah di-upgrade ke *PREMIUM* selama ${days} hari oleh admin.\n` +
+            `Gunakan /status untuk cek masa aktif.`,
+            { parse_mode: 'Markdown' }
+        );
     } catch (error) {}
 });
 
-console.log('✅ Bot started!');
-console.log(`👑 Admin IDs: ${ADMIN_IDS.join(', ')}`);
+// ================== ERROR HANDLER ==================
+bot.on('polling_error', (error) => {
+    if (error.code === 'EFATAL') {
+        console.error('Fatal error, restarting...');
+        process.exit(1);
+    }
+});
+
+// Memory usage monitor
+setInterval(() => {
+    const used = process.memoryUsage();
+    console.log(`📊 Memory: ${Math.round(used.heapUsed / 1024 / 1024)}MB / ${Math.round(used.heapTotal / 1024 / 1024)}MB`);
+}, 5 * 60 * 1000); // Setiap 5 menit
+
+console.log('✅ Bot started with optimasi memory!');
+console.log(`👑 Admin IDs: ${ADMIN_IDS.join(', ') || 'Tidak ada'}`);
