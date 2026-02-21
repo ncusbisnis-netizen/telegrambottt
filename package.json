@@ -18,6 +18,5 @@
     "node-cron": "^3.0.3",
     "qrcode": "^1.5.3",
     "svg-captcha": "^1.4.0"
-    // ⚠️ HAPUS baris "sharp": "^0.33.4" dari sini!
   }
 }
