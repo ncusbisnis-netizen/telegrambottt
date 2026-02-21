@@ -4,8 +4,6 @@ const fs = require('fs');
 const moment = require('moment-timezone');
 const cron = require('node-cron');
 const QRCode = require('qrcode');
-const svgCaptcha = require('svg-captcha');
-const sharp = require('sharp');
 
 // ============ OPTIMASI MEMORY ============
 process.env.NODE_OPTIONS = '--max-old-space-size=256';
@@ -88,9 +86,7 @@ function saveDB() {
 
 loadDB();
 
-// ================== CAPTCHA FOTO RANDOM ==================
-const svgCaptcha = require('svg-captcha');
-
+// ================== CAPTCHA MATEMATIKA ==================
 let captchaData = {};
 
 function loadCaptcha() {
@@ -114,12 +110,45 @@ function saveCaptcha() {
 
 loadCaptcha();
 
+function generateMathQuestion() {
+    const operators = ['+', '-', '×'];
+    const op = operators[Math.floor(Math.random() * operators.length)];
+    let num1, num2, answer, question;
+
+    switch(op) {
+        case '+':
+            num1 = Math.floor(Math.random() * 20) + 1;  // 1-20
+            num2 = Math.floor(Math.random() * 20) + 1;
+            answer = num1 + num2;
+            question = `${num1} + ${num2}`;
+            break;
+        case '-':
+            num1 = Math.floor(Math.random() * 20) + 10; // 10-30
+            num2 = Math.floor(Math.random() * num1);    // 0 sampai num1
+            answer = num1 - num2;
+            question = `${num1} - ${num2}`;
+            break;
+        case '×':
+            num1 = Math.floor(Math.random() * 10) + 1;  // 1-10
+            num2 = Math.floor(Math.random() * 5) + 1;   // 1-5 (biar gampang)
+            answer = num1 * num2;
+            question = `${num1} × ${num2}`;
+            break;
+    }
+
+    return {
+        question: question,
+        answer: answer.toString()
+    };
+}
+
 function needCaptcha(userId) {
     if (!captchaData[userId]) {
         captchaData[userId] = { 
             count: 0,
             pending: false,
-            code: null,
+            question: null,
+            answer: null,
             attempts: 0,
             messageId: null,
             chatId: null
@@ -148,32 +177,28 @@ async function sendCaptcha(chatId, userId) {
             } catch (e) {}
         }
         
-        // Buat captcha SVG
-        const captcha = svgCaptcha.create({
-            size: 6,
-            noise: 2,
-            color: true,
-            background: '#f0f0f0',
-            width: 300,
-            height: 100
-        });
-        
-        const code = captcha.text;
+        // Generate soal matematika
+        const math = generateMathQuestion();
         
         if (!captchaData[userId]) {
             captchaData[userId] = { count: 0, pending: false, attempts: 0 };
         }
         
         captchaData[userId].pending = true;
-        captchaData[userId].code = code;
+        captchaData[userId].question = math.question;
+        captchaData[userId].answer = math.answer;
         captchaData[userId].attempts = 0;
         captchaData[userId].chatId = chatId;
         saveCaptcha();
         
-        // Kirim SVG sebagai foto (Telegram otomatis render)
-        const sentMessage = await bot.sendPhoto(chatId, Buffer.from(captcha.data), {
-            caption: `🔐 VERIFIKASI CAPTCHA\n\nKetik /verify diikuti 6 digit angka di atas.\nContoh: /verify ${code}`
-        });
+        // Kirim soal ke user
+        const sentMessage = await bot.sendMessage(chatId,
+            `🔐 *VERIFIKASI CAPTCHA*\n\n` +
+            `Hitung: *${math.question} = ?*\n\n` +
+            `Ketik jawaban dalam angka.\n` +
+            `Contoh: \`/verify 42\``,
+            { parse_mode: 'Markdown' }
+        );
         
         captchaData[userId].messageId = sentMessage.message_id;
         saveCaptcha();
@@ -181,19 +206,19 @@ async function sendCaptcha(chatId, userId) {
         return true;
         
     } catch (error) {
-        console.error('Error creating captcha:', error);
+        console.error('Error sending captcha:', error);
         
-        // Fallback: kirim teks biasa
+        // Fallback: kirim kode 6 digit biasa
         const fallbackCode = Math.floor(100000 + Math.random() * 900000).toString();
         
         captchaData[userId].pending = true;
-        captchaData[userId].code = fallbackCode;
+        captchaData[userId].answer = fallbackCode;
         captchaData[userId].attempts = 0;
         captchaData[userId].chatId = chatId;
         
         const sentMessage = await bot.sendMessage(chatId,
             `🔐 VERIFIKASI CAPTCHA (FALLBACK)\n\n` +
-            `${fallbackCode}\n\n` +
+            `Kode: ${fallbackCode}\n\n` +
             `Ketik: /verify ${fallbackCode}`
         );
         
@@ -213,39 +238,41 @@ async function deleteCaptchaMessage(userId) {
     } catch (error) {}
 }
 
-function verifyCaptcha(userId, userCode) {
+function verifyCaptcha(userId, userAnswer) {
     if (!captchaData[userId] || !captchaData[userId].pending) {
         return { success: false, message: 'Tidak ada captcha yang perlu diverifikasi.' };
     }
     
-    const expectedCode = captchaData[userId].code;
+    const expectedAnswer = captchaData[userId].answer;
     
     captchaData[userId].attempts++;
     
-    if (userCode === expectedCode) {
-        // Hapus foto captcha
+    if (userAnswer === expectedAnswer) {
+        // Hapus pesan captcha
         deleteCaptchaMessage(userId);
         
         captchaData[userId].pending = false;
-        captchaData[userId].code = null;
+        captchaData[userId].question = null;
+        captchaData[userId].answer = null;
         captchaData[userId].attempts = 0;
         saveCaptcha();
         
         return { success: true, message: '✅ Verifikasi berhasil! Silakan kirim ulang /info Anda.' };
     } else {
         if (captchaData[userId].attempts >= 3) {
-            // Hapus foto captcha
+            // Hapus pesan captcha
             deleteCaptchaMessage(userId);
             
             captchaData[userId].pending = false;
-            captchaData[userId].code = null;
+            captchaData[userId].question = null;
+            captchaData[userId].answer = null;
             captchaData[userId].attempts = 0;
             saveCaptcha();
             
             return { success: false, message: '❌ Terlalu banyak percobaan. Silakan ketik /info untuk captcha baru.' };
         } else {
             saveCaptcha();
-            return { success: false, message: `❌ Kode salah. Sisa percobaan: ${3 - captchaData[userId].attempts}` };
+            return { success: false, message: `❌ Jawaban salah. Sisa percobaan: ${3 - captchaData[userId].attempts}` };
         }
     }
 }
