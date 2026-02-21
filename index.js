@@ -86,195 +86,91 @@ function saveDB() {
 
 loadDB();
 
-// ================== CAPTCHA MATEMATIKA ==================
-let captchaData = {};
+// ================== ANTI-SPAM & BAN PERMANEN ==================
+let spamData = {};
 
-function loadCaptcha() {
+function loadSpamData() {
     try {
-        if (fs.existsSync('captcha.json')) {
-            const data = fs.readFileSync('captcha.json', 'utf8');
-            captchaData = JSON.parse(data);
-        }
-    } catch (error) {
-        console.error('Error loading captcha:', error);
-    }
-}
-
-function saveCaptcha() {
-    try {
-        fs.writeFileSync('captcha.json', JSON.stringify(captchaData, null, 2));
-    } catch (error) {
-        console.error('Error saving captcha:', error);
-    }
-}
-
-loadCaptcha();
-
-function generateMathQuestion() {
-    const operators = ['+', '-', '×'];
-    const op = operators[Math.floor(Math.random() * operators.length)];
-    let num1, num2, answer, question;
-
-    switch(op) {
-        case '+':
-            num1 = Math.floor(Math.random() * 20) + 1;  // 1-20
-            num2 = Math.floor(Math.random() * 20) + 1;
-            answer = num1 + num2;
-            question = `${num1} + ${num2}`;
-            break;
-        case '-':
-            num1 = Math.floor(Math.random() * 20) + 10; // 10-30
-            num2 = Math.floor(Math.random() * num1);    // 0 sampai num1
-            answer = num1 - num2;
-            question = `${num1} - ${num2}`;
-            break;
-        case '×':
-            num1 = Math.floor(Math.random() * 10) + 1;  // 1-10
-            num2 = Math.floor(Math.random() * 5) + 1;   // 1-5 (biar gampang)
-            answer = num1 * num2;
-            question = `${num1} × ${num2}`;
-            break;
-    }
-
-    return {
-        question: question,
-        answer: answer.toString()
-    };
-}
-
-function needCaptcha(userId) {
-    if (!captchaData[userId]) {
-        captchaData[userId] = { 
-            count: 0,
-            pending: false,
-            question: null,
-            answer: null,
-            attempts: 0,
-            messageId: null,
-            chatId: null
-        };
-        saveCaptcha();
-    }
-    
-    const userCaptcha = captchaData[userId];
-    
-    if (userCaptcha.pending) {
-        return true;
-    }
-    
-    userCaptcha.count++;
-    saveCaptcha();
-    
-    return (userCaptcha.count % 3 === 0);
-}
-
-async function sendCaptcha(chatId, userId) {
-    try {
-        // Hapus captcha lama jika ada
-        if (captchaData[userId]?.messageId) {
-            try {
-                await bot.deleteMessage(chatId, captchaData[userId].messageId);
-            } catch (e) {}
-        }
-        
-        // Generate soal matematika
-        const math = generateMathQuestion();
-        
-        if (!captchaData[userId]) {
-            captchaData[userId] = { count: 0, pending: false, attempts: 0 };
-        }
-        
-        captchaData[userId].pending = true;
-        captchaData[userId].question = math.question;
-        captchaData[userId].answer = math.answer;
-        captchaData[userId].attempts = 0;
-        captchaData[userId].chatId = chatId;
-        saveCaptcha();
-        
-        // Kirim soal ke user
-        const sentMessage = await bot.sendMessage(chatId,
-            `🔐 *VERIFIKASI CAPTCHA*\n\n` +
-            `Hitung: *${math.question} = ?*\n\n` +
-            `Ketik jawaban dalam angka.\n` +
-            `Contoh: \`/verify 42\``,
-            { parse_mode: 'Markdown' }
-        );
-        
-        captchaData[userId].messageId = sentMessage.message_id;
-        saveCaptcha();
-        
-        return true;
-        
-    } catch (error) {
-        console.error('Error sending captcha:', error);
-        
-        // Fallback: kirim kode 6 digit biasa
-        const fallbackCode = Math.floor(100000 + Math.random() * 900000).toString();
-        
-        captchaData[userId].pending = true;
-        captchaData[userId].answer = fallbackCode;
-        captchaData[userId].attempts = 0;
-        captchaData[userId].chatId = chatId;
-        
-        const sentMessage = await bot.sendMessage(chatId,
-            `🔐 VERIFIKASI CAPTCHA (FALLBACK)\n\n` +
-            `Kode: ${fallbackCode}\n\n` +
-            `Ketik: /verify ${fallbackCode}`
-        );
-        
-        captchaData[userId].messageId = sentMessage.message_id;
-        saveCaptcha();
-        
-        return true;
-    }
-}
-
-async function deleteCaptchaMessage(userId) {
-    try {
-        if (captchaData[userId] && captchaData[userId].messageId && captchaData[userId].chatId) {
-            await bot.deleteMessage(captchaData[userId].chatId, captchaData[userId].messageId);
-            captchaData[userId].messageId = null;
-        }
-    } catch (error) {}
-}
-
-function verifyCaptcha(userId, userAnswer) {
-    if (!captchaData[userId] || !captchaData[userId].pending) {
-        return { success: false, message: 'Tidak ada captcha yang perlu diverifikasi.' };
-    }
-    
-    const expectedAnswer = captchaData[userId].answer;
-    
-    captchaData[userId].attempts++;
-    
-    if (userAnswer === expectedAnswer) {
-        // Hapus pesan captcha
-        deleteCaptchaMessage(userId);
-        
-        captchaData[userId].pending = false;
-        captchaData[userId].question = null;
-        captchaData[userId].answer = null;
-        captchaData[userId].attempts = 0;
-        saveCaptcha();
-        
-        return { success: true, message: '✅ Verifikasi berhasil! Silakan kirim ulang /info Anda.' };
-    } else {
-        if (captchaData[userId].attempts >= 3) {
-            // Hapus pesan captcha
-            deleteCaptchaMessage(userId);
-            
-            captchaData[userId].pending = false;
-            captchaData[userId].question = null;
-            captchaData[userId].answer = null;
-            captchaData[userId].attempts = 0;
-            saveCaptcha();
-            
-            return { success: false, message: '❌ Terlalu banyak percobaan. Silakan ketik /info untuk captcha baru.' };
+        if (fs.existsSync('spam.json')) {
+            const data = fs.readFileSync('spam.json', 'utf8');
+            spamData = JSON.parse(data);
+            console.log(`🚫 Loaded ${Object.keys(spamData).length} banned users`);
         } else {
-            saveCaptcha();
-            return { success: false, message: `❌ Jawaban salah. Sisa percobaan: ${3 - captchaData[userId].attempts}` };
+            spamData = {};
+            fs.writeFileSync('spam.json', JSON.stringify(spamData, null, 2));
         }
+    } catch (error) {
+        console.error('Error loading spam data:', error);
+        spamData = {};
     }
+}
+
+function saveSpamData() {
+    try {
+        fs.writeFileSync('spam.json', JSON.stringify(spamData, null, 2));
+    } catch (error) {
+        console.error('Error saving spam data:', error);
+    }
+}
+
+loadSpamData();
+
+function isBanned(userId) {
+    return spamData[userId]?.banned === true;
+}
+
+function recordActivity(userId) {
+    const now = Date.now();
+    
+    if (!spamData[userId]) {
+        spamData[userId] = {
+            banned: false,
+            activities: [],
+            banHistory: []
+        };
+    }
+    
+    if (spamData[userId].banned) {
+        return false;
+    }
+    
+    spamData[userId].activities.push(now);
+    spamData[userId].activities = spamData[userId].activities.filter(
+        time => now - time < 10000
+    );
+    
+    const activityCount = spamData[userId].activities.length;
+    
+    if (activityCount >= 3 && activityCount <= 5) {
+        spamData[userId].banned = true;
+        spamData[userId].bannedAt = now;
+        spamData[userId].banReason = `Spam: ${activityCount} requests in 10 seconds`;
+        spamData[userId].activities = [];
+        
+        if (!spamData[userId].banHistory) {
+            spamData[userId].banHistory = [];
+        }
+        spamData[userId].banHistory.push({
+            timestamp: now,
+            reason: `Auto-ban: ${activityCount} requests`
+        });
+        
+        saveSpamData();
+        return true;
+    }
+    
+    saveSpamData();
+    return false;
+}
+
+function unbanUser(userId) {
+    if (spamData[userId]) {
+        spamData[userId].banned = false;
+        spamData[userId].activities = [];
+        saveSpamData();
+        return true;
+    }
+    return false;
 }
 
 // ================== UTILITY FUNCTIONS ==================
@@ -475,19 +371,44 @@ bot.on('message', async (msg) => {
     
     if (!text) return;
     
-    // Izinkan command tertentu tanpa cek join
-    if (text.startsWith('/start') || text.startsWith('/verify') || isAdmin(userId)) {
+    // CEK BAN DULU!
+    if (isBanned(userId) && !isAdmin(userId)) {
+        await bot.sendMessage(chatId,
+            `🚫 AKSES DITOLAK\n\n` +
+            `Anda telah diblokir karena terdeteksi menyalahgunakan bot ini.\n\n` +
+            `Jika Anda merasa ini kesalahan, silakan hubungi admin.`
+        );
         return;
     }
     
-    // CEK JOIN DULU!
+    // IZINKAN COMMAND TANPA CEK
+    const publicCommands = ['/start', '/verify', '/listbanned', '/unban'];
+    if (publicCommands.includes(text.split(' ')[0]) || isAdmin(userId)) {
+        return;
+    }
+    
+    // CEK SPAM UNTUK COMMAND /info
+    if (text.startsWith('/info')) {
+        const banned = recordActivity(userId);
+        if (banned) {
+            await bot.sendMessage(chatId,
+                `🚫 ANDA TELAH DIBLOKIR\n\n` +
+                `Anda melakukan terlalu banyak request dalam waktu singkat.\n` +
+                `Akses Anda ke bot ini dicabut secara permanen.\n\n` +
+                `Hubungi admin jika ini kesalahan.`
+            );
+            return;
+        }
+    }
+    
+    // CEK JOIN
     const joined = await checkJoin(userId);
     const missing = [];
     
     if (!joined.channel) missing.push(CHANNEL);
     if (!joined.group) missing.push(GROUP);
     
-    if (missing.length > 0) {
+    if (missing.length > 0 && !isAdmin(userId)) {
         const buttons = missing.map(ch => [{
             text: `JOIN ${ch.replace('@', '')}`,
             url: `https://t.me/${ch.replace('@', '')}`
@@ -500,12 +421,10 @@ bot.on('message', async (msg) => {
             `\n\nSilakan join terlebih dahulu, lalu coba lagi.`,
             { reply_markup: { inline_keyboard: buttons } }
         );
-        
-        // PENTING! RETURN AGAR COMMAND TIDAK DIPROSES
         return;
     }
     
-    // CEK USERNAME (setelah lolos join)
+    // CEK USERNAME
     if (!username && !isAdmin(userId)) {
         await bot.sendMessage(chatId,
             `USERNAME DIPERLUKAN\n\n` +
@@ -514,7 +433,7 @@ bot.on('message', async (msg) => {
             `1. Buka Settings\n` +
             `2. Pilih Username\n` +
             `3. Buat username baru\n` +
-            `4. Simpan`
+            `4. Simpan, lalu coba lagi`
         );
         return;
     }
@@ -548,33 +467,12 @@ bot.onText(/\/start/, async (msg) => {
         message += `/oninfo - Hidupkan fitur info\n`;
         message += `/ranking - Lihat ranking user\n`;
         message += `/listpremium - Lihat user premium\n`;
+        message += `/listbanned - Lihat user diban\n`;
+        message += `/unban USERID - Hapus ban user\n`;
         message += `/addpremium USERID DURASI - Tambah premium manual\n`;
     }
     
     await bot.sendMessage(chatId, message);
-});
-
-// ================== COMMAND /verify ==================
-bot.onText(/\/verify(?:\s+)?(\d{6})?/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    
-    if (!match[1]) {
-        await bot.sendMessage(chatId, 
-            `Format: /verify [kode 6 digit]\nContoh: /verify 842405`
-        );
-        return;
-    }
-    
-    const userCode = match[1];
-    
-    if (!captchaData[userId] || !captchaData[userId].pending) {
-        await bot.sendMessage(chatId, 'Tidak ada captcha yang perlu diverifikasi.');
-        return;
-    }
-    
-    const result = verifyCaptcha(userId, userCode);
-    await bot.sendMessage(chatId, result.message);
 });
 
 // ================== COMMAND /status ==================
@@ -783,17 +681,47 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
     const userId = msg.from.id;
     const username = msg.from.username;
     
+    // ===== CEK BAN DULU! =====
+    if (isBanned(userId) && !isAdmin(userId)) {
+        await bot.sendMessage(chatId,
+            `🚫 AKSES DITOLAK\n\n` +
+            `Anda telah diblokir karena terdeteksi menyalahgunakan bot ini.\n\n` +
+            `Jika Anda merasa ini kesalahan, silakan hubungi admin.`
+        );
+        return;
+    }
+    
+    // ===== CEK JOIN =====
+    const joined = await checkJoin(userId);
+    const missing = [];
+    
+    if (!joined.channel) missing.push(CHANNEL);
+    if (!joined.group) missing.push(GROUP);
+    
+    if (missing.length > 0 && !isAdmin(userId)) {
+        const buttons = missing.map(ch => [{
+            text: `JOIN ${ch.replace('@', '')}`,
+            url: `https://t.me/${ch.replace('@', '')}`
+        }]);
+        
+        await bot.sendMessage(chatId, 
+            `AKSES DIBATASI\n\n` +
+            `Untuk menggunakan bot ini, Anda wajib join ke:\n` +
+            missing.map(ch => `• ${ch}`).join('\n') + 
+            `\n\nSilakan join terlebih dahulu, lalu coba lagi.`,
+            { reply_markup: { inline_keyboard: buttons } }
+        );
+        return;
+    }
+    
+    // ===== CEK FORMAT =====
     if (!match[1]) {
         await bot.sendMessage(chatId,
             `INFO - Cara Menggunakan\n\n` +
             `Untuk mengecek akun Mobile Legends:\n` +
             `/info ID_USER ID_SERVER\n\n` +
             `Contoh:\n` +
-            `/info 643461181 8554\n\n` +
-            `Keterangan:\n` +
-            `• ID_USER : ID akun Mobile Legends Anda\n` +
-            `• ID_SERVER : ID server Anda\n\n` +
-            `Contoh lengkap: /info 643461181 8554`
+            `/info 643461181 8554`
         );
         return;
     }
@@ -817,15 +745,7 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
         return;
     }
     
-    // CEK CAPTCHA
-    if (!isAdmin(userId)) {
-        if (needCaptcha(userId)) {
-            await sendCaptcha(chatId, userId);
-            return;
-        }
-    }
-    
-    // CEK LIMIT
+    // ===== CEK LIMIT =====
     const isFreeUser = !isAdmin(userId) && !isPremium(userId);
     const remaining = isFreeUser ? getRemainingLimit(userId) : 'Unlimited';
     
@@ -838,6 +758,7 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
         return;
     }
     
+    // ===== PROSES INFO =====
     const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data, mohon tunggu...');
     
     try {
@@ -885,6 +806,7 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
             }
         });
         
+        // ===== UPDATE LIMIT JIKA SUKSES =====
         if (isFreeUser) {
             if (!db.users[userId]) {
                 db.users[userId] = { username: username, success: 0 };
@@ -969,6 +891,42 @@ bot.onText(/\/listpremium/, async (msg) => {
     }
     
     await bot.sendMessage(msg.chat.id, message);
+});
+
+bot.onText(/\/listbanned/, async (msg) => {
+    if (!isAdmin(msg.from.id)) return;
+    
+    const bannedUsers = Object.entries(spamData)
+        .filter(([_, data]) => data.banned)
+        .map(([id, data]) => {
+            const date = moment(data.bannedAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss');
+            return `• ${id} - ${data.banReason} (${date})`;
+        });
+    
+    let message = `🚫 DAFTAR USER BANNED\n\n`;
+    if (bannedUsers.length === 0) {
+        message += 'Tidak ada user yang diban.';
+    } else {
+        message += bannedUsers.join('\n');
+    }
+    
+    await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
+});
+
+bot.onText(/\/unban (.+)/, async (msg, match) => {
+    if (!isAdmin(msg.from.id)) return;
+    
+    const targetId = parseInt(match[1].trim());
+    if (isNaN(targetId)) {
+        await bot.sendMessage(msg.chat.id, '❌ Format: /unban USERID');
+        return;
+    }
+    
+    if (unbanUser(targetId)) {
+        await bot.sendMessage(msg.chat.id, `✅ User ${targetId} telah di-unban.`);
+    } else {
+        await bot.sendMessage(msg.chat.id, `❌ User ${targetId} tidak ditemukan.`);
+    }
 });
 
 bot.onText(/\/addpremium (.+)/, async (msg, match) => {
