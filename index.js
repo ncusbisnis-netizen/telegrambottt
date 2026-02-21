@@ -86,7 +86,7 @@ function saveDB() {
 
 loadDB();
 
-// ================== ANTI-SPAM & BAN PERMANEN ==================
+// ================== ANTI-SPAM & BAN PERMANEN (KHUSUS /INFO) ==================
 let spamData = {};
 
 function loadSpamData() {
@@ -94,7 +94,7 @@ function loadSpamData() {
         if (fs.existsSync('spam.json')) {
             const data = fs.readFileSync('spam.json', 'utf8');
             spamData = JSON.parse(data);
-            console.log(`🚫 Loaded ${Object.keys(spamData).length} banned users`);
+            console.log(`Loaded ${Object.keys(spamData).length} banned users`);
         } else {
             spamData = {};
             fs.writeFileSync('spam.json', JSON.stringify(spamData, null, 2));
@@ -115,58 +115,64 @@ function saveSpamData() {
 
 loadSpamData();
 
+// Cek apakah user kena ban (khusus /info)
 function isBanned(userId) {
     return spamData[userId]?.banned === true;
 }
 
-function recordActivity(userId) {
+// Catat aktivitas /info
+function recordInfoActivity(userId) {
     const now = Date.now();
     
     if (!spamData[userId]) {
         spamData[userId] = {
             banned: false,
-            activities: [],
-            banHistory: []
+            infoCount: [],
+            banReason: null,
+            bannedAt: null
         };
     }
     
+    // Jika sudah banned, tidak usah dicatat
     if (spamData[userId].banned) {
         return false;
     }
     
-    spamData[userId].activities.push(now);
-    spamData[userId].activities = spamData[userId].activities.filter(
-        time => now - time < 10000
+    // Tambah timestamp /info
+    spamData[userId].infoCount.push(now);
+    
+    // Hapus timestamp yang lebih dari 1 menit
+    spamData[userId].infoCount = spamData[userId].infoCount.filter(
+        time => now - time < 60000 // 1 menit = 60000 ms
     );
     
-    const activityCount = spamData[userId].activities.length;
+    // Hitung jumlah /info dalam 1 menit terakhir
+    const infoCount = spamData[userId].infoCount.length;
     
-    if (activityCount >= 3 && activityCount <= 5) {
+    console.log(`User ${userId} melakukan /info ${infoCount}x dalam 1 menit`);
+    
+    // Jika lebih dari 10x dalam 1 menit -> BAN
+    if (infoCount > 10) {
         spamData[userId].banned = true;
         spamData[userId].bannedAt = now;
-        spamData[userId].banReason = `Spam: ${activityCount} requests in 10 seconds`;
-        spamData[userId].activities = [];
-        
-        if (!spamData[userId].banHistory) {
-            spamData[userId].banHistory = [];
-        }
-        spamData[userId].banHistory.push({
-            timestamp: now,
-            reason: `Auto-ban: ${activityCount} requests`
-        });
+        spamData[userId].banReason = `Spam /info: ${infoCount} kali dalam 1 menit`;
+        spamData[userId].infoCount = [];
         
         saveSpamData();
-        return true;
+        return true; // Kena ban
     }
     
     saveSpamData();
-    return false;
+    return false; // Aman
 }
 
+// Fungsi unban
 function unbanUser(userId) {
     if (spamData[userId]) {
         spamData[userId].banned = false;
-        spamData[userId].activities = [];
+        spamData[userId].infoCount = [];
+        spamData[userId].banReason = null;
+        spamData[userId].bannedAt = null;
         saveSpamData();
         return true;
     }
@@ -351,7 +357,7 @@ cron.schedule('* * * * *', async () => {
                 
                 try {
                     await bot.sendMessage(userId, 
-                        `✅ PEMBAYARAN BERHASIL\n\n` +
+                        `PEMBAYARAN BERHASIL\n\n` +
                         `Premium ${data.duration} telah diaktifkan.\n` +
                         `Berlaku sampai: ${moment.unix(expiredAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB\n\n` +
                         `Sekarang Anda bisa menggunakan /info unlimited.`
@@ -362,43 +368,45 @@ cron.schedule('* * * * *', async () => {
     }
 });
 
-// ================== MIDDLEWARE ==================
+// ================== MIDDLEWARE (HANYA PRIVATE CHAT) ==================
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const username = msg.from.username;
     const text = msg.text;
+    const chatType = msg.chat.type;
     
     if (!text) return;
     
-    // CEK BAN DULU!
-    if (isBanned(userId) && !isAdmin(userId)) {
-        await bot.sendMessage(chatId,
-            `🚫 AKSES DITOLAK\n\n` +
-            `Anda telah diblokir karena terdeteksi menyalahgunakan bot ini.\n\n` +
-            `Jika Anda merasa ini kesalahan, silakan hubungi admin.`
-        );
+    // Hanya respon di chat pribadi
+    if (chatType !== 'private') {
         return;
     }
     
-    // IZINKAN COMMAND TANPA CEK
-    const publicCommands = ['/start', '/verify', '/listbanned', '/unban'];
+    // CEK BAN KHUSUS UNTUK /INFO (TAPI HANYA CEK, TIDAK KASIH RESPON)
+    // RESPON BAN AKAN DIBERIKAN DI COMMAND /INFO
+    
+    // IZINKAN COMMAND PUBLIC TANPA CEK APAPUN
+    const publicCommands = ['/start', '/listbanned', '/unban', '/langganan', '/status', '/cek', '/offinfo', '/oninfo', '/ranking', '/listpremium', '/addpremium'];
     if (publicCommands.includes(text.split(' ')[0]) || isAdmin(userId)) {
         return;
     }
     
-    // CEK SPAM UNTUK COMMAND /info
-    if (text.startsWith('/info')) {
-        const banned = recordActivity(userId);
-        if (banned) {
-            await bot.sendMessage(chatId,
-                `🚫 ANDA TELAH DIBLOKIR\n\n` +
-                `Anda melakukan terlalu banyak request dalam waktu singkat.\n` +
-                `Akses Anda ke bot ini dicabut secara permanen.\n\n` +
-                `Hubungi admin jika ini kesalahan.`
-            );
-            return;
-        }
+    // CEK APAKAH FITUR INFO SEDANG DIMATIKAN
+    if (text.startsWith('/info') && !db.feature.info && !isAdmin(userId)) {
+        await bot.sendMessage(chatId,
+            `FITUR DITUTUP\n\n` +
+            `Maaf, fitur /info sedang dinonaktifkan oleh admin.\n\n` +
+            `Silakan coba lagi nanti.`,
+            {
+                reply_markup: {
+                    inline_keyboard: [[
+                        { text: 'Stok Admin', url: STOK_ADMIN || 'https://t.me/stokadmin' }
+                    ]]
+                }
+            }
+        );
+        return;
     }
     
     // CEK JOIN
@@ -480,6 +488,20 @@ bot.onText(/\/status/, async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     
+    // CEK BAN - TAPI HANYA UNTUK INFORMASI
+    if (isBanned(userId) && !isAdmin(userId)) {
+        await bot.sendMessage(chatId,
+            `STATUS AKUN\n\n` +
+            `Status: BANNED\n\n` +
+            `Detail:\n` +
+            `• Alasan: ${spamData[userId]?.banReason || 'Tidak diketahui'}\n` +
+            `• Tanggal ban: ${moment(spamData[userId]?.bannedAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB\n\n` +
+            `Anda tidak dapat menggunakan fitur /info.\n` +
+            `Hubungi admin untuk informasi lebih lanjut.`
+        );
+        return;
+    }
+    
     const status = getUserStatus(userId);
     const remaining = getRemainingLimit(userId);
     
@@ -518,7 +540,7 @@ bot.onText(/\/langganan/, async (msg) => {
         const expired = moment.unix(premium.expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss');
         
         await bot.sendMessage(chatId,
-            `✅ ANDA SUDAH PREMIUM\n\n` +
+            `ANDA SUDAH PREMIUM\n\n` +
             `Berlaku sampai: ${expired} WIB\n\n` +
             `Gunakan /status untuk detail.`
         );
@@ -526,25 +548,25 @@ bot.onText(/\/langganan/, async (msg) => {
     }
     
     await bot.sendMessage(chatId,
-        `💎 PAKET PREMIUM\n\n` +
+        `PAKET PREMIUM\n\n` +
         `Pilih masa aktif di bawah ini:`,
         {
             reply_markup: {
                 inline_keyboard: [
                     [
-                        { text: '🗓️ 1 HARI - Rp 10.000', callback_data: 'bayar_1' }
+                        { text: '1 HARI - Rp 10.000', callback_data: 'bayar_1' }
                     ],
                     [
-                        { text: '🗓️ 3 HARI - Rp 25.000', callback_data: 'bayar_3' }
+                        { text: '3 HARI - Rp 25.000', callback_data: 'bayar_3' }
                     ],
                     [
-                        { text: '🗓️ 7 HARI - Rp 45.000', callback_data: 'bayar_7' }
+                        { text: '7 HARI - Rp 45.000', callback_data: 'bayar_7' }
                     ],
                     [
-                        { text: '🗓️ 30 HARI - Rp 100.000', callback_data: 'bayar_30' }
+                        { text: '30 HARI - Rp 100.000', callback_data: 'bayar_30' }
                     ],
                     [
-                        { text: '❌ BATAL', callback_data: 'batal_bayar' }
+                        { text: 'BATAL', callback_data: 'batal_bayar' }
                     ]
                 ]
             }
@@ -566,7 +588,7 @@ bot.on('callback_query', async (callbackQuery) => {
     
     if (data === 'batal_bayar') {
         await bot.answerCallbackQuery(callbackQuery.id, { text: 'Pembayaran dibatalkan' });
-        await bot.sendMessage(chatId, '✅ Pembayaran dibatalkan.');
+        await bot.sendMessage(chatId, 'Pembayaran dibatalkan.');
         return;
     }
     
@@ -584,22 +606,22 @@ bot.on('callback_query', async (callbackQuery) => {
         
         const selected = paket[pilihan];
         if (!selected) {
-            await bot.sendMessage(chatId, '❌ Pilihan tidak valid.');
+            await bot.sendMessage(chatId, 'Pilihan tidak valid.');
             return;
         }
         
         if (isPremium(userId)) {
-            await bot.sendMessage(chatId, '✅ Anda sudah premium!');
+            await bot.sendMessage(chatId, 'Anda sudah premium!');
             return;
         }
         
-        const loading = await bot.sendMessage(chatId, '⏳ Membuat pembayaran...');
+        const loading = await bot.sendMessage(chatId, 'Membuat pembayaran...');
         
         const payment = await createPakasirTransaction(selected.price, selected.name, userId);
         
         if (!payment.success) {
             await bot.deleteMessage(chatId, loading.message_id);
-            await bot.sendMessage(chatId, '❌ Gagal membuat pembayaran. Error: ' + payment.error);
+            await bot.sendMessage(chatId, 'Gagal membuat pembayaran. Error: ' + payment.error);
             return;
         }
         
@@ -614,7 +636,7 @@ bot.on('callback_query', async (callbackQuery) => {
             
             const sentMessage = await bot.sendPhoto(chatId, qrBuffer, {
                 caption: 
-                    `💳 PEMBAYARAN QRIS\n\n` +
+                    `PEMBAYARAN QRIS\n\n` +
                     `Paket: ${selected.name}\n` +
                     `Harga: ${formatRupiah(selected.price)}\n\n` +
                     `Order ID: ${payment.orderId}\n` +
@@ -632,7 +654,7 @@ bot.on('callback_query', async (callbackQuery) => {
             
         } catch (qrError) {
             await bot.sendMessage(chatId,
-                `💳 PEMBAYARAN QRIS\n\n` +
+                `PEMBAYARAN QRIS\n\n` +
                 `Paket: ${selected.name}\n` +
                 `Harga: ${formatRupiah(selected.price)}\n\n` +
                 `QR Code:\n${payment.qrString}\n\n` +
@@ -650,15 +672,15 @@ bot.onText(/\/cek (.+)/, async (msg, match) => {
     
     const payment = db.pending_payments[orderId];
     if (!payment) {
-        await bot.sendMessage(chatId, '❌ Order ID tidak ditemukan.');
+        await bot.sendMessage(chatId, 'Order ID tidak ditemukan.');
         return;
     }
     
-    const status = payment.status === 'paid' ? '✅ LUNAS' : '⏳ PENDING';
+    const status = payment.status === 'paid' ? 'LUNAS' : 'PENDING';
     const created = moment.unix(payment.created_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss');
     
     await bot.sendMessage(chatId,
-        `📋 STATUS PEMBAYARAN\n\n` +
+        `STATUS PEMBAYARAN\n\n` +
         `Order ID: ${orderId}\n` +
         `Paket: ${payment.duration}\n` +
         `Harga: ${formatRupiah(payment.amount)}\n` +
@@ -681,36 +703,10 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
     const userId = msg.from.id;
     const username = msg.from.username;
     
-    // ===== CEK BAN DULU! =====
+    // ===== CEK BAN KHUSUS /INFO =====
     if (isBanned(userId) && !isAdmin(userId)) {
-        await bot.sendMessage(chatId,
-            `🚫 AKSES DITOLAK\n\n` +
-            `Anda telah diblokir karena terdeteksi menyalahgunakan bot ini.\n\n` +
-            `Jika Anda merasa ini kesalahan, silakan hubungi admin.`
-        );
-        return;
-    }
-    
-    // ===== CEK JOIN =====
-    const joined = await checkJoin(userId);
-    const missing = [];
-    
-    if (!joined.channel) missing.push(CHANNEL);
-    if (!joined.group) missing.push(GROUP);
-    
-    if (missing.length > 0 && !isAdmin(userId)) {
-        const buttons = missing.map(ch => [{
-            text: `JOIN ${ch.replace('@', '')}`,
-            url: `https://t.me/${ch.replace('@', '')}`
-        }]);
-        
-        await bot.sendMessage(chatId, 
-            `AKSES DIBATASI\n\n` +
-            `Untuk menggunakan bot ini, Anda wajib join ke:\n` +
-            missing.map(ch => `• ${ch}`).join('\n') + 
-            `\n\nSilakan join terlebih dahulu, lalu coba lagi.`,
-            { reply_markup: { inline_keyboard: buttons } }
-        );
+        // TIDAK KASIH RESPON APAPUN - DIAM SAJA
+        console.log(`User ${userId} (banned) mencoba /info - diabaikan`);
         return;
     }
     
@@ -742,6 +738,14 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
     
     if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
         await bot.sendMessage(chatId, 'ID dan Server harus berupa angka.');
+        return;
+    }
+    
+    // ===== CEK SPAM (HITUNG /INFO) =====
+    const banned = recordInfoActivity(userId);
+    if (banned) {
+        // Jika kena ban, diam saja (tidak kasih respon)
+        console.log(`User ${userId} kena ban karena spam /info`);
         return;
     }
     
@@ -903,14 +907,14 @@ bot.onText(/\/listbanned/, async (msg) => {
             return `• ${id} - ${data.banReason} (${date})`;
         });
     
-    let message = `🚫 DAFTAR USER BANNED\n\n`;
+    let message = `DAFTAR USER BANNED\n\n`;
     if (bannedUsers.length === 0) {
         message += 'Tidak ada user yang diban.';
     } else {
         message += bannedUsers.join('\n');
     }
     
-    await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
+    await bot.sendMessage(msg.chat.id, message);
 });
 
 bot.onText(/\/unban (.+)/, async (msg, match) => {
@@ -918,14 +922,14 @@ bot.onText(/\/unban (.+)/, async (msg, match) => {
     
     const targetId = parseInt(match[1].trim());
     if (isNaN(targetId)) {
-        await bot.sendMessage(msg.chat.id, '❌ Format: /unban USERID');
+        await bot.sendMessage(msg.chat.id, 'Format: /unban USERID');
         return;
     }
     
     if (unbanUser(targetId)) {
-        await bot.sendMessage(msg.chat.id, `✅ User ${targetId} telah di-unban.`);
+        await bot.sendMessage(msg.chat.id, `User ${targetId} telah di-unban.`);
     } else {
-        await bot.sendMessage(msg.chat.id, `❌ User ${targetId} tidak ditemukan.`);
+        await bot.sendMessage(msg.chat.id, `User ${targetId} tidak ditemukan.`);
     }
 });
 
@@ -983,3 +987,4 @@ bot.on('polling_error', (error) => {
 
 console.log('Bot started successfully!');
 console.log(`Admin IDs: ${ADMIN_IDS.join(', ') || 'None'}`);
+console.log(`Bot hanya merespon di chat pribadi.`);
