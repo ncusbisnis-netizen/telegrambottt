@@ -89,6 +89,8 @@ function saveDB() {
 loadDB();
 
 // ================== CAPTCHA FOTO RANDOM ==================
+const svgCaptcha = require('svg-captcha');
+
 let captchaData = {};
 
 function loadCaptcha() {
@@ -137,28 +139,6 @@ function needCaptcha(userId) {
     return (userCaptcha.count % 3 === 0);
 }
 
-async function generateCaptchaImage() {
-    // Buat captcha SVG
-    const captcha = svgCaptcha.create({
-        size: 6,
-        noise: 2,
-        color: true,
-        background: '#f0f0f0',
-        width: 300,
-        height: 100
-    });
-    
-    // Convert SVG ke PNG
-    const pngBuffer = await sharp(Buffer.from(captcha.data))
-        .png()
-        .toBuffer();
-    
-    return {
-        text: captcha.text,
-        image: pngBuffer
-    };
-}
-
 async function sendCaptcha(chatId, userId) {
     try {
         // Hapus captcha lama jika ada
@@ -168,8 +148,16 @@ async function sendCaptcha(chatId, userId) {
             } catch (e) {}
         }
         
-        // Generate captcha baru
-        const captcha = await generateCaptchaImage();
+        // Buat captcha SVG
+        const captcha = svgCaptcha.create({
+            size: 6,
+            noise: 2,
+            color: true,
+            background: '#f0f0f0',
+            width: 300,
+            height: 100
+        });
+        
         const code = captcha.text;
         
         if (!captchaData[userId]) {
@@ -182,8 +170,8 @@ async function sendCaptcha(chatId, userId) {
         captchaData[userId].chatId = chatId;
         saveCaptcha();
         
-        // Kirim FOTO captcha
-        const sentMessage = await bot.sendPhoto(chatId, captcha.image, {
+        // Kirim SVG sebagai foto (Telegram otomatis render)
+        const sentMessage = await bot.sendPhoto(chatId, Buffer.from(captcha.data), {
             caption: `🔐 VERIFIKASI CAPTCHA\n\nKetik /verify diikuti 6 digit angka di atas.\nContoh: /verify ${code}`
         });
         
