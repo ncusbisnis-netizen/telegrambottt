@@ -1,12 +1,12 @@
 # Dependency directories
 node_modules/
 
-# Environment variables file - JANGAN DI-UPLOAD!
+# Environment variables file
 .env
 .env.local
 .env.production
 
-# Database files - JANGAN DI-UPLOAD! (akan dibuat di Heroku)
+# Database files
 database.json
 
 # Logs
