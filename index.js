@@ -4,8 +4,7 @@ const fs = require('fs');
 const moment = require('moment-timezone');
 const cron = require('node-cron');
 const QRCode = require('qrcode');
-const svgCaptcha = require('svg-captcha');
-const sharp = require('sharp');
+const Jimp = require('jimp');
 
 // ============ OPTIMASI MEMORY ============
 process.env.NODE_OPTIONS = '--max-old-space-size=256';
@@ -88,7 +87,7 @@ function saveDB() {
 
 loadDB();
 
-// ================== CAPTCHA SYSTEM ==================
+// ================== CAPTCHA FOTO SYSTEM ==================
 let captchaData = {};
 
 function loadCaptcha() {
@@ -112,10 +111,14 @@ function saveCaptcha() {
 
 loadCaptcha();
 
+function generateSixDigitCode() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 function needCaptcha(userId) {
     if (!captchaData[userId]) {
         captchaData[userId] = { 
-            count: 0, 
+            count: 0,
             pending: false,
             code: null,
             attempts: 0,
@@ -137,30 +140,44 @@ function needCaptcha(userId) {
     return (userCaptcha.count % 3 === 0);
 }
 
-async function generateCaptchaImage() {
-    const captcha = svgCaptcha.create({
-        size: 6,
-        noise: 2,
-        color: true,
-        background: '#ffffff',
-        width: 300,
-        height: 100
-    });
+async function createCaptchaImage(code) {
+    const image = new Jimp(400, 200, '#f0f0f0');
     
-    const pngBuffer = await sharp(Buffer.from(captcha.data))
-        .png()
-        .toBuffer();
+    for (let i = 0; i < 50; i++) {
+        const x = Math.floor(Math.random() * 400);
+        const y = Math.floor(Math.random() * 200);
+        const color = Math.random() > 0.5 ? '#cccccc' : '#dddddd';
+        image.setPixelColor(Jimp.cssColorToHex(color), x, y);
+    }
     
-    return {
-        text: captcha.text,
-        image: pngBuffer
-    };
+    const font = await Jimp.loadFont(Jimp.FONT_SANS_64_BLACK);
+    
+    const textWidth = Jimp.measureText(font, code);
+    const textHeight = Jimp.measureTextHeight(font, code, 400);
+    const x = (400 - textWidth) / 2;
+    const y = (200 - textHeight) / 2;
+    
+    image.print(font, x, y, code);
+    
+    for (let i = 0; i < 5; i++) {
+        const color = Jimp.cssColorToHex('#999999');
+        const x1 = Math.random() * 400;
+        const y1 = Math.random() * 200;
+        const x2 = Math.random() * 400;
+        const y2 = Math.random() * 200;
+        image.line(x1, y1, x2, y2, color);
+    }
+    
+    const buffer = await image.getBufferAsync(Jimp.MIME_PNG);
+    return buffer;
 }
 
 async function sendCaptcha(chatId, userId) {
     try {
-        const captcha = await generateCaptchaImage();
-        const code = captcha.text;
+        await deleteCaptchaMessage(userId);
+        
+        const code = generateSixDigitCode();
+        const imageBuffer = await createCaptchaImage(code);
         
         if (!captchaData[userId]) {
             captchaData[userId] = { count: 0, pending: false, attempts: 0 };
@@ -172,8 +189,8 @@ async function sendCaptcha(chatId, userId) {
         captchaData[userId].chatId = chatId;
         saveCaptcha();
         
-        const sentMessage = await bot.sendPhoto(chatId, captcha.image, {
-            caption: `🔐 VERIFIKASI CAPTCHA\n\nKetik /verify diikuti kode 6 digit di atas.`
+        const sentMessage = await bot.sendPhoto(chatId, imageBuffer, {
+            caption: `🔐 VERIFIKASI CAPTCHA\n\nKetik /verify diikuti 6 digit angka di atas.\nContoh: /verify ${code}`
         });
         
         captchaData[userId].messageId = sentMessage.message_id;
@@ -182,9 +199,11 @@ async function sendCaptcha(chatId, userId) {
         return true;
         
     } catch (error) {
-        console.error('Error sending captcha:', error);
+        console.error('Error creating captcha:', error);
         
-        const fallbackCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const fallbackCode = generateSixDigitCode();
+        
+        await deleteCaptchaMessage(userId);
         
         captchaData[userId].pending = true;
         captchaData[userId].code = fallbackCode;
@@ -192,7 +211,9 @@ async function sendCaptcha(chatId, userId) {
         captchaData[userId].chatId = chatId;
         
         const sentMessage = await bot.sendMessage(chatId,
-            `🔐 VERIFIKASI CAPTCHA\n\nKode: ${fallbackCode}\n\nKetik: /verify ${fallbackCode}`
+            `🔐 VERIFIKASI CAPTCHA (FALLBACK)\n\n` +
+            `${fallbackCode}\n\n` +
+            `Ketik: /verify ${fallbackCode}`
         );
         
         captchaData[userId].messageId = sentMessage.message_id;
@@ -206,6 +227,7 @@ async function deleteCaptchaMessage(userId) {
     try {
         if (captchaData[userId] && captchaData[userId].messageId && captchaData[userId].chatId) {
             await bot.deleteMessage(captchaData[userId].chatId, captchaData[userId].messageId);
+            captchaData[userId].messageId = null;
         }
     } catch (error) {}
 }
@@ -219,31 +241,29 @@ function verifyCaptcha(userId, userCode) {
     
     captchaData[userId].attempts++;
     
-    if (captchaData[userId].attempts > 3) {
-        deleteCaptchaMessage(userId);
-        
-        captchaData[userId].pending = false;
-        captchaData[userId].code = null;
-        captchaData[userId].attempts = 0;
-        captchaData[userId].messageId = null;
-        saveCaptcha();
-        
-        return { success: false, message: '❌ Terlalu banyak percobaan. Silakan ketik /info untuk memulai ulang.' };
-    }
-    
     if (userCode === expectedCode) {
         deleteCaptchaMessage(userId);
         
         captchaData[userId].pending = false;
         captchaData[userId].code = null;
         captchaData[userId].attempts = 0;
-        captchaData[userId].messageId = null;
         saveCaptcha();
         
         return { success: true, message: '✅ Verifikasi berhasil! Silakan kirim ulang /info Anda.' };
     } else {
-        saveCaptcha();
-        return { success: false, message: `❌ Kode salah. Sisa percobaan: ${3 - captchaData[userId].attempts}` };
+        if (captchaData[userId].attempts >= 3) {
+            deleteCaptchaMessage(userId);
+            
+            captchaData[userId].pending = false;
+            captchaData[userId].code = null;
+            captchaData[userId].attempts = 0;
+            saveCaptcha();
+            
+            return { success: false, message: '❌ Terlalu banyak percobaan. Silakan ketik /info untuk captcha baru.' };
+        } else {
+            saveCaptcha();
+            return { success: false, message: `❌ Kode salah. Sisa percobaan: ${3 - captchaData[userId].attempts}` };
+        }
     }
 }
 
@@ -445,12 +465,10 @@ bot.on('message', async (msg) => {
     
     if (!text) return;
     
-    // Izinkan command tertentu tanpa cek join
     if (text.startsWith('/start') || text.startsWith('/verify') || isAdmin(userId)) {
         return;
     }
     
-    // CEK JOIN UNTUK SEMUA COMMAND LAIN
     const joined = await checkJoin(userId);
     const missing = [];
     
@@ -473,7 +491,6 @@ bot.on('message', async (msg) => {
         return;
     }
     
-    // CEK USERNAME
     if (!username && !isAdmin(userId)) {
         await bot.sendMessage(chatId,
             `USERNAME DIPERLUKAN\n\n` +
@@ -785,7 +802,6 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
         return;
     }
     
-    // CEK CAPTCHA
     if (!isAdmin(userId)) {
         if (needCaptcha(userId)) {
             await sendCaptcha(chatId, userId);
@@ -793,7 +809,6 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
         }
     }
     
-    // CEK LIMIT
     const isFreeUser = !isAdmin(userId) && !isPremium(userId);
     const remaining = isFreeUser ? getRemainingLimit(userId) : 'Unlimited';
     
