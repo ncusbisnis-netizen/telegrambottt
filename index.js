@@ -179,6 +179,25 @@ function unbanUser(userId) {
     return false;
 }
 
+// Fungsi addban manual (khusus admin)
+function addBan(userId, reason = 'Ban manual oleh admin') {
+    const now = Date.now();
+    if (!spamData[userId]) {
+        spamData[userId] = {
+            banned: false,
+            infoCount: [],
+            banReason: null,
+            bannedAt: null
+        };
+    }
+    spamData[userId].banned = true;
+    spamData[userId].bannedAt = now;
+    spamData[userId].banReason = reason;
+    spamData[userId].infoCount = [];
+    saveSpamData();
+    return true;
+}
+
 // ================== UTILITY FUNCTIONS ==================
 function isAdmin(userId) {
     return ADMIN_IDS.includes(userId);
@@ -405,11 +424,18 @@ bot.on('message', async (msg) => {
         return; // HENTIKAN PROSES
     }
     
-    // ===== CEK USERNAME =====
+    // ===== CEK USERNAME (HANYA UNTUK /info) =====
+    // Command publik yang tidak perlu username
+    const publicCommands = ['/start', '/langganan', '/status'];
+    if (publicCommands.includes(text.split(' ')[0])) {
+        return; // LANGSUNG LANJUT KE COMMAND HANDLER
+    }
+    
+    // Untuk selain command publik (hanya /info yang mungkin), cek username
     if (!username) {
         await bot.sendMessage(chatId,
             `USERNAME DIPERLUKAN\n\n` +
-            `Untuk menggunakan bot ini, Anda harus memiliki username Telegram.\n\n` +
+            `Untuk menggunakan perintah ini, Anda harus memiliki username Telegram.\n\n` +
             `Cara membuat username:\n` +
             `1. Buka menu Settings (Pengaturan)\n` +
             `2. Pilih Username\n` +
@@ -417,16 +443,10 @@ bot.on('message', async (msg) => {
             `4. Simpan perubahan\n\n` +
             `Setelah memiliki username, silakan coba lagi.`
         );
-        return; // HENTIKAN PROSES
-    }
-    
-    // Izinkan command public tanpa proses lebih lanjut
-    const publicCommands = ['/start', '/listbanned', '/unban', '/langganan', '/status', '/cek', '/offinfo', '/oninfo', '/ranking', '/listpremium', '/addpremium'];
-    if (publicCommands.includes(text.split(' ')[0])) {
         return;
     }
     
-    // CEK JOIN
+    // CEK JOIN (untuk semua command selain yang sudah diizinkan)
     const joined = await checkJoin(userId);
     const missing = [];
 
@@ -477,7 +497,7 @@ bot.onText(/\/start/, async (msg) => {
         message += `Akses: Unlimited\n\n`;
     }
     
-    message += `DAFTAR PERINTAH:\n`;
+    message += `DAFTAR PERINTAH UNTUK MEMBER:\n`;
     message += `/info ID SERVER - Cek akun Mobile Legends\n`;
     message += `Contoh: /info 123456 1234\n\n`;
     message += `/status - Cek status dan sisa limit\n`;
@@ -490,6 +510,7 @@ bot.onText(/\/start/, async (msg) => {
         message += `/ranking - Lihat peringkat pengguna\n`;
         message += `/listpremium - Lihat user premium\n`;
         message += `/listbanned - Lihat user yang diblokir\n`;
+        message += `/addban ID [alasan] - Blokir user manual\n`;
         message += `/unban ID - Hapus blokir user\n`;
         message += `/addpremium ID DURASI - Tambah premium manual\n`;
     }
@@ -656,7 +677,7 @@ bot.on('callback_query', async (callbackQuery) => {
                     `Order ID: ${payment.orderId}\n` +
                     `Berlaku sampai: ${payment.expiredAt} WIB\n\n` +
                     `Scan QR code di atas untuk membayar.\n` +
-                    `Setelah bayar, ketik /cek ${payment.orderId}`
+                    `Pembayaran akan diproses otomatis.`
             });
             
             if (!db.pending_payments[payment.orderId]) {
@@ -679,38 +700,6 @@ bot.on('callback_query', async (callbackQuery) => {
     }
 });
 
-// ================== COMMAND /cek ==================
-bot.onText(/\/cek (.+)/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    const orderId = match[1].trim();
-    
-    const payment = db.pending_payments[orderId];
-    if (!payment) {
-        await bot.sendMessage(chatId, 'Order ID tidak ditemukan.');
-        return;
-    }
-    
-    const status = payment.status === 'paid' ? 'LUNAS' : 'PENDING';
-    const created = moment.unix(payment.created_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss');
-    
-    await bot.sendMessage(chatId,
-        `STATUS PEMBAYARAN\n\n` +
-        `Order ID: ${orderId}\n` +
-        `Paket: ${payment.duration}\n` +
-        `Harga: ${formatRupiah(payment.amount)}\n` +
-        `Status: ${status}\n` +
-        `Dibuat: ${created} WIB`
-    );
-    
-    if (payment.status === 'paid' && payment.messageId && payment.chatId) {
-        try {
-            await bot.deleteMessage(payment.chatId, payment.messageId);
-            delete db.pending_payments[orderId].messageId;
-            saveDB();
-        } catch (error) {}
-    }
-});
-
 // ================== COMMAND /info ==================
 bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
@@ -719,7 +708,6 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
     
     // ===== PENGAMAN: CEK FITUR INFO LAGI =====
     if (!db.feature.info && !isAdmin(userId)) {
-        // DIAM SAJA, TIDAK KASIH RESPON
         console.log(`User ${userId} mencoba /info saat fitur nonaktif - diabaikan`);
         return;
     }
@@ -733,6 +721,16 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
     // ===== CEK BAN KHUSUS /INFO =====
     if (isBanned(userId) && !isAdmin(userId)) {
         console.log(`User ${userId} (banned) mencoba /info - diabaikan`);
+        return;
+    }
+    
+    // ===== CEK JOIN (PENGAMAN) =====
+    const joined = await checkJoin(userId);
+    const missing = [];
+    if (!joined.channel) missing.push(CHANNEL);
+    if (!joined.group) missing.push(GROUP);
+    if (missing.length > 0 && !isAdmin(userId)) {
+        console.log(`User ${userId} belum join channel/group - /info diabaikan`);
         return;
     }
     
@@ -932,7 +930,7 @@ bot.onText(/\/listbanned/, async (msg) => {
         .filter(([_, data]) => data.banned)
         .map(([id, data]) => {
             const date = moment(data.bannedAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss');
-            return `• ${id} - ${data.banReason} (${date})`;
+            return `• ${id} - ${data.banReason || 'Tidak ada alasan'} (${date})`;
         });
     
     let message = `DAFTAR USER BLOKIR\n\n`;
@@ -943,6 +941,24 @@ bot.onText(/\/listbanned/, async (msg) => {
     }
     
     await bot.sendMessage(msg.chat.id, message);
+});
+
+bot.onText(/\/addban(?:\s+(\d+)(?:\s+(.+))?)?/, async (msg, match) => {
+    if (!isAdmin(msg.from.id)) return;
+    
+    if (!match[1]) {
+        await bot.sendMessage(msg.chat.id, 'Format: /addban ID_USER [alasan]');
+        return;
+    }
+    
+    const targetId = parseInt(match[1]);
+    const reason = match[2] || 'Ban manual oleh admin';
+    
+    if (addBan(targetId, reason)) {
+        await bot.sendMessage(msg.chat.id, `User ${targetId} telah diblokir.\nAlasan: ${reason}`);
+    } else {
+        await bot.sendMessage(msg.chat.id, `Gagal memblokir user ${targetId}.`);
+    }
 });
 
 bot.onText(/\/unban (.+)/, async (msg, match) => {
