@@ -4,6 +4,8 @@ const fs = require('fs');
 const moment = require('moment-timezone');
 const cron = require('node-cron');
 const QRCode = require('qrcode');
+const svgCaptcha = require('svg-captcha');
+const sharp = require('sharp');
 
 // ============ OPTIMASI MEMORY ============
 process.env.NODE_OPTIONS = '--max-old-space-size=256';
@@ -36,7 +38,7 @@ const ADMIN_IDS = process.env.ADMIN_IDS
     : [];
 
 console.log('Admin IDs:', ADMIN_IDS);
-console.log('Bot starting with memory limit: 256MB');
+console.log('Bot starting...');
 
 // Validasi
 if (!BOT_TOKEN) {
@@ -110,42 +112,16 @@ function saveCaptcha() {
 
 loadCaptcha();
 
-function generateCaptcha() {
-    const num1 = Math.floor(Math.random() * 10) + 1;
-    const num2 = Math.floor(Math.random() * 10) + 1;
-    const operator = ['+', '-', 'x'][Math.floor(Math.random() * 3)];
-    
-    let question, answer;
-    
-    switch(operator) {
-        case '+':
-            answer = num1 + num2;
-            question = `${num1} + ${num2}`;
-            break;
-        case '-':
-            if (num1 >= num2) {
-                answer = num1 - num2;
-                question = `${num1} - ${num2}`;
-            } else {
-                answer = num2 - num1;
-                question = `${num2} - ${num1}`;
-            }
-            break;
-        case 'x':
-            answer = num1 * num2;
-            question = `${num1} x ${num2}`;
-            break;
-    }
-    
-    return {
-        question: `Hitung: ${question} = ?`,
-        answer: answer.toString()
-    };
-}
-
 function needCaptcha(userId) {
     if (!captchaData[userId]) {
-        captchaData[userId] = { count: 0, lastCaptcha: 0, pending: false };
+        captchaData[userId] = { 
+            count: 0, 
+            pending: false,
+            code: null,
+            attempts: 0,
+            messageId: null,
+            chatId: null
+        };
         saveCaptcha();
     }
     
@@ -161,11 +137,113 @@ function needCaptcha(userId) {
     return (userCaptcha.count % 3 === 0);
 }
 
-function resetCaptchaCount(userId) {
-    if (captchaData[userId]) {
-        captchaData[userId].pending = false;
-        delete captchaData[userId].expectedAnswer;
+async function generateCaptchaImage() {
+    const captcha = svgCaptcha.create({
+        size: 6,
+        noise: 2,
+        color: true,
+        background: '#ffffff',
+        width: 300,
+        height: 100
+    });
+    
+    const pngBuffer = await sharp(Buffer.from(captcha.data))
+        .png()
+        .toBuffer();
+    
+    return {
+        text: captcha.text,
+        image: pngBuffer
+    };
+}
+
+async function sendCaptcha(chatId, userId) {
+    try {
+        const captcha = await generateCaptchaImage();
+        const code = captcha.text;
+        
+        if (!captchaData[userId]) {
+            captchaData[userId] = { count: 0, pending: false, attempts: 0 };
+        }
+        
+        captchaData[userId].pending = true;
+        captchaData[userId].code = code;
+        captchaData[userId].attempts = 0;
+        captchaData[userId].chatId = chatId;
         saveCaptcha();
+        
+        const sentMessage = await bot.sendPhoto(chatId, captcha.image, {
+            caption: `🔐 VERIFIKASI CAPTCHA\n\nKetik /verify diikuti kode 6 digit di atas.`
+        });
+        
+        captchaData[userId].messageId = sentMessage.message_id;
+        saveCaptcha();
+        
+        return true;
+        
+    } catch (error) {
+        console.error('Error sending captcha:', error);
+        
+        const fallbackCode = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        captchaData[userId].pending = true;
+        captchaData[userId].code = fallbackCode;
+        captchaData[userId].attempts = 0;
+        captchaData[userId].chatId = chatId;
+        
+        const sentMessage = await bot.sendMessage(chatId,
+            `🔐 VERIFIKASI CAPTCHA\n\nKode: ${fallbackCode}\n\nKetik: /verify ${fallbackCode}`
+        );
+        
+        captchaData[userId].messageId = sentMessage.message_id;
+        saveCaptcha();
+        
+        return true;
+    }
+}
+
+async function deleteCaptchaMessage(userId) {
+    try {
+        if (captchaData[userId] && captchaData[userId].messageId && captchaData[userId].chatId) {
+            await bot.deleteMessage(captchaData[userId].chatId, captchaData[userId].messageId);
+        }
+    } catch (error) {}
+}
+
+function verifyCaptcha(userId, userCode) {
+    if (!captchaData[userId] || !captchaData[userId].pending) {
+        return { success: false, message: 'Tidak ada captcha yang perlu diverifikasi.' };
+    }
+    
+    const expectedCode = captchaData[userId].code;
+    
+    captchaData[userId].attempts++;
+    
+    if (captchaData[userId].attempts > 3) {
+        deleteCaptchaMessage(userId);
+        
+        captchaData[userId].pending = false;
+        captchaData[userId].code = null;
+        captchaData[userId].attempts = 0;
+        captchaData[userId].messageId = null;
+        saveCaptcha();
+        
+        return { success: false, message: '❌ Terlalu banyak percobaan. Silakan ketik /info untuk memulai ulang.' };
+    }
+    
+    if (userCode === expectedCode) {
+        deleteCaptchaMessage(userId);
+        
+        captchaData[userId].pending = false;
+        captchaData[userId].code = null;
+        captchaData[userId].attempts = 0;
+        captchaData[userId].messageId = null;
+        saveCaptcha();
+        
+        return { success: true, message: '✅ Verifikasi berhasil! Silakan kirim ulang /info Anda.' };
+    } else {
+        saveCaptcha();
+        return { success: false, message: `❌ Kode salah. Sisa percobaan: ${3 - captchaData[userId].attempts}` };
     }
 }
 
@@ -306,6 +384,11 @@ cron.schedule('* * * * *', async () => {
             const now = moment().tz('Asia/Jakarta').unix();
             
             if (data.expired_at < now) {
+                if (data.messageId && data.chatId) {
+                    try {
+                        await bot.deleteMessage(data.chatId, data.messageId);
+                    } catch (error) {}
+                }
                 delete db.pending_payments[orderId];
                 saveDB();
                 continue;
@@ -334,17 +417,19 @@ cron.schedule('* * * * *', async () => {
                 db.pending_payments[orderId].status = 'paid';
                 saveDB();
                 
+                if (data.messageId && data.chatId) {
+                    try {
+                        await bot.deleteMessage(data.chatId, data.messageId);
+                    } catch (error) {}
+                }
+                
                 try {
                     await bot.sendMessage(userId, 
-                        `PEMBAYARAN BERHASIL\n\n` +
+                        `✅ PEMBAYARAN BERHASIL\n\n` +
                         `Premium ${data.duration} telah diaktifkan.\n` +
                         `Berlaku sampai: ${moment.unix(expiredAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB\n\n` +
-                        `Sekarang Anda bisa menggunakan /info unlimited.`,
-                        { parse_mode: 'Markdown' }
+                        `Sekarang Anda bisa menggunakan /info unlimited.`
                     );
-                    
-                    // Hapus pesan QRIS setelah sukses
-                    // Ini opsional, bisa diimplementasikan dengan menyimpan messageId
                 } catch (error) {}
             }
         }
@@ -360,92 +445,46 @@ bot.on('message', async (msg) => {
     
     if (!text) return;
     
-    // Handle captcha replies
-    if (msg.reply_to_message && captchaData[userId] && captchaData[userId].pending) {
-        const expected = captchaData[userId].expectedAnswer;
-        const userAnswer = text.trim();
-        
-        if (userAnswer === expected) {
-            captchaData[userId].pending = false;
-            delete captchaData[userId].expectedAnswer;
-            saveCaptcha();
-            
-            await bot.sendMessage(chatId, 
-                `VERIFIKASI BERHASIL\n\n` +
-                `Silakan kirim ulang perintah /info Anda.`
-            );
-        } else {
-            await bot.sendMessage(chatId,
-                `JAWABAN SALAH\n\n` +
-                `Silakan coba lagi dengan mengirim /info`
-            );
-            
-            captchaData[userId].pending = false;
-            delete captchaData[userId].expectedAnswer;
-            saveCaptcha();
-        }
+    // Izinkan command tertentu tanpa cek join
+    if (text.startsWith('/start') || text.startsWith('/verify') || isAdmin(userId)) {
         return;
     }
     
-    // Skip untuk command tertentu
-    if (text.startsWith('/start') || text.startsWith('/status') || 
-        text.startsWith('/langganan') || text.startsWith('/bayar') ||
-        text.startsWith('/cek') || isAdmin(userId)) {
+    // CEK JOIN UNTUK SEMUA COMMAND LAIN
+    const joined = await checkJoin(userId);
+    const missing = [];
+    
+    if (!joined.channel) missing.push(CHANNEL);
+    if (!joined.group) missing.push(GROUP);
+    
+    if (missing.length > 0) {
+        const buttons = missing.map(ch => [{
+            text: `JOIN ${ch.replace('@', '')}`,
+            url: `https://t.me/${ch.replace('@', '')}`
+        }]);
+        
+        await bot.sendMessage(chatId, 
+            `AKSES DIBATASI\n\n` +
+            `Untuk menggunakan bot ini, Anda wajib join ke:\n` +
+            missing.map(ch => `• ${ch}`).join('\n') + 
+            `\n\nSilakan join terlebih dahulu, lalu coba lagi.`,
+            { reply_markup: { inline_keyboard: buttons } }
+        );
         return;
     }
     
-    // Cek fitur info aktif
-    if (text.startsWith('/info') && !db.feature.info && !isAdmin(userId)) {
-        await bot.sendMessage(chatId, 'Fitur /info sedang dinonaktifkan oleh admin.', {
-            reply_markup: {
-                inline_keyboard: [[
-                    { text: 'Stok Admin', url: STOK_ADMIN }
-                ]]
-            }
-        });
-        return;
-    }
-    
-    // Cek join channel & group
-    if (!isAdmin(userId)) {
-        const joined = await checkJoin(userId);
-        const missing = [];
-        
-        if (!joined.channel) missing.push(CHANNEL);
-        if (!joined.group) missing.push(GROUP);
-        
-        if (missing.length > 0) {
-            const buttons = missing.map(ch => [{
-                text: `Join ${ch.replace('@', '')}`,
-                url: `https://t.me/${ch.replace('@', '')}`
-            }]);
-            
-            await bot.sendMessage(chatId, 'Akses ditolak. Silakan join terlebih dahulu:', {
-                reply_markup: { inline_keyboard: buttons }
-            });
-            return;
-        }
-    }
-    
-    // Cek username
+    // CEK USERNAME
     if (!username && !isAdmin(userId)) {
         await bot.sendMessage(chatId,
-            `Anda wajib memiliki username Telegram untuk menggunakan bot ini.\n\n` +
-            `Cara membuat username:\n` +
-            `1. Buka Settings / Pengaturan\n` +
+            `USERNAME DIPERLUKAN\n\n` +
+            `Anda wajib memiliki username Telegram.\n\n` +
+            `Cara membuat:\n` +
+            `1. Buka Settings\n` +
             `2. Pilih Username\n` +
             `3. Buat username baru\n` +
-            `4. Simpan, lalu coba lagi`
+            `4. Simpan`
         );
         return;
-    }
-    
-    // Handle unknown command
-    if (text.startsWith('/')) {
-        await bot.sendMessage(chatId, 
-            `Perintah tidak dikenal.\n\n` +
-            `Gunakan /start untuk melihat daftar perintah.`
-        );
     }
 });
 
@@ -483,6 +522,29 @@ bot.onText(/\/start/, async (msg) => {
     await bot.sendMessage(chatId, message);
 });
 
+// ================== COMMAND /verify ==================
+bot.onText(/\/verify(?:\s+)?(\d{6})?/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    
+    if (!match[1]) {
+        await bot.sendMessage(chatId, 
+            `Format: /verify [kode 6 digit]\nContoh: /verify 842405`
+        );
+        return;
+    }
+    
+    const userCode = match[1];
+    
+    if (!captchaData[userId] || !captchaData[userId].pending) {
+        await bot.sendMessage(chatId, 'Tidak ada captcha yang perlu diverifikasi.');
+        return;
+    }
+    
+    const result = verifyCaptcha(userId, userCode);
+    await bot.sendMessage(chatId, result.message);
+});
+
 // ================== COMMAND /status ==================
 bot.onText(/\/status/, async (msg) => {
     const chatId = msg.chat.id;
@@ -516,7 +578,7 @@ bot.onText(/\/status/, async (msg) => {
     await bot.sendMessage(chatId, message);
 });
 
-// ================== COMMAND /langganan ==================
+// ================== COMMAND /langganan DENGAN TOMBOL ==================
 bot.onText(/\/langganan/, async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
@@ -526,7 +588,7 @@ bot.onText(/\/langganan/, async (msg) => {
         const expired = moment.unix(premium.expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss');
         
         await bot.sendMessage(chatId,
-            `ANDA SUDAH PREMIUM\n\n` +
+            `✅ ANDA SUDAH PREMIUM\n\n` +
             `Berlaku sampai: ${expired} WIB\n\n` +
             `Gunakan /status untuk detail.`
         );
@@ -534,91 +596,120 @@ bot.onText(/\/langganan/, async (msg) => {
     }
     
     await bot.sendMessage(chatId,
-        `PAKET PREMIUM\n\n` +
-        `Pilih paket dengan mengirim perintah:\n\n` +
-        `/bayar 1 - 1 Hari (Rp 10.000)\n` +
-        `/bayar 3 - 3 Hari (Rp 25.000)\n` +
-        `/bayar 7 - 7 Hari (Rp 45.000)\n` +
-        `/bayar 30 - 30 Hari (Rp 100.000)\n\n` +
-        `KEUNTUNGAN PREMIUM:\n` +
-        `• Unlimited akses /info\n` +
-        `• Prioritas response\n` +
-        `• Support development`
+        `💎 PAKET PREMIUM\n\n` +
+        `Pilih masa aktif di bawah ini:`,
+        {
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: '🗓️ 1 HARI - Rp 10.000', callback_data: 'bayar_1' }
+                    ],
+                    [
+                        { text: '🗓️ 3 HARI - Rp 25.000', callback_data: 'bayar_3' }
+                    ],
+                    [
+                        { text: '🗓️ 7 HARI - Rp 45.000', callback_data: 'bayar_7' }
+                    ],
+                    [
+                        { text: '🗓️ 30 HARI - Rp 100.000', callback_data: 'bayar_30' }
+                    ],
+                    [
+                        { text: '❌ BATAL', callback_data: 'batal_bayar' }
+                    ]
+                ]
+            }
+        }
     );
 });
 
-// ================== COMMAND /bayar ==================
-bot.onText(/\/bayar (.+)/, async (msg, match) => {
+// ================== HANDLE CALLBACK QUERY ==================
+bot.on('callback_query', async (callbackQuery) => {
+    const msg = callbackQuery.message;
     const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const pilihan = match[1].trim();
-    
-    if (isPremium(userId)) {
-        await bot.sendMessage(chatId, 'Anda sudah premium.');
-        return;
-    }
-    
-    const paket = {
-        '1': { name: '1 Hari', price: 10000 },
-        '3': { name: '3 Hari', price: 25000 },
-        '7': { name: '7 Hari', price: 45000 },
-        '30': { name: '30 Hari', price: 100000 }
-    };
-    
-    const selected = paket[pilihan];
-    if (!selected) {
-        await bot.sendMessage(chatId, 'Pilihan tidak valid. Gunakan: 1, 3, 7, atau 30');
-        return;
-    }
-    
-    const loading = await bot.sendMessage(chatId, 'Membuat pembayaran...');
-    
-    const payment = await createPakasirTransaction(selected.price, selected.name, userId);
-    
-    if (!payment.success) {
-        await bot.deleteMessage(chatId, loading.message_id);
-        await bot.sendMessage(chatId, 'Gagal membuat pembayaran. Error: ' + payment.error);
-        return;
-    }
-    
-    await bot.deleteMessage(chatId, loading.message_id);
-    
-    cache.qr[payment.orderId] = payment.qrString;
+    const userId = callbackQuery.from.id;
+    const data = callbackQuery.data;
+    const messageId = msg.message_id;
     
     try {
-        const qrBuffer = await QRCode.toBuffer(payment.qrString, {
-            errorCorrectionLevel: 'L',
-            margin: 1,
-            width: 256
-        });
+        await bot.deleteMessage(chatId, messageId);
+    } catch (error) {}
+    
+    if (data === 'batal_bayar') {
+        await bot.answerCallbackQuery(callbackQuery.id, { text: 'Pembayaran dibatalkan' });
+        await bot.sendMessage(chatId, '✅ Pembayaran dibatalkan.');
+        return;
+    }
+    
+    if (data.startsWith('bayar_')) {
+        await bot.answerCallbackQuery(callbackQuery.id, { text: 'Memproses pembayaran...' });
         
-        const sentMessage = await bot.sendPhoto(chatId, qrBuffer, {
-            caption: 
-                `PEMBAYARAN QRIS\n\n` +
+        const pilihan = data.replace('bayar_', '');
+        
+        const paket = {
+            '1': { name: '1 Hari', price: 10000 },
+            '3': { name: '3 Hari', price: 25000 },
+            '7': { name: '7 Hari', price: 45000 },
+            '30': { name: '30 Hari', price: 100000 }
+        };
+        
+        const selected = paket[pilihan];
+        if (!selected) {
+            await bot.sendMessage(chatId, '❌ Pilihan tidak valid.');
+            return;
+        }
+        
+        if (isPremium(userId)) {
+            await bot.sendMessage(chatId, '✅ Anda sudah premium!');
+            return;
+        }
+        
+        const loading = await bot.sendMessage(chatId, '⏳ Membuat pembayaran...');
+        
+        const payment = await createPakasirTransaction(selected.price, selected.name, userId);
+        
+        if (!payment.success) {
+            await bot.deleteMessage(chatId, loading.message_id);
+            await bot.sendMessage(chatId, '❌ Gagal membuat pembayaran. Error: ' + payment.error);
+            return;
+        }
+        
+        await bot.deleteMessage(chatId, loading.message_id);
+        
+        try {
+            const qrBuffer = await QRCode.toBuffer(payment.qrString, {
+                errorCorrectionLevel: 'L',
+                margin: 1,
+                width: 256
+            });
+            
+            const sentMessage = await bot.sendPhoto(chatId, qrBuffer, {
+                caption: 
+                    `💳 PEMBAYARAN QRIS\n\n` +
+                    `Paket: ${selected.name}\n` +
+                    `Harga: ${formatRupiah(selected.price)}\n\n` +
+                    `Order ID: ${payment.orderId}\n` +
+                    `Berlaku sampai: ${payment.expiredAt} WIB\n\n` +
+                    `Scan QR code di atas untuk membayar.\n` +
+                    `Setelah bayar, ketik /cek ${payment.orderId}`
+            });
+            
+            if (!db.pending_payments[payment.orderId]) {
+                db.pending_payments[payment.orderId] = {};
+            }
+            db.pending_payments[payment.orderId].messageId = sentMessage.message_id;
+            db.pending_payments[payment.orderId].chatId = chatId;
+            saveDB();
+            
+        } catch (qrError) {
+            await bot.sendMessage(chatId,
+                `💳 PEMBAYARAN QRIS\n\n` +
                 `Paket: ${selected.name}\n` +
                 `Harga: ${formatRupiah(selected.price)}\n\n` +
+                `QR Code:\n${payment.qrString}\n\n` +
                 `Order ID: ${payment.orderId}\n` +
-                `Berlaku sampai: ${payment.expiredAt} WIB\n\n` +
-                `Scan QR code di atas untuk membayar.\n` +
-                `Setelah bayar, ketik /cek ${payment.orderId} untuk memeriksa status.`
-        });
-        
-        // Simpan messageId untuk dihapus nanti
-        if (!db.pending_payments[payment.orderId]) {
-            db.pending_payments[payment.orderId] = {};
+                `Berlaku sampai: ${payment.expiredAt} WIB`
+            );
         }
-        db.pending_payments[payment.orderId].messageId = sentMessage.message_id;
-        saveDB();
-        
-    } catch (qrError) {
-        await bot.sendMessage(chatId,
-            `PEMBAYARAN QRIS\n\n` +
-            `Paket: ${selected.name}\n` +
-            `Harga: ${formatRupiah(selected.price)}\n\n` +
-            `QR Code:\n${payment.qrString}\n\n` +
-            `Order ID: ${payment.orderId}\n` +
-            `Berlaku sampai: ${payment.expiredAt} WIB`
-        );
     }
 });
 
@@ -629,15 +720,15 @@ bot.onText(/\/cek (.+)/, async (msg, match) => {
     
     const payment = db.pending_payments[orderId];
     if (!payment) {
-        await bot.sendMessage(chatId, 'Order ID tidak ditemukan.');
+        await bot.sendMessage(chatId, '❌ Order ID tidak ditemukan.');
         return;
     }
     
-    const status = payment.status === 'paid' ? 'LUNAS' : 'PENDING';
+    const status = payment.status === 'paid' ? '✅ LUNAS' : '⏳ PENDING';
     const created = moment.unix(payment.created_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss');
     
     await bot.sendMessage(chatId,
-        `STATUS PEMBAYARAN\n\n` +
+        `📋 STATUS PEMBAYARAN\n\n` +
         `Order ID: ${orderId}\n` +
         `Paket: ${payment.duration}\n` +
         `Harga: ${formatRupiah(payment.amount)}\n` +
@@ -645,10 +736,9 @@ bot.onText(/\/cek (.+)/, async (msg, match) => {
         `Dibuat: ${created} WIB`
     );
     
-    // Jika sudah lunas, hapus pesan QRIS (jika ada)
-    if (payment.status === 'paid' && payment.messageId) {
+    if (payment.status === 'paid' && payment.messageId && payment.chatId) {
         try {
-            await bot.deleteMessage(chatId, payment.messageId);
+            await bot.deleteMessage(payment.chatId, payment.messageId);
             delete db.pending_payments[orderId].messageId;
             saveDB();
         } catch (error) {}
@@ -661,7 +751,6 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
     const userId = msg.from.id;
     const username = msg.from.username;
     
-    // Jika hanya "/info" tanpa parameter
     if (!match[1]) {
         await bot.sendMessage(chatId,
             `INFO - Cara Menggunakan\n\n` +
@@ -671,7 +760,7 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
             `/info 643461181 8554\n\n` +
             `Keterangan:\n` +
             `• ID_USER : ID akun Mobile Legends Anda\n` +
-            `• ID_SERVER : ID server Anda (biasanya 4 angka)\n\n` +
+            `• ID_SERVER : ID server Anda\n\n` +
             `Contoh lengkap: /info 643461181 8554`
         );
         return;
@@ -696,27 +785,15 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
         return;
     }
     
-    // ===== CEK CAPTCHA =====
+    // CEK CAPTCHA
     if (!isAdmin(userId)) {
         if (needCaptcha(userId)) {
-            const captcha = generateCaptcha();
-            
-            if (!captchaData[userId]) captchaData[userId] = {};
-            captchaData[userId].pending = true;
-            captchaData[userId].expectedAnswer = captcha.answer;
-            saveCaptcha();
-            
-            await bot.sendMessage(chatId, 
-                `VERIFIKASI CAPTCHA\n\n` +
-                `${captcha.question}\n\n` +
-                `Ketik jawaban (angka) untuk melanjutkan.`,
-                { reply_markup: { force_reply: true } }
-            );
+            await sendCaptcha(chatId, userId);
             return;
         }
     }
     
-    // ===== CEK LIMIT =====
+    // CEK LIMIT
     const isFreeUser = !isAdmin(userId) && !isPremium(userId);
     const remaining = isFreeUser ? getRemainingLimit(userId) : 'Unlimited';
     
@@ -729,7 +806,6 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
         return;
     }
     
-    // ===== PROSES INFO =====
     const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data, mohon tunggu...');
     
     try {
@@ -739,24 +815,20 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
         
         const data = response.data;
         
-        // Parse data
         const nickname = data.match(/\[username\] => (.*?)\s/)?.[1]?.replace(/\+/g, ' ') || 'Tidak ditemukan';
         const region = data.match(/\[region\] => (.*?)\s/)?.[1] || 'Tidak diketahui';
         const creationDate = data.match(/<td>\d+<\/td>\s*<td>\d+<\/td>\s*<td>.*?<\/td>\s*<td>(.*?)<\/td>/s)?.[1] || 'Tidak diketahui';
         
-        // Bind info
         const binds = [];
         const bindMatches = data.matchAll(/<li>(.*?) : (.*?)\.?<\/li>/g);
         for (const match of bindMatches) {
             binds.push(`• ${match[1].trim()}: ${match[2].trim()}`);
         }
         
-        // Device info
         const deviceMatch = data.match(/Android:\s*(\d+)\s*\|\s*iOS:\s*(\d+)/);
         const android = deviceMatch?.[1] || '0';
         const ios = deviceMatch?.[2] || '0';
         
-        // Format output
         let output = `INFORMASI AKUN MLBB\n\n`;
         output += `ID: ${targetId}\n`;
         output += `Server: ${serverId}\n`;
@@ -781,7 +853,6 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
             }
         });
         
-        // ===== UPDATE LIMIT HANYA JIKA SUKSES =====
         if (isFreeUser) {
             if (!db.users[userId]) {
                 db.users[userId] = { username: username, success: 0 };
@@ -790,14 +861,10 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
             db.users[userId].success += 1;
             db.total_success += 1;
             saveDB();
-            
-            console.log(`User ${userId} menggunakan 1 limit. Sisa: ${10 - db.users[userId].success}`);
         }
         
     } catch (error) {
         await bot.deleteMessage(chatId, loadingMsg.message_id);
-        
-        console.error('API Error:', error.message);
         
         await bot.sendMessage(chatId, 
             `GAGAL MENGAMBIL DATA\n\n` +
