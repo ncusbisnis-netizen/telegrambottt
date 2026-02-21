@@ -1,23 +1,13 @@
-# Dependency directories
 node_modules/
-
-# Environment variables file
 .env
 .env.local
 .env.production
-
-# Database files
 database.json
-
-# Logs
+captcha.json
 *.log
 npm-debug.log*
-
-# OS files
 .DS_Store
 Thumbs.db
-
-# Editor files
 .vscode/
 .idea/
 *.swp
