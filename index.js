@@ -498,17 +498,39 @@ function getRemainingLimit(userId) {
     return Math.max(0, status.limit - status.used);
 }
 
+// ================== FUNGSI CEK JOIN DENGAN DEBUG ==================
 async function checkJoin(userId) {
     try {
-        const channelCheck = await bot.getChatMember(CHANNEL, userId);
-        const groupCheck = await bot.getChatMember(GROUP, userId);
-        
-        const isChannelMember = ['member', 'administrator', 'creator'].includes(channelCheck.status);
-        const isGroupMember = ['member', 'administrator', 'creator'].includes(groupCheck.status);
-        
+        let isChannelMember = false;
+        let isGroupMember = false;
+
+        // Cek channel
+        try {
+            const channelCheck = await bot.getChatMember(CHANNEL, userId);
+            console.log(`✅ Channel ${CHANNEL}: status = ${channelCheck.status}`);
+            isChannelMember = ['member', 'administrator', 'creator'].includes(channelCheck.status);
+        } catch (channelError) {
+            console.error(`❌ Channel ${CHANNEL} error:`, channelError.message);
+            if (channelError.response) {
+                console.error('   Detail:', channelError.response.body);
+            }
+        }
+
+        // Cek group
+        try {
+            const groupCheck = await bot.getChatMember(GROUP, userId);
+            console.log(`✅ Group ${GROUP}: status = ${groupCheck.status}`);
+            isGroupMember = ['member', 'administrator', 'creator'].includes(groupCheck.status);
+        } catch (groupError) {
+            console.error(`❌ Group ${GROUP} error:`, groupError.message);
+            if (groupError.response) {
+                console.error('   Detail:', groupError.response.body);
+            }
+        }
+
         return { channel: isChannelMember, group: isGroupMember };
     } catch (error) {
-        console.error('Error checking membership:', error);
+        console.error('❌ checkJoin fatal error:', error);
         return { channel: false, group: false };
     }
 }
@@ -675,7 +697,7 @@ if (!IS_WORKER) {
         try {
             const data = await getMLBBData(userId, serverId);
             
-            if (!data) {
+            if (!data || !data.username) {
                 return res.status(500).send('❌ Gagal mengambil data');
             }
 
@@ -1065,7 +1087,7 @@ if (!IS_WORKER) {
             return;
         }
         
-        // Cek join
+        // Cek join (pengaman, meskipun middleware sudah cek)
         const joined = await checkJoin(userId);
         const missing = [];
         if (!joined.channel) missing.push(CHANNEL);
