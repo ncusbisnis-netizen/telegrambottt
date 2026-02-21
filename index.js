@@ -4,7 +4,8 @@ const fs = require('fs');
 const moment = require('moment-timezone');
 const cron = require('node-cron');
 const QRCode = require('qrcode');
-const Captcha = require("@yokilabs/captcha-generator");
+const svgCaptcha = require('svg-captcha');
+const sharp = require('sharp');
 
 // ============ OPTIMASI MEMORY ============
 process.env.NODE_OPTIONS = '--max-old-space-size=256';
@@ -136,6 +137,28 @@ function needCaptcha(userId) {
     return (userCaptcha.count % 3 === 0);
 }
 
+async function generateCaptchaImage() {
+    // Buat captcha SVG
+    const captcha = svgCaptcha.create({
+        size: 6,
+        noise: 2,
+        color: true,
+        background: '#f0f0f0',
+        width: 300,
+        height: 100
+    });
+    
+    // Convert SVG ke PNG
+    const pngBuffer = await sharp(Buffer.from(captcha.data))
+        .png()
+        .toBuffer();
+    
+    return {
+        text: captcha.text,
+        image: pngBuffer
+    };
+}
+
 async function sendCaptcha(chatId, userId) {
     try {
         // Hapus captcha lama jika ada
@@ -145,9 +168,9 @@ async function sendCaptcha(chatId, userId) {
             } catch (e) {}
         }
         
-        // Buat captcha baru (otomatis 6 digit random)
-        const captcha = new Captcha();
-        const code = captcha.value; // "842405"
+        // Generate captcha baru
+        const captcha = await generateCaptchaImage();
+        const code = captcha.text;
         
         if (!captchaData[userId]) {
             captchaData[userId] = { count: 0, pending: false, attempts: 0 };
@@ -160,7 +183,7 @@ async function sendCaptcha(chatId, userId) {
         saveCaptcha();
         
         // Kirim FOTO captcha
-        const sentMessage = await bot.sendPhoto(chatId, captcha.PNGStream, {
+        const sentMessage = await bot.sendPhoto(chatId, captcha.image, {
             caption: `🔐 VERIFIKASI CAPTCHA\n\nKetik /verify diikuti 6 digit angka di atas.\nContoh: /verify ${code}`
         });
         
@@ -170,7 +193,7 @@ async function sendCaptcha(chatId, userId) {
         return true;
         
     } catch (error) {
-        console.error('Error sending captcha:', error);
+        console.error('Error creating captcha:', error);
         
         // Fallback: kirim teks biasa
         const fallbackCode = Math.floor(100000 + Math.random() * 900000).toString();
