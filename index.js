@@ -383,25 +383,22 @@ bot.on('message', async (msg) => {
         return;
     }
     
-    // CEK BAN KHUSUS UNTUK /INFO (TAPI HANYA CEK, TIDAK KASIH RESPON)
-    // RESPON BAN AKAN DIBERIKAN DI COMMAND /INFO
-    
     // IZINKAN COMMAND PUBLIC TANPA CEK APAPUN
     const publicCommands = ['/start', '/listbanned', '/unban', '/langganan', '/status', '/cek', '/offinfo', '/oninfo', '/ranking', '/listpremium', '/addpremium'];
     if (publicCommands.includes(text.split(' ')[0]) || isAdmin(userId)) {
         return;
     }
     
-    // CEK APAKAH FITUR INFO SEDANG DIMATIKAN
+    // ===== CEK FITUR INFO AKTIF (PALING ATAS) =====
     if (text.startsWith('/info') && !db.feature.info && !isAdmin(userId)) {
         await bot.sendMessage(chatId,
-            `FITUR DITUTUP\n\n` +
-            `Maaf, fitur /info sedang dinonaktifkan oleh admin.\n\n` +
-            `Silakan coba lagi nanti.`,
+            `FITUR SEDANG NONAKTIF\n\n` +
+            `Fitur /info sedang dinonaktifkan oleh administrator.\n\n` +
+            `Silakan coba lagi nanti atau hubungi admin untuk informasi lebih lanjut.`,
             {
                 reply_markup: {
                     inline_keyboard: [[
-                        { text: 'Stok Admin', url: STOK_ADMIN || 'https://t.me/stokadmin' }
+                        { text: 'Hubungi Admin', url: STOK_ADMIN || 'https://t.me/stokadmin' }
                     ]]
                 }
             }
@@ -409,40 +406,52 @@ bot.on('message', async (msg) => {
         return;
     }
     
-    // CEK JOIN
-    const joined = await checkJoin(userId);
-    const missing = [];
-    
-    if (!joined.channel) missing.push(CHANNEL);
-    if (!joined.group) missing.push(GROUP);
-    
-    if (missing.length > 0 && !isAdmin(userId)) {
-        const buttons = missing.map(ch => [{
-            text: `JOIN ${ch.replace('@', '')}`,
-            url: `https://t.me/${ch.replace('@', '')}`
-        }]);
-        
-        await bot.sendMessage(chatId, 
-            `AKSES DIBATASI\n\n` +
-            `Untuk menggunakan bot ini, Anda wajib join ke:\n` +
-            missing.map(ch => `• ${ch}`).join('\n') + 
-            `\n\nSilakan join terlebih dahulu, lalu coba lagi.`,
-            { reply_markup: { inline_keyboard: buttons } }
+    // ===== CEK USERNAME =====
+    if (!username && !isAdmin(userId)) {
+        await bot.sendMessage(chatId,
+            `USERNAME DIPERLUKAN\n\n` +
+            `Untuk menggunakan bot ini, Anda harus memiliki username Telegram.\n\n` +
+            `Cara membuat username:\n` +
+            `1. Buka menu Settings (Pengaturan)\n` +
+            `2. Pilih Username\n` +
+            `3. Buat username baru (minimal 5 karakter)\n` +
+            `4. Simpan perubahan\n\n` +
+            `Setelah memiliki username, silakan coba lagi.`
         );
         return;
     }
     
-    // CEK USERNAME
-    if (!username && !isAdmin(userId)) {
-        await bot.sendMessage(chatId,
-            `USERNAME DIPERLUKAN\n\n` +
-            `Anda wajib memiliki username Telegram.\n\n` +
-            `Cara membuat:\n` +
-            `1. Buka Settings\n` +
-            `2. Pilih Username\n` +
-            `3. Buat username baru\n` +
-            `4. Simpan, lalu coba lagi`
-        );
+    // ===== CEK JOIN =====
+    const joined = await checkJoin(userId);
+    const missing = [];
+
+    if (!joined.channel) missing.push({
+        name: CHANNEL,
+        text: `Bergabung ke Channel`,
+        url: `https://t.me/${CHANNEL.replace('@', '')}`
+    });
+
+    if (!joined.group) missing.push({
+        name: GROUP,
+        text: `Bergabung ke Group`,
+        url: `https://t.me/${GROUP.replace('@', '')}`
+    });
+
+    if (missing.length > 0 && !isAdmin(userId)) {
+        const buttons = missing.map(item => [{
+            text: item.text,
+            url: item.url
+        }]);
+        
+        let message = `AKSES TERBATAS\n\n`;
+        message += `Untuk menggunakan bot ini, Anda perlu bergabung dengan:\n\n`;
+        message += missing.map(item => `• ${item.name}`).join('\n');
+        message += `\n\nSilakan klik tombol di bawah untuk bergabung, kemudian coba lagi.\n\n`;
+        message += `Setelah bergabung, kirim ulang perintah Anda.`;
+        
+        await bot.sendMessage(chatId, message, {
+            reply_markup: { inline_keyboard: buttons }
+        });
         return;
     }
 });
@@ -470,14 +479,14 @@ bot.onText(/\/start/, async (msg) => {
     message += `/langganan - Lihat paket premium\n\n`;
     
     if (isAdmin(userId)) {
-        message += `ADMIN COMMANDS:\n`;
-        message += `/offinfo - Matikan fitur info\n`;
-        message += `/oninfo - Hidupkan fitur info\n`;
-        message += `/ranking - Lihat ranking user\n`;
+        message += `PERINTAH ADMIN:\n`;
+        message += `/offinfo - Nonaktifkan fitur info\n`;
+        message += `/oninfo - Aktifkan fitur info\n`;
+        message += `/ranking - Lihat peringkat pengguna\n`;
         message += `/listpremium - Lihat user premium\n`;
-        message += `/listbanned - Lihat user diban\n`;
-        message += `/unban USERID - Hapus ban user\n`;
-        message += `/addpremium USERID DURASI - Tambah premium manual\n`;
+        message += `/listbanned - Lihat user yang diblokir\n`;
+        message += `/unban ID - Hapus blokir user\n`;
+        message += `/addpremium ID DURASI - Tambah premium manual\n`;
     }
     
     await bot.sendMessage(chatId, message);
@@ -492,12 +501,12 @@ bot.onText(/\/status/, async (msg) => {
     if (isBanned(userId) && !isAdmin(userId)) {
         await bot.sendMessage(chatId,
             `STATUS AKUN\n\n` +
-            `Status: BANNED\n\n` +
+            `Status: BLOKIR\n\n` +
             `Detail:\n` +
             `• Alasan: ${spamData[userId]?.banReason || 'Tidak diketahui'}\n` +
-            `• Tanggal ban: ${moment(spamData[userId]?.bannedAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB\n\n` +
+            `• Tanggal blokir: ${moment(spamData[userId]?.bannedAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB\n\n` +
             `Anda tidak dapat menggunakan fitur /info.\n` +
-            `Hubungi admin untuk informasi lebih lanjut.`
+            `Hubungi admin jika ada kesalahan.`
         );
         return;
     }
@@ -514,8 +523,8 @@ bot.onText(/\/status/, async (msg) => {
         message += `Sisa: ${remaining}\n\n`;
         
         if (status.used >= status.limit) {
-            message += `Limit Anda sudah habis!\n`;
-            message += `Gunakan /langganan untuk upgrade premium.\n`;
+            message += `Limit Anda sudah habis.\n`;
+            message += `Gunakan /langganan untuk upgrade ke premium.\n`;
         }
     } else {
         message += `Akses: Unlimited\n`;
@@ -710,14 +719,26 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
         return;
     }
     
+    // ===== CEK FITUR INFO AKTIF (PENGAMAN) =====
+    if (!db.feature.info && !isAdmin(userId)) {
+        await bot.sendMessage(chatId,
+            `FITUR SEDANG NONAKTIF\n\n` +
+            `Fitur /info sedang dinonaktifkan oleh administrator.\n\n` +
+            `Silakan coba lagi nanti.`
+        );
+        return;
+    }
+    
     // ===== CEK FORMAT =====
     if (!match[1]) {
         await bot.sendMessage(chatId,
-            `INFO - Cara Menggunakan\n\n` +
-            `Untuk mengecek akun Mobile Legends:\n` +
+            `INFORMASI PENGGUNAAN\n\n` +
+            `Untuk mengecek akun Mobile Legends, gunakan format:\n` +
             `/info ID_USER ID_SERVER\n\n` +
             `Contoh:\n` +
-            `/info 643461181 8554`
+            `/info 643461181 8554\n\n` +
+            `ID_USER : ID akun Mobile Legends Anda\n` +
+            `ID_SERVER : ID server Anda (4 digit)`
         );
         return;
     }
@@ -726,8 +747,9 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
     
     if (args.length < 2) {
         await bot.sendMessage(chatId,
-            `Format salah.\n\n` +
-            `Gunakan: /info ID_USER ID_SERVER\n` +
+            `FORMAT TIDAK LENGKAP\n\n` +
+            `Gunakan format:\n` +
+            `/info ID_USER ID_SERVER\n\n` +
             `Contoh: /info 643461181 8554`
         );
         return;
@@ -755,9 +777,9 @@ bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
     
     if (isFreeUser && remaining <= 0) {
         await bot.sendMessage(chatId, 
-            `LIMIT HABIS\n\n` +
+            `BATAS PENGGUNAAN HABIS\n\n` +
             `Anda telah mencapai batas penggunaan gratis (10x).\n` +
-            `Gunakan /langganan untuk upgrade premium.`
+            `Gunakan /langganan untuk upgrade ke premium.`
         );
         return;
     }
@@ -865,7 +887,7 @@ bot.onText(/\/ranking/, async (msg) => {
         .sort((a, b) => (b[1].success || 0) - (a[1].success || 0))
         .slice(0, 10);
     
-    let message = 'TOP 10 PENGGUNA AKTIF\n\n';
+    let message = 'PERINGKAT PENGGUNA AKTIF\n\n';
     if (users.length === 0) {
         message += 'Belum ada data.';
     } else {
@@ -890,7 +912,7 @@ bot.onText(/\/listpremium/, async (msg) => {
             const expired = moment.unix(data.expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY');
             message += `${i+1}. ID: ${id}\n`;
             message += `   Paket: ${data.duration}\n`;
-            message += `   Exp: ${expired}\n\n`;
+            message += `   Berlaku hingga: ${expired}\n\n`;
         });
     }
     
@@ -907,9 +929,9 @@ bot.onText(/\/listbanned/, async (msg) => {
             return `• ${id} - ${data.banReason} (${date})`;
         });
     
-    let message = `DAFTAR USER BANNED\n\n`;
+    let message = `DAFTAR USER BLOKIR\n\n`;
     if (bannedUsers.length === 0) {
-        message += 'Tidak ada user yang diban.';
+        message += 'Tidak ada user yang diblokir.';
     } else {
         message += bannedUsers.join('\n');
     }
@@ -922,12 +944,12 @@ bot.onText(/\/unban (.+)/, async (msg, match) => {
     
     const targetId = parseInt(match[1].trim());
     if (isNaN(targetId)) {
-        await bot.sendMessage(msg.chat.id, 'Format: /unban USERID');
+        await bot.sendMessage(msg.chat.id, 'Format: /unban ID_USER');
         return;
     }
     
     if (unbanUser(targetId)) {
-        await bot.sendMessage(msg.chat.id, `User ${targetId} telah di-unban.`);
+        await bot.sendMessage(msg.chat.id, `User ${targetId} telah dibuka blokirnya.`);
     } else {
         await bot.sendMessage(msg.chat.id, `User ${targetId} tidak ditemukan.`);
     }
@@ -938,7 +960,7 @@ bot.onText(/\/addpremium (.+)/, async (msg, match) => {
     
     const args = match[1].split(' ');
     if (args.length < 2) {
-        await bot.sendMessage(msg.chat.id, 'Format: /addpremium USERID DURASI\nContoh: /addpremium 123456789 30');
+        await bot.sendMessage(msg.chat.id, 'Format: /addpremium ID_USER DURASI\nContoh: /addpremium 123456789 30');
         return;
     }
     
@@ -946,7 +968,7 @@ bot.onText(/\/addpremium (.+)/, async (msg, match) => {
     const days = parseInt(args[1]);
     
     if (isNaN(targetId) || isNaN(days)) {
-        await bot.sendMessage(msg.chat.id, 'UserID dan durasi harus angka.');
+        await bot.sendMessage(msg.chat.id, 'ID User dan durasi harus angka.');
         return;
     }
     
