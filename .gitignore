@@ -1,0 +1,24 @@
+# Dependency directories
+node_modules/
+
+# Environment variables file - JANGAN DI-UPLOAD!
+.env
+.env.local
+.env.production
+
+# Database files - JANGAN DI-UPLOAD! (akan dibuat di Heroku)
+database.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
