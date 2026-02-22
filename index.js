@@ -538,8 +538,9 @@ else {
         
         if (!text) return;
         
-        // ===== HANYA RESPON DI PRIVATE CHAT =====
+        // ===== HANYA RESPON DI PRIVATE CHAT - FILTER UTAMA =====
         if (chatType !== 'private') {
+            console.log(`⚠️ Pesan dari grup diabaikan: ${chatId}`);
             return; // IGNORE SEMUA PESAN DI GRUP/CHANNEL
         }
         
@@ -554,6 +555,9 @@ else {
 
     // ================== COMMAND /start ==================
     bot.onText(/\/start/, async (msg) => {
+        // FILTER GRUP
+        if (msg.chat.type !== 'private') return;
+        
         const userId = msg.from.id;
         const status = getUserStatus(userId);
         
@@ -584,6 +588,9 @@ else {
 
     // ================== COMMAND /status ==================
     bot.onText(/\/status/, async (msg) => {
+        // FILTER GRUP
+        if (msg.chat.type !== 'private') return;
+        
         const userId = msg.from.id;
         
         if (isBanned(userId) && !isAdmin(userId)) {
@@ -617,6 +624,9 @@ else {
 
     // ================== COMMAND /langganan ==================
     bot.onText(/\/langganan/, async (msg) => {
+        // FILTER GRUP
+        if (msg.chat.type !== 'private') return;
+        
         const userId = msg.from.id;
         
         if (isPremium(userId)) {
@@ -625,7 +635,7 @@ else {
             return;
         }
         
-        await bot.sendMessage(msg.chat.id, `Paket Unlimited tanpa limit\n\nPilih masa aktif:`, {
+        await bot.sendMessage(msg.chat.id, `Paket Unlimited Akses tanpa limit\n\nPilih masa aktif:`, {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: '1 HARI - Rp 15.000', callback_data: 'bayar_1' }],
@@ -640,7 +650,15 @@ else {
 
     // ================== CALLBACK QUERY ==================
     bot.on('callback_query', async (cb) => {
-        const msg = cb.message, chatId = msg.chat.id, userId = cb.from.id, data = cb.data;
+        const msg = cb.message;
+        
+        // FILTER GRUP - JIKA CALLBACK DARI GRUP, IGNORE
+        if (msg.chat.type !== 'private') {
+            await bot.answerCallbackQuery(cb.id, { text: 'Bot hanya berfungsi di chat pribadi' });
+            return;
+        }
+        
+        const chatId = msg.chat.id, userId = cb.from.id, data = cb.data;
         await bot.deleteMessage(chatId, msg.message_id).catch(() => {});
 
         if (data === 'batal_bayar') {
@@ -741,6 +759,9 @@ else {
 
     // ================== COMMAND /info ==================
     bot.onText(/^\s*\/\s*info(?:\s+(.+))?$/i, async (msg, match) => {
+        // FILTER GRUP
+        if (msg.chat.type !== 'private') return;
+        
         const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username;
         
         // ===== 1. CEK BAN =====
@@ -897,6 +918,7 @@ else {
 
     // ================== ADMIN COMMANDS ==================
     bot.onText(/\/offinfo/, (msg) => { 
+        if (msg.chat.type !== 'private') return;
         if (isAdmin(msg.from.id)) { 
             db.feature.info = false; 
             saveDB(); 
@@ -905,6 +927,7 @@ else {
     });
 
     bot.onText(/\/oninfo/, (msg) => { 
+        if (msg.chat.type !== 'private') return;
         if (isAdmin(msg.from.id)) { 
             db.feature.info = true; 
             saveDB(); 
@@ -913,6 +936,7 @@ else {
     });
 
     bot.onText(/\/ranking/, async (msg) => {
+        if (msg.chat.type !== 'private') return;
         if (!isAdmin(msg.from.id)) return;
         const users = Object.entries(db.users || {})
             .sort((a,b) => b[1].success - a[1].success)
@@ -923,6 +947,7 @@ else {
     });
 
     bot.onText(/\/listpremium/, (msg) => {
+        if (msg.chat.type !== 'private') return;
         if (!isAdmin(msg.from.id)) return;
         let message = 'DAFTAR PREMIUM\n\n';
         Object.entries(db.premium || {}).forEach(([id,data],i) => {
@@ -933,6 +958,7 @@ else {
     });
 
     bot.onText(/\/listbanned/, (msg) => {
+        if (msg.chat.type !== 'private') return;
         if (!isAdmin(msg.from.id)) return;
         let message = 'DAFTAR BANNED\n\n';
         Object.entries(spamData)
@@ -944,6 +970,7 @@ else {
     });
 
     bot.onText(/\/addban(?:\s+(\d+)(?:\s+(.+))?)?/, (msg, match) => {
+        if (msg.chat.type !== 'private') return;
         if (!isAdmin(msg.from.id)) return;
         if (!match[1]) return bot.sendMessage(msg.chat.id, 'Format: /addban ID [alasan]');
         addBan(parseInt(match[1]), match[2] || 'Ban manual');
@@ -951,6 +978,7 @@ else {
     });
 
     bot.onText(/\/unban (.+)/, (msg, match) => {
+        if (msg.chat.type !== 'private') return;
         if (!isAdmin(msg.from.id)) return;
         const id = parseInt(match[1]);
         if (unbanUser(id)) bot.sendMessage(msg.chat.id, `User ${id} di-unban.`);
@@ -958,6 +986,7 @@ else {
     });
 
     bot.onText(/\/addpremium (.+)/, async (msg, match) => {
+        if (msg.chat.type !== 'private') return;
         if (!isAdmin(msg.from.id)) return;
         const args = match[1].split(' ');
         if (args.length < 2) return bot.sendMessage(msg.chat.id, 'Format: /addpremium ID DURASI');
