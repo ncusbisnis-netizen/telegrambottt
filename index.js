@@ -498,43 +498,6 @@ function getRemainingLimit(userId) {
     return Math.max(0, status.limit - status.used);
 }
 
-// ================== FUNGSI CEK JOIN DENGAN DEBUG ==================
-async function checkJoin(userId) {
-    try {
-        let isChannelMember = false;
-        let isGroupMember = false;
-
-        // Cek channel
-        try {
-            const channelCheck = await bot.getChatMember(CHANNEL, userId);
-            console.log(`✅ Channel ${CHANNEL}: status = ${channelCheck.status}`);
-            isChannelMember = ['member', 'administrator', 'creator'].includes(channelCheck.status);
-        } catch (channelError) {
-            console.error(`❌ Channel ${CHANNEL} error:`, channelError.message);
-            if (channelError.response) {
-                console.error('   Detail:', channelError.response.body);
-            }
-        }
-
-        // Cek group
-        try {
-            const groupCheck = await bot.getChatMember(GROUP, userId);
-            console.log(`✅ Group ${GROUP}: status = ${groupCheck.status}`);
-            isGroupMember = ['member', 'administrator', 'creator'].includes(groupCheck.status);
-        } catch (groupError) {
-            console.error(`❌ Group ${GROUP} error:`, groupError.message);
-            if (groupError.response) {
-                console.error('   Detail:', groupError.response.body);
-            }
-        }
-
-        return { channel: isChannelMember, group: isGroupMember };
-    } catch (error) {
-        console.error('❌ checkJoin fatal error:', error);
-        return { channel: false, group: false };
-    }
-}
-
 function formatRupiah(amount) {
     return new Intl.NumberFormat('id-ID', {
         style: 'currency',
@@ -620,7 +583,7 @@ async function checkPakasirTransaction(orderId, amount) {
     }
 }
 
-// ================== AUTO CHECK PAYMENT ==================
+// ================== AUTO CHECK PAYMENT (DENGAN PERPANJANGAN) ==================
 cron.schedule('* * * * *', async () => {
     for (const [orderId, data] of Object.entries(db.pending_payments || {})) {
         if (data.status === 'pending') {
@@ -648,7 +611,17 @@ cron.schedule('* * * * *', async () => {
                     '30 Hari': 30
                 }[data.duration] || 1;
                 
-                const expiredAt = now + (days * 24 * 60 * 60);
+                const now = moment().tz('Asia/Jakarta').unix();
+                
+                // HITUNG MASA AKTIF BARU (JIKA SUDAH PREMIUM, TAMBAHKAN)
+                let expiredAt;
+                if (db.premium[userId] && db.premium[userId].expired_at > now) {
+                    // Masih aktif → tambahkan ke expired_at lama
+                    expiredAt = db.premium[userId].expired_at + (days * 24 * 60 * 60);
+                } else {
+                    // Sudah expired atau belum pernah → hitung dari sekarang
+                    expiredAt = now + (days * 24 * 60 * 60);
+                }
                 
                 db.premium[userId] = {
                     activated_at: now,
@@ -660,12 +633,14 @@ cron.schedule('* * * * *', async () => {
                 db.pending_payments[orderId].status = 'paid';
                 saveDB();
                 
+                // Hapus pesan QRIS jika ada
                 if (data.messageId && data.chatId) {
                     try {
                         await bot.deleteMessage(data.chatId, data.messageId);
                     } catch (error) {}
                 }
                 
+                // Kirim notifikasi ke user
                 try {
                     await bot.sendMessage(userId, 
                         `PEMBAYARAN BERHASIL\n\n` +
@@ -753,6 +728,43 @@ if (!IS_WORKER) {
             params: { timeout: 10 }
         }
     });
+
+    // ================== FUNGSI CEK JOIN (DENGAN DEBUG) ==================
+    async function checkJoin(userId) {
+        try {
+            let isChannelMember = false;
+            let isGroupMember = false;
+
+            // Cek channel
+            try {
+                const channelCheck = await bot.getChatMember(CHANNEL, userId);
+                console.log(`✅ Channel ${CHANNEL}: status = ${channelCheck.status}`);
+                isChannelMember = ['member', 'administrator', 'creator'].includes(channelCheck.status);
+            } catch (channelError) {
+                console.error(`❌ Channel ${CHANNEL} error:`, channelError.message);
+                if (channelError.response) {
+                    console.error('   Detail:', channelError.response.body);
+                }
+            }
+
+            // Cek group
+            try {
+                const groupCheck = await bot.getChatMember(GROUP, userId);
+                console.log(`✅ Group ${GROUP}: status = ${groupCheck.status}`);
+                isGroupMember = ['member', 'administrator', 'creator'].includes(groupCheck.status);
+            } catch (groupError) {
+                console.error(`❌ Group ${GROUP} error:`, groupError.message);
+                if (groupError.response) {
+                    console.error('   Detail:', groupError.response.body);
+                }
+            }
+
+            return { channel: isChannelMember, group: isGroupMember };
+        } catch (error) {
+            console.error('❌ checkJoin fatal error:', error);
+            return { channel: false, group: false };
+        }
+    }
 
     // ================== MIDDLEWARE ==================
     bot.on('message', async (msg) => {
