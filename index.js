@@ -20,7 +20,7 @@ const ADMIN_IDS = process.env.ADMIN_IDS
     ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim())) 
     : [];
 
-// ================== COUNTRY MAPPING WITH BENDERA ==================
+// ================== COUNTRY MAPPING ==================
 const countryMapping = {
     'ID': '🇮🇩 Indonesia',
     'MY': '🇲🇾 Malaysia',
@@ -154,10 +154,8 @@ function addBan(userId, reason = 'Ban manual oleh admin') {
 async function getMLBBData(userId, serverId) {
     const result = { username: null, region: null, bindAccounts: [], devices: { android: 0, ios: 0 }, ttl: null };
     
-    // 1. AMBIL USERNAME DARI GOPAY
     try {
-        console.log(`Mencoba GoPay untuk ${userId} server ${serverId}...`);
-        
+        // AMBIL USERNAME DARI GOPAY
         const goPayResponse = await axios.post("https://gopay.co.id/games/v1/order/user-account", {
             code: "MOBILE_LEGENDS",
             data: { 
@@ -177,58 +175,50 @@ async function getMLBBData(userId, serverId) {
         if (goPayResponse.data?.data) {
             const g = goPayResponse.data.data;
             result.username = g.username || "Tidak ditemukan";
-            
             const countryCode = g.countryOrigin || "ID";
             result.region = getCountryName(countryCode);
             
-            console.log(`Username dari GoPay: ${result.username}`);
+            // AMBIL DATA DARI CHECKTON
+            if (API_KEY_CHECKTON) {
+                try {
+                    const checktonResponse = await axios.post("https://checkton.online/backend/info", {
+                        role_id: String(userId),
+                        zone_id: String(serverId),
+                        type: "bind"
+                    }, {
+                        headers: { 
+                            "Content-Type": "application/json", 
+                            "x-api-key": API_KEY_CHECKTON 
+                        },
+                        timeout: 15000
+                    });
+                    
+                    if (checktonResponse.data?.data) {
+                        const c = checktonResponse.data.data;
+                        
+                        if (c.devices) {
+                            result.devices.android = c.devices.android?.total || 0;
+                            result.devices.ios = c.devices.ios?.total || 0;
+                        }
+                        
+                        if (c.bind_accounts && Array.isArray(c.bind_accounts)) {
+                            result.bindAccounts = c.bind_accounts;
+                        }
+                        
+                        if (c.ttl) {
+                            result.ttl = c.ttl;
+                        }
+                    }
+                } catch (error) {
+                    console.log("Checkton error:", error.message);
+                }
+            }
         } else {
-            console.log("GoPay response tidak memiliki data");
             return null;
         }
     } catch (error) {
         console.log("GoPay error:", error.message);
         return null;
-    }
-
-    // 2. AMBIL DATA DARI CHECKTON
-    if (result.username && API_KEY_CHECKTON) {
-        try {
-            console.log("Mencoba Checkton...");
-            
-            const checktonResponse = await axios.post("https://checkton.online/backend/info", {
-                role_id: String(userId),
-                zone_id: String(serverId),
-                type: "bind"
-            }, {
-                headers: { 
-                    "Content-Type": "application/json", 
-                    "x-api-key": API_KEY_CHECKTON 
-                },
-                timeout: 15000
-            });
-            
-            if (checktonResponse.data?.data) {
-                const c = checktonResponse.data.data;
-                
-                if (c.devices) {
-                    result.devices.android = c.devices.android?.total || 0;
-                    result.devices.ios = c.devices.ios?.total || 0;
-                }
-                
-                if (c.bind_accounts && Array.isArray(c.bind_accounts)) {
-                    result.bindAccounts = c.bind_accounts;
-                }
-                
-                if (c.ttl) {
-                    result.ttl = c.ttl;
-                }
-                
-                console.log("Berhasil ambil data Checkton");
-            }
-        } catch (error) {
-            console.log("Checkton error:", error.message);
-        }
     }
 
     return result;
@@ -335,72 +325,129 @@ else {
         }
     }
 
+    // ================== MIDDLEWARE ==================
     bot.on('message', async (msg) => {
         const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username, text = msg.text, chatType = msg.chat.type;
-        if (!text || chatType !== 'private' || isAdmin(userId)) return;
+        if (!text || chatType !== 'private') return;
 
-        if (text.startsWith('/info') && !db.feature.info) {
-            await bot.sendMessage(chatId, `FITUR SEDANG NONAKTIF\n\nFitur /info sedang dinonaktifkan oleh administrator.`, {
-                reply_markup: { inline_keyboard: [[{ text: 'Hubungi Admin', url: STOK_ADMIN }]] }
-            });
-            return;
-        }
+        // ADMIN BEBAS DARI PENGECEKAN
+        if (isAdmin(userId)) return;
 
-        if (['/start', '/langganan', '/status'].includes(text.split(' ')[0])) return;
+        // COMMAND PUBLIK TANPA CEK
+        const publicCommands = ['/start', '/langganan', '/status', '/offinfo', '/oninfo', '/ranking', '/listpremium', '/listbanned', '/addban', '/unban', '/addpremium'];
+        if (publicCommands.includes(text.split(' ')[0])) return;
 
+        // ===== CEK USERNAME (WAJIB) =====
         if (!username) {
-            await bot.sendMessage(chatId, `USERNAME DIPERLUKAN\n\nUntuk menggunakan perintah ini, Anda harus memiliki username Telegram.\n\nCara membuat username:\n1. Buka Settings\n2. Pilih Username\n3. Buat username baru\n4. Simpan`);
+            await bot.sendMessage(chatId,
+                `USERNAME DIPERLUKAN\n\n` +
+                `Untuk menggunakan perintah ini, Anda harus memiliki username Telegram.\n\n` +
+                `Cara membuat username:\n` +
+                `1. Buka Settings\n` +
+                `2. Pilih Username\n` +
+                `3. Buat username baru\n` +
+                `4. Simpan`
+            );
             return;
         }
 
+        // ===== CEK JOIN =====
         const joined = await checkJoin(userId);
         const missing = [];
-        if (!joined.channel) missing.push({ name: CHANNEL, text: 'Bergabung ke Channel', url: `https://t.me/${CHANNEL.replace('@', '')}` });
-        if (!joined.group) missing.push({ name: GROUP, text: 'Bergabung ke Group', url: `https://t.me/${GROUP.replace('@', '')}` });
+        if (!joined.channel) missing.push(CHANNEL);
+        if (!joined.group) missing.push(GROUP);
 
         if (missing.length > 0) {
-            await bot.sendMessage(chatId, 
-                `AKSES TERBATAS\n\nUntuk menggunakan bot ini, Anda perlu bergabung dengan:\n${missing.map(m => `• ${m.name}`).join('\n')}\n\nSilakan klik tombol di bawah untuk bergabung, lalu coba lagi.`,
-                { reply_markup: { inline_keyboard: missing.map(m => [{ text: m.text, url: m.url }]) } }
+            const buttons = missing.map(ch => [{
+                text: `Bergabung ke ${ch.replace('@', '')}`,
+                url: `https://t.me/${ch.replace('@', '')}`
+            }]);
+            
+            await bot.sendMessage(chatId,
+                `AKSES TERBATAS\n\n` +
+                `Untuk menggunakan bot ini, Anda perlu bergabung dengan:\n` +
+                missing.map(ch => `• ${ch}`).join('\n') + 
+                `\n\nSilakan klik tombol di bawah untuk bergabung, lalu coba lagi.`,
+                { reply_markup: { inline_keyboard: buttons } }
             );
+            return;
         }
     });
 
+    // ================== COMMAND /start ==================
     bot.onText(/\/start/, async (msg) => {
-        const status = getUserStatus(msg.from.id);
-        let message = `SELAMAT DATANG DI BOT 1 For All\n\nStatus Akun: ${status.type}\n`;
+        const userId = msg.from.id;
+        const status = getUserStatus(userId);
+        
+        let message = `SELAMAT DATANG DI BOT\n\n`;
+        message += `Status Akun: ${status.type}\n`;
         if (status.type === 'FREE') message += `Sisa Limit: ${status.used}/${status.limit}\n\n`;
         else message += `Akses: Unlimited\n\n`;
-        message += `DAFTAR PERINTAH:\n/info ID SERVER - Cek akun\n/status - Cek status\n/langganan - Paket premium`;
-        if (isAdmin(msg.from.id)) message += `\n\nADMIN:\n/offinfo, /oninfo, /ranking, /listpremium, /listbanned, /addban, /unban, /addpremium`;
+        
+        message += `DAFTAR PERINTAH:\n`;
+        message += `/info ID SERVER - Cek akun MLBB\n`;
+        message += `/status - Cek status akun\n`;
+        message += `/langganan - Lihat paket premium\n`;
+        
+        if (isAdmin(userId)) {
+            message += `\nPERINTAH ADMIN:\n`;
+            message += `/offinfo - Nonaktifkan fitur info\n`;
+            message += `/oninfo - Aktifkan fitur info\n`;
+            message += `/ranking - Lihat peringkat user\n`;
+            message += `/listpremium - Lihat user premium\n`;
+            message += `/listbanned - Lihat user diblokir\n`;
+            message += `/addban ID [alasan] - Blokir user\n`;
+            message += `/unban ID - Buka blokir user\n`;
+            message += `/addpremium ID DURASI - Tambah premium\n`;
+        }
+        
         await bot.sendMessage(msg.chat.id, message);
     });
 
+    // ================== COMMAND /status ==================
     bot.onText(/\/status/, async (msg) => {
         const userId = msg.from.id;
+        
+        // CEK BAN
         if (isBanned(userId) && !isAdmin(userId)) {
-            await bot.sendMessage(msg.chat.id, `STATUS AKUN\n\nStatus: BLOKIR\nAlasan: ${spamData[userId]?.banReason}\nTanggal: ${moment(spamData[userId]?.bannedAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB`);
+            await bot.sendMessage(msg.chat.id,
+                `STATUS AKUN\n\n` +
+                `Status: BLOKIR\n\n` +
+                `Detail:\n` +
+                `• Alasan: ${spamData[userId]?.banReason || 'Tidak diketahui'}\n` +
+                `• Tanggal: ${moment(spamData[userId]?.bannedAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB\n\n` +
+                `Anda tidak dapat menggunakan fitur /info.\n` +
+                `Hubungi admin jika ada kesalahan.`
+            );
             return;
         }
+        
         const status = getUserStatus(userId);
         let message = `STATUS AKUN\n\nUser ID: ${userId}\nTipe: ${status.type}\n`;
+        
         if (status.type === 'FREE') {
             message += `Limit: ${status.used}/${status.limit}\nSisa: ${getRemainingLimit(userId)}`;
             if (status.used >= status.limit) message += `\n\nLimit habis! Gunakan /langganan.`;
         } else {
             message += `Akses: Unlimited`;
-            if (status.type === 'PREMIUM') message += `\nBerlaku sampai: ${moment.unix(db.premium[userId].expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB`;
+            if (status.type === 'PREMIUM') {
+                message += `\nBerlaku sampai: ${moment.unix(db.premium[userId].expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB`;
+            }
         }
+        
         await bot.sendMessage(msg.chat.id, message);
     });
 
+    // ================== COMMAND /langganan ==================
     bot.onText(/\/langganan/, async (msg) => {
         const userId = msg.from.id;
+        
         if (isPremium(userId)) {
             const expired = moment.unix(db.premium[userId].expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss');
             await bot.sendMessage(msg.chat.id, `ANDA SUDAH PREMIUM\n\nBerlaku sampai: ${expired} WIB`);
             return;
         }
+        
         await bot.sendMessage(msg.chat.id, `PAKET PREMIUM\n\nPilih masa aktif:`, {
             reply_markup: {
                 inline_keyboard: [
@@ -414,6 +461,7 @@ else {
         });
     });
 
+    // ================== CALLBACK QUERY ==================
     bot.on('callback_query', async (cb) => {
         const msg = cb.message, chatId = msg.chat.id, userId = cb.from.id, data = cb.data;
         await bot.deleteMessage(chatId, msg.message_id).catch(() => {});
@@ -427,7 +475,12 @@ else {
         if (data.startsWith('bayar_')) {
             await bot.answerCallbackQuery(cb.id, { text: 'Memproses pembayaran...' });
             const pilihan = data.replace('bayar_', '');
-            const paket = { '1': { name: '1 Hari', price: 10000 }, '3': { name: '3 Hari', price: 25000 }, '7': { name: '7 Hari', price: 45000 }, '30': { name: '30 Hari', price: 100000 } };
+            const paket = { 
+                '1': { name: '1 Hari', price: 10000 }, 
+                '3': { name: '3 Hari', price: 25000 }, 
+                '7': { name: '7 Hari', price: 45000 }, 
+                '30': { name: '30 Hari', price: 100000 } 
+            };
             const selected = paket[pilihan];
             if (!selected) return bot.sendMessage(chatId, 'Pilihan tidak valid.');
 
@@ -452,11 +505,15 @@ else {
         }
     });
 
+    // ================== AUTO CHECK PAYMENT ==================
     cron.schedule('* * * * *', async () => {
         console.log('🔍 Cron job berjalan pada:', moment().tz('Asia/Jakarta').format('YYYY-MM-DD HH:mm:ss'));
+        
         for (const [orderId, data] of Object.entries(db.pending_payments || {})) {
             if (data.status === 'pending') {
                 const now = moment().tz('Asia/Jakarta').unix();
+                
+                // CEK EXPIRED
                 if (data.expired_at < now) {
                     if (data.messageId && data.chatId) {
                         try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
@@ -466,12 +523,15 @@ else {
                     continue;
                 }
 
+                // CEK STATUS PEMBAYARAN
                 const status = await checkPakasirTransaction(orderId, data.amount);
+                
                 if (status === 'completed' || status === 'paid') {
                     const userId = data.userId;
                     const days = { '1 Hari':1, '3 Hari':3, '7 Hari':7, '30 Hari':30 }[data.duration] || 1;
                     const now = moment().tz('Asia/Jakarta').unix();
 
+                    // HITUNG MASA AKTIF (TAMBAH JIKA MASIH AKTIF)
                     let expiredAt;
                     if (db.premium[userId]?.expired_at > now) {
                         expiredAt = db.premium[userId].expired_at + (days * 86400);
@@ -479,14 +539,22 @@ else {
                         expiredAt = now + (days * 86400);
                     }
 
-                    db.premium[userId] = { activated_at: now, expired_at: expiredAt, duration: data.duration, order_id: orderId };
+                    // AKTIFKAN PREMIUM
+                    db.premium[userId] = { 
+                        activated_at: now, 
+                        expired_at: expiredAt, 
+                        duration: data.duration, 
+                        order_id: orderId 
+                    };
                     db.pending_payments[orderId].status = 'paid';
                     saveDB();
 
+                    // HAPUS QRIS
                     if (data.messageId && data.chatId) {
                         try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
                     }
 
+                    // KIRIM NOTIFIKASI
                     try {
                         await bot.sendMessage(userId,
                             `PEMBAYARAN BERHASIL\n\n` +
@@ -500,106 +568,196 @@ else {
         }
     });
 
+    // ================== COMMAND /info ==================
     bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
         const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username;
-        if (isBanned(userId) && !isAdmin(userId)) return console.log(`User ${userId} banned`);
-
+        
+        // ===== 1. CEK BAN =====
+        if (isBanned(userId) && !isAdmin(userId)) {
+            console.log(`User ${userId} (banned) mencoba /info - diabaikan`);
+            return; // DIAM SAJA
+        }
+        
+        // ===== 2. CEK FORMAT =====
         if (!match[1]) {
-            return bot.sendMessage(chatId, `INFORMASI PENGGUNAAN\n\nFormat: /info ID_USER ID_SERVER\nContoh: /info 643461181 8554`);
+            await bot.sendMessage(chatId,
+                `INFORMASI PENGGUNAAN\n\n` +
+                `Format: /info ID_USER ID_SERVER\n` +
+                `Contoh: /info 643461181 8554\n\n` +
+                `ID_USER : ID akun Mobile Legends Anda\n` +
+                `ID_SERVER : ID server Anda (4 digit)`
+            );
+            return;
         }
-
+        
         const args = match[1].split(' ');
-        if (args.length < 2) return bot.sendMessage(chatId, `Format: /info ID_USER ID_SERVER`);
-
-        const targetId = args[0], serverId = args[1];
-        if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) return bot.sendMessage(chatId, 'ID dan Server harus angka.');
-
-        const banned = recordInfoActivity(userId);
-        if (banned) return console.log(`User ${userId} kena ban spam`);
-
-        const isFreeUser = !isAdmin(userId) && !isPremium(userId);
-        if (isFreeUser && getRemainingLimit(userId) <= 0) {
-            return bot.sendMessage(chatId, `BATAS HABIS\n\nAnda telah mencapai batas gratis (10x). Gunakan /langganan.`);
+        if (args.length < 2) {
+            await bot.sendMessage(chatId,
+                `FORMAT TIDAK LENGKAP\n\n` +
+                `Gunakan: /info ID_USER ID_SERVER\n` +
+                `Contoh: /info 643461181 8554`
+            );
+            return;
         }
-
-        const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data...');
+        
+        const targetId = args[0];
+        const serverId = args[1];
+        
+        if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
+            await bot.sendMessage(chatId, 'ID dan Server harus berupa angka.');
+            return;
+        }
+        
+        // ===== 3. CEK SPAM =====
+        const banned = recordInfoActivity(userId);
+        if (banned) {
+            console.log(`User ${userId} kena ban karena spam /info`);
+            return; // DIAM SAJA
+        }
+        
+        // ===== 4. CEK LIMIT UNTUK FREE USER =====
+        const isFreeUser = !isAdmin(userId) && !isPremium(userId);
+        const remaining = isFreeUser ? getRemainingLimit(userId) : 'Unlimited';
+        
+        if (isFreeUser && remaining <= 0) {
+            await bot.sendMessage(chatId, 
+                `BATAS PENGGUNAAN HABIS\n\n` +
+                `Anda telah mencapai batas penggunaan gratis (10x).\n` +
+                `Gunakan /langganan untuk upgrade ke premium.`
+            );
+            return;
+        }
+        
+        // ===== 5. PROSES AMBIL DATA =====
+        const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data, mohon tunggu...');
         const data = await getMLBBData(targetId, serverId);
         
         await bot.deleteMessage(chatId, loadingMsg.message_id);
         
         if (!data?.username) {
-            return bot.sendMessage(chatId, `GAGAL MENGAMBIL DATA\n\nID atau Server salah.`);
+            await bot.sendMessage(chatId, 
+                `GAGAL MENGAMBIL DATA\n\n` +
+                `Tidak dapat mengambil data akun.\n` +
+                `Kemungkinan penyebab:\n` +
+                `• ID atau Server salah\n` +
+                `• Server sedang sibuk\n\n` +
+                `Silakan coba lagi nanti.`
+            );
+            return;
         }
 
-        let output = `INFORMASI AKUN\n\nID: ${targetId}\nServer: ${serverId}\nNickname: ${data.username}\n`;
+        // ===== 6. TAMPILKAN HASIL =====
+        let output = `INFORMASI AKUN\n\n`;
+        output += `ID: ${targetId}\n`;
+        output += `Server: ${serverId}\n`;
+        output += `Nickname: ${data.username}\n`;
         if (data.ttl) output += `Tanggal Pembuatan: ${data.ttl}\n`;
         output += `Region: ${data.region}\n\n`;
+        
         if (data.bindAccounts?.length > 0) {
             output += `BIND INFO:\n`;
             data.bindAccounts.forEach(b => output += `• ${b.platform}: ${b.details || 'empty.'}\n`);
             output += `\n`;
         }
-        output += `Device Login:\n• Android: ${data.devices.android} perangkat\n• iOS: ${data.devices.ios} perangkat`;
+        
+        output += `Device Login:\n`;
+        output += `• Android: ${data.devices.android} perangkat\n`;
+        output += `• iOS: ${data.devices.ios} perangkat`;
 
         await bot.sendMessage(chatId, output, {
-            reply_markup: { inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] }
+            reply_markup: { 
+                inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
+            }
         });
 
+        // ===== 7. UPDATE LIMIT JIKA FREE USER =====
         if (isFreeUser) {
             db.users[userId] = db.users[userId] || { username, success: 0 };
+            db.users[userId].username = username;
             db.users[userId].success += 1;
             db.total_success += 1;
             saveDB();
         }
     });
 
-    bot.onText(/\/offinfo/, (msg) => { if (isAdmin(msg.from.id)) { db.feature.info = false; saveDB(); bot.sendMessage(msg.chat.id, 'Fitur /info dinonaktifkan.'); } });
-    bot.onText(/\/oninfo/, (msg) => { if (isAdmin(msg.from.id)) { db.feature.info = true; saveDB(); bot.sendMessage(msg.chat.id, 'Fitur /info diaktifkan.'); } });
+    // ================== ADMIN COMMANDS ==================
+    bot.onText(/\/offinfo/, (msg) => { 
+        if (isAdmin(msg.from.id)) { 
+            db.feature.info = false; 
+            saveDB(); 
+            bot.sendMessage(msg.chat.id, 'Fitur /info dinonaktifkan.'); 
+        } 
+    });
+
+    bot.onText(/\/oninfo/, (msg) => { 
+        if (isAdmin(msg.from.id)) { 
+            db.feature.info = true; 
+            saveDB(); 
+            bot.sendMessage(msg.chat.id, 'Fitur /info diaktifkan.'); 
+        } 
+    });
+
     bot.onText(/\/ranking/, async (msg) => {
         if (!isAdmin(msg.from.id)) return;
-        const users = Object.entries(db.users || {}).sort((a,b) => b[1].success - a[1].success).slice(0,10);
+        const users = Object.entries(db.users || {})
+            .sort((a,b) => b[1].success - a[1].success)
+            .slice(0,10);
         let message = 'PERINGKAT PENGGUNA\n\n';
         users.forEach(([id,data],i) => message += `${i+1}. @${data.username || 'unknown'} - ${data.success}x\n`);
         await bot.sendMessage(msg.chat.id, message || 'Belum ada data');
     });
+
     bot.onText(/\/listpremium/, (msg) => {
         if (!isAdmin(msg.from.id)) return;
         let message = 'DAFTAR PREMIUM\n\n';
         Object.entries(db.premium || {}).forEach(([id,data],i) => {
-            message += `${i+1}. ID: ${id} - ${data.duration}\n   Exp: ${moment.unix(data.expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY')}\n\n`;
+            message += `${i+1}. ID: ${id} - ${data.duration}\n`;
+            message += `   Exp: ${moment.unix(data.expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY')}\n\n`;
         });
         bot.sendMessage(msg.chat.id, message || 'Belum ada');
     });
+
     bot.onText(/\/listbanned/, (msg) => {
         if (!isAdmin(msg.from.id)) return;
         let message = 'DAFTAR BANNED\n\n';
-        Object.entries(spamData).filter(([_,d]) => d.banned).forEach(([id,d],i) => {
-            message += `${i+1}. ${id} - ${d.banReason} (${moment(d.bannedAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm')})\n`;
-        });
+        Object.entries(spamData)
+            .filter(([_,d]) => d.banned)
+            .forEach(([id,d],i) => {
+                message += `${i+1}. ${id} - ${d.banReason} (${moment(d.bannedAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm')})\n`;
+            });
         bot.sendMessage(msg.chat.id, message || 'Tidak ada');
     });
+
     bot.onText(/\/addban(?:\s+(\d+)(?:\s+(.+))?)?/, (msg, match) => {
         if (!isAdmin(msg.from.id)) return;
         if (!match[1]) return bot.sendMessage(msg.chat.id, 'Format: /addban ID [alasan]');
         addBan(parseInt(match[1]), match[2] || 'Ban manual');
         bot.sendMessage(msg.chat.id, `User ${match[1]} diblokir.`);
     });
+
     bot.onText(/\/unban (.+)/, (msg, match) => {
         if (!isAdmin(msg.from.id)) return;
         const id = parseInt(match[1]);
         if (unbanUser(id)) bot.sendMessage(msg.chat.id, `User ${id} di-unban.`);
         else bot.sendMessage(msg.chat.id, `User ${id} tidak ditemukan.`);
     });
+
     bot.onText(/\/addpremium (.+)/, async (msg, match) => {
         if (!isAdmin(msg.from.id)) return;
         const args = match[1].split(' ');
         if (args.length < 2) return bot.sendMessage(msg.chat.id, 'Format: /addpremium ID DURASI');
         const targetId = parseInt(args[0]), days = parseInt(args[1]);
         const now = moment().tz('Asia/Jakarta').unix();
-        db.premium[targetId] = { activated_at: now, expired_at: now + (days * 86400), duration: `${days} Hari (Manual)` };
+        db.premium[targetId] = { 
+            activated_at: now, 
+            expired_at: now + (days * 86400), 
+            duration: `${days} Hari (Manual)` 
+        };
         saveDB();
         bot.sendMessage(msg.chat.id, `Premium ${days} hari untuk ${targetId}.`);
-        try { await bot.sendMessage(targetId, `Akun Anda diupgrade PREMIUM ${days} hari.`); } catch {}
+        try { 
+            await bot.sendMessage(targetId, `Akun Anda diupgrade PREMIUM ${days} hari.`); 
+        } catch {}
     });
 
     console.log('🤖 Bot started, Admin IDs:', ADMIN_IDS);
