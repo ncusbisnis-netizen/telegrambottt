@@ -20,7 +20,7 @@ const ADMIN_IDS = process.env.ADMIN_IDS
     ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim())) 
     : [];
 
-// ================== COUNTRY MAPPING SEDERHANA ==================
+// ================== COUNTRY MAPPING WITH BENDERA ==================
 const countryMapping = {
     'ID': '🇮🇩 Indonesia',
     'MY': '🇲🇾 Malaysia',
@@ -57,8 +57,12 @@ const countryMapping = {
     'CA': '🇨🇦 Canada'
 };
 
+// Fungsi untuk mendapatkan nama negara (sudah diperbaiki)
 function getCountryName(countryCode) {
-    return countryMapping[countryCode] || `🌍 ${countryCode}`;
+    // Ubah ke huruf besar, default ID kalau kosong
+    const code = (countryCode || 'ID').toUpperCase();
+    // Cari di mapping, kalau gak ada tampilkan 🌍 dan kode negara
+    return countryMapping[code] || `🌍 ${code}`;
 }
 
 // ================== DATABASE ==================
