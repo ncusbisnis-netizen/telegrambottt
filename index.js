@@ -290,7 +290,7 @@ async function getMLBBData(userId, serverId) {
             const g = goPayResponse.data.data;
             result.username = g.username || "Tidak ditemukan";
             const countryCode = g.countryOrigin || "ID";
-            result.region = countryMapping[countryCode] || countryCode;
+            result.region = countryMappingMg[countryCode] || countryCode;
             
             if (API_KEY_CHECKTON) {
                 try {
