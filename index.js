@@ -155,7 +155,7 @@ async function getMLBBData(userId, serverId) {
     const result = { username: null, region: null, bindAccounts: [], devices: { android: 0, ios: 0 }, ttl: null };
     
     try {
-        // AMBIL USERNAME DARI GOPAY
+        // AMBIL DATA DARI GOPAY
         const goPayResponse = await axios.post("https://gopay.co.id/games/v1/order/user-account", {
             code: "MOBILE_LEGENDS",
             data: { 
@@ -274,9 +274,9 @@ if (!IS_WORKER) {
 
     app.get('/tes.php', async (req, res) => {
         const { userId, serverId, role_id, zone_id } = req.query;
-        if (!userId || !serverId || !role_id || !zone_id) return res.status(400).send('Parameter tidak lengkap');
+        if (!userId || !serverId || !role_id || !zone_id) return res.status(400).send('❌ Parameter tidak lengkap');
         const data = await getMLBBData(userId, serverId);
-        if (!data?.username) return res.status(500).send('Gagal mengambil data');
+        if (!data?.username) return res.status(500).send('❌ Gagal mengambil data');
         
         let output = `[userId] => ${userId}\n[serverId] => ${serverId}\n[username] => ${data.username}\n[region] => ${data.region}\n\n`;
         output += `Android: ${data.devices.android} | iOS: ${data.devices.ios}\n\n`;
@@ -303,6 +303,7 @@ else {
     console.log('🤖 Bot worker started');
     const bot = new TelegramBot(BOT_TOKEN, { polling: { interval: 300, autoStart: true, params: { timeout: 10 } } });
 
+    // ================== FUNGSI CEK JOIN ==================
     async function checkJoin(userId) {
         try {
             let isChannelMember = false, isGroupMember = false;
@@ -348,7 +349,7 @@ else {
                 `3. Buat username baru\n` +
                 `4. Simpan`
             );
-            return;
+            return; // PENTING! HENTIKAN PROSES
         }
 
         // ===== CEK JOIN =====
@@ -370,7 +371,7 @@ else {
                 `\n\nSilakan klik tombol di bawah untuk bergabung, lalu coba lagi.`,
                 { reply_markup: { inline_keyboard: buttons } }
             );
-            return;
+            return; // PENTING! HENTIKAN PROSES
         }
     });
 
@@ -513,7 +514,6 @@ else {
             if (data.status === 'pending') {
                 const now = moment().tz('Asia/Jakarta').unix();
                 
-                // CEK EXPIRED
                 if (data.expired_at < now) {
                     if (data.messageId && data.chatId) {
                         try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
@@ -523,7 +523,6 @@ else {
                     continue;
                 }
 
-                // CEK STATUS PEMBAYARAN
                 const status = await checkPakasirTransaction(orderId, data.amount);
                 
                 if (status === 'completed' || status === 'paid') {
@@ -531,7 +530,6 @@ else {
                     const days = { '1 Hari':1, '3 Hari':3, '7 Hari':7, '30 Hari':30 }[data.duration] || 1;
                     const now = moment().tz('Asia/Jakarta').unix();
 
-                    // HITUNG MASA AKTIF (TAMBAH JIKA MASIH AKTIF)
                     let expiredAt;
                     if (db.premium[userId]?.expired_at > now) {
                         expiredAt = db.premium[userId].expired_at + (days * 86400);
@@ -539,7 +537,6 @@ else {
                         expiredAt = now + (days * 86400);
                     }
 
-                    // AKTIFKAN PREMIUM
                     db.premium[userId] = { 
                         activated_at: now, 
                         expired_at: expiredAt, 
@@ -549,12 +546,10 @@ else {
                     db.pending_payments[orderId].status = 'paid';
                     saveDB();
 
-                    // HAPUS QRIS
                     if (data.messageId && data.chatId) {
                         try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
                     }
 
-                    // KIRIM NOTIFIKASI
                     try {
                         await bot.sendMessage(userId,
                             `PEMBAYARAN BERHASIL\n\n` +
@@ -569,16 +564,31 @@ else {
     });
 
     // ================== COMMAND /info ==================
-    bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
+    bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
         const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username;
         
-        // ===== 1. CEK BAN =====
+        // ===== PENGAMAN: CEK USERNAME LAGI =====
+        if (!username && !isAdmin(userId)) {
+            console.log(`User ${userId} tanpa username mencoba /info - diabaikan`);
+            return; // DIAM SAJA
+        }
+        
+        // ===== CEK BAN =====
         if (isBanned(userId) && !isAdmin(userId)) {
             console.log(`User ${userId} (banned) mencoba /info - diabaikan`);
             return; // DIAM SAJA
         }
         
-        // ===== 2. CEK FORMAT =====
+        // ===== CEK FITUR INFO =====
+        if (!db.feature.info && !isAdmin(userId)) {
+            await bot.sendMessage(chatId,
+                `FITUR SEDANG NONAKTIF\n\n` +
+                `Fitur /info sedang dinonaktifkan oleh administrator.`
+            );
+            return;
+        }
+        
+        // ===== CEK FORMAT =====
         if (!match[1]) {
             await bot.sendMessage(chatId,
                 `INFORMASI PENGGUNAAN\n\n` +
@@ -608,14 +618,14 @@ else {
             return;
         }
         
-        // ===== 3. CEK SPAM =====
+        // ===== CEK SPAM =====
         const banned = recordInfoActivity(userId);
         if (banned) {
             console.log(`User ${userId} kena ban karena spam /info`);
             return; // DIAM SAJA
         }
         
-        // ===== 4. CEK LIMIT UNTUK FREE USER =====
+        // ===== CEK LIMIT =====
         const isFreeUser = !isAdmin(userId) && !isPremium(userId);
         const remaining = isFreeUser ? getRemainingLimit(userId) : 'Unlimited';
         
@@ -628,7 +638,7 @@ else {
             return;
         }
         
-        // ===== 5. PROSES AMBIL DATA =====
+        // ===== PROSES AMBIL DATA =====
         const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data, mohon tunggu...');
         const data = await getMLBBData(targetId, serverId);
         
@@ -646,7 +656,7 @@ else {
             return;
         }
 
-        // ===== 6. TAMPILKAN HASIL =====
+        // ===== TAMPILKAN HASIL =====
         let output = `INFORMASI AKUN\n\n`;
         output += `ID: ${targetId}\n`;
         output += `Server: ${serverId}\n`;
@@ -670,7 +680,7 @@ else {
             }
         });
 
-        // ===== 7. UPDATE LIMIT JIKA FREE USER =====
+        // ===== UPDATE LIMIT JIKA FREE USER =====
         if (isFreeUser) {
             db.users[userId] = db.users[userId] || { username, success: 0 };
             db.users[userId].username = username;
