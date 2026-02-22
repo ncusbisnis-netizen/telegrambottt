@@ -57,11 +57,8 @@ const countryMapping = {
     'CA': '🇨🇦 Canada'
 };
 
-// Fungsi untuk mendapatkan nama negara (sudah diperbaiki)
 function getCountryName(countryCode) {
-    // Ubah ke huruf besar, default ID kalau kosong
     const code = (countryCode || 'ID').toUpperCase();
-    // Cari di mapping, kalau gak ada tampilkan 🌍 dan kode negara
     return countryMapping[code] || `🌍 ${code}`;
 }
 
@@ -181,13 +178,13 @@ async function getMLBBData(userId, serverId) {
             const g = goPayResponse.data.data;
             result.username = g.username || "Tidak ditemukan";
             
-            // Gunakan country mapping sederhana
             const countryCode = g.countryOrigin || "ID";
             result.region = getCountryName(countryCode);
             
             console.log(`Username dari GoPay: ${result.username}`);
         } else {
             console.log("GoPay response tidak memiliki data");
+            return null;
         }
     } catch (error) {
         console.log("GoPay error:", error.message);
@@ -208,24 +205,21 @@ async function getMLBBData(userId, serverId) {
                     "Content-Type": "application/json", 
                     "x-api-key": API_KEY_CHECKTON 
                 },
-                timeout: 5000
+                timeout: 15000
             });
             
             if (checktonResponse.data?.data) {
                 const c = checktonResponse.data.data;
                 
-                // Devices
                 if (c.devices) {
                     result.devices.android = c.devices.android?.total || 0;
                     result.devices.ios = c.devices.ios?.total || 0;
                 }
                 
-                // Bind accounts
                 if (c.bind_accounts && Array.isArray(c.bind_accounts)) {
                     result.bindAccounts = c.bind_accounts;
                 }
                 
-                // TTL
                 if (c.ttl) {
                     result.ttl = c.ttl;
                 }
@@ -319,7 +313,6 @@ else {
     console.log('🤖 Bot worker started');
     const bot = new TelegramBot(BOT_TOKEN, { polling: { interval: 300, autoStart: true, params: { timeout: 10 } } });
 
-    // ===== FUNGSI CEK JOIN =====
     async function checkJoin(userId) {
         try {
             let isChannelMember = false, isGroupMember = false;
@@ -342,7 +335,6 @@ else {
         }
     }
 
-    // ===== MIDDLEWARE =====
     bot.on('message', async (msg) => {
         const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username, text = msg.text, chatType = msg.chat.type;
         if (!text || chatType !== 'private' || isAdmin(userId)) return;
@@ -374,7 +366,6 @@ else {
         }
     });
 
-    // ===== COMMAND /start =====
     bot.onText(/\/start/, async (msg) => {
         const status = getUserStatus(msg.from.id);
         let message = `SELAMAT DATANG DI BOT 1 For All\n\nStatus Akun: ${status.type}\n`;
@@ -385,7 +376,6 @@ else {
         await bot.sendMessage(msg.chat.id, message);
     });
 
-    // ===== COMMAND /status =====
     bot.onText(/\/status/, async (msg) => {
         const userId = msg.from.id;
         if (isBanned(userId) && !isAdmin(userId)) {
@@ -404,7 +394,6 @@ else {
         await bot.sendMessage(msg.chat.id, message);
     });
 
-    // ===== COMMAND /langganan =====
     bot.onText(/\/langganan/, async (msg) => {
         const userId = msg.from.id;
         if (isPremium(userId)) {
@@ -425,7 +414,6 @@ else {
         });
     });
 
-    // ===== CALLBACK QUERY =====
     bot.on('callback_query', async (cb) => {
         const msg = cb.message, chatId = msg.chat.id, userId = cb.from.id, data = cb.data;
         await bot.deleteMessage(chatId, msg.message_id).catch(() => {});
@@ -464,7 +452,6 @@ else {
         }
     });
 
-    // ===== AUTO CHECK PAYMENT =====
     cron.schedule('* * * * *', async () => {
         console.log('🔍 Cron job berjalan pada:', moment().tz('Asia/Jakarta').format('YYYY-MM-DD HH:mm:ss'));
         for (const [orderId, data] of Object.entries(db.pending_payments || {})) {
@@ -513,7 +500,6 @@ else {
         }
     });
 
-    // ===== COMMAND /info =====
     bot.onText(/\/info(?:\s+(.+))?/, async (msg, match) => {
         const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username;
         if (isBanned(userId) && !isAdmin(userId)) return console.log(`User ${userId} banned`);
@@ -567,7 +553,6 @@ else {
         }
     });
 
-    // ===== ADMIN COMMANDS =====
     bot.onText(/\/offinfo/, (msg) => { if (isAdmin(msg.from.id)) { db.feature.info = false; saveDB(); bot.sendMessage(msg.chat.id, 'Fitur /info dinonaktifkan.'); } });
     bot.onText(/\/oninfo/, (msg) => { if (isAdmin(msg.from.id)) { db.feature.info = true; saveDB(); bot.sendMessage(msg.chat.id, 'Fitur /info diaktifkan.'); } });
     bot.onText(/\/ranking/, async (msg) => {
