@@ -326,7 +326,7 @@ else {
         }
     }
 
-    // ================== MIDDLEWARE ==================
+    // ================== MIDDLEWARE (DENGAN DETEKSI SPASI) ==================
     bot.on('message', async (msg) => {
         const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username, text = msg.text, chatType = msg.chat.type;
         if (!text || chatType !== 'private') return;
@@ -338,40 +338,47 @@ else {
         const publicCommands = ['/start', '/langganan', '/status', '/offinfo', '/oninfo', '/ranking', '/listpremium', '/listbanned', '/addban', '/unban', '/addpremium'];
         if (publicCommands.includes(text.split(' ')[0])) return;
 
+        // ===== DETEKSI COMMAND /info (FLEKSIBEL, MENGIZINKAN SPASI) =====
+        const isInfoCommand = /^\s*\/\s*info\b/i.test(text); // Mendeteksi /info, / info, /INFO, dll
+        
         // ===== CEK USERNAME (WAJIB) =====
         if (!username) {
-            await bot.sendMessage(chatId,
-                `USERNAME DIPERLUKAN\n\n` +
-                `Untuk menggunakan perintah ini, Anda harus memiliki username Telegram.\n\n` +
-                `Cara membuat username:\n` +
-                `1. Buka Settings\n` +
-                `2. Pilih Username\n` +
-                `3. Buat username baru\n` +
-                `4. Simpan`
-            );
-            return; // PENTING! HENTIKAN PROSES
+            if (isInfoCommand) {
+                await bot.sendMessage(chatId,
+                    `USERNAME DIPERLUKAN\n\n` +
+                    `Untuk menggunakan perintah ini, Anda harus memiliki username Telegram.\n\n` +
+                    `Cara membuat username:\n` +
+                    `1. Buka Settings\n` +
+                    `2. Pilih Username\n` +
+                    `3. Buat username baru\n` +
+                    `4. Simpan`
+                );
+            }
+            return; // TETAP RETURN UNTUK SEMUA
         }
 
-        // ===== CEK JOIN =====
-        const joined = await checkJoin(userId);
-        const missing = [];
-        if (!joined.channel) missing.push(CHANNEL);
-        if (!joined.group) missing.push(GROUP);
+        // ===== CEK JOIN (HANYA UNTUK COMMAND /info) =====
+        if (isInfoCommand) {
+            const joined = await checkJoin(userId);
+            const missing = [];
+            if (!joined.channel) missing.push(CHANNEL);
+            if (!joined.group) missing.push(GROUP);
 
-        if (missing.length > 0) {
-            const buttons = missing.map(ch => [{
-                text: `Bergabung ke ${ch.replace('@', '')}`,
-                url: `https://t.me/${ch.replace('@', '')}`
-            }]);
-            
-            await bot.sendMessage(chatId,
-                `AKSES TERBATAS\n\n` +
-                `Untuk menggunakan bot ini, Anda perlu bergabung dengan:\n` +
-                missing.map(ch => `• ${ch}`).join('\n') + 
-                `\n\nSilakan klik tombol di bawah untuk bergabung, lalu coba lagi.`,
-                { reply_markup: { inline_keyboard: buttons } }
-            );
-            return; // PENTING! HENTIKAN PROSES
+            if (missing.length > 0) {
+                const buttons = missing.map(ch => [{
+                    text: `Bergabung ke ${ch.replace('@', '')}`,
+                    url: `https://t.me/${ch.replace('@', '')}`
+                }]);
+                
+                await bot.sendMessage(chatId,
+                    `AKSES TERBATAS\n\n` +
+                    `Untuk menggunakan bot ini, Anda perlu bergabung dengan:\n` +
+                    missing.map(ch => `• ${ch}`).join('\n') + 
+                    `\n\nSilakan klik tombol di bawah untuk bergabung, lalu coba lagi.`,
+                    { reply_markup: { inline_keyboard: buttons } }
+                );
+                return; // HENTIKAN PROSES
+            }
         }
     });
 
@@ -563,8 +570,8 @@ else {
         }
     });
 
-    // ================== COMMAND /info ==================
-    bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
+    // ================== COMMAND /info (DENGAN DETEKSI SPASI) ==================
+    bot.onText(/^\s*\/\s*info(?:\s+(.+))?$/i, async (msg, match) => {
         const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username;
         
         // ===== PENGAMAN: CEK USERNAME LAGI =====
@@ -589,7 +596,7 @@ else {
         }
         
         // ===== CEK FORMAT =====
-        if (!match[1]) {
+        if (!match || !match[1]) {
             await bot.sendMessage(chatId,
                 `INFORMASI PENGGUNAAN\n\n` +
                 `Format: /info ID_USER ID_SERVER\n` +
@@ -600,7 +607,7 @@ else {
             return;
         }
         
-        const args = match[1].split(' ');
+        const args = match[1].trim().split(/\s+/);
         if (args.length < 2) {
             await bot.sendMessage(chatId,
                 `FORMAT TIDAK LENGKAP\n\n` +
@@ -634,6 +641,28 @@ else {
                 `BATAS PENGGUNAAN HABIS\n\n` +
                 `Anda telah mencapai batas penggunaan gratis (10x).\n` +
                 `Gunakan /langganan untuk upgrade ke premium.`
+            );
+            return;
+        }
+        
+        // ===== CEK JOIN (PENGAMAN TERAKHIR) =====
+        const joined = await checkJoin(userId);
+        const missing = [];
+        if (!joined.channel) missing.push(CHANNEL);
+        if (!joined.group) missing.push(GROUP);
+        
+        if (missing.length > 0 && !isAdmin(userId)) {
+            const buttons = missing.map(ch => [{
+                text: `Bergabung ke ${ch.replace('@', '')}`,
+                url: `https://t.me/${ch.replace('@', '')}`
+            }]);
+            
+            await bot.sendMessage(chatId,
+                `AKSES TERBATAS\n\n` +
+                `Untuk menggunakan bot ini, Anda perlu bergabung dengan:\n` +
+                missing.map(ch => `• ${ch}`).join('\n') + 
+                `\n\nSilakan klik tombol di bawah untuk bergabung, lalu coba lagi.`,
+                { reply_markup: { inline_keyboard: buttons } }
             );
             return;
         }
@@ -771,4 +800,4 @@ else {
     });
 
     console.log('🤖 Bot started, Admin IDs:', ADMIN_IDS);
-}
+                                                              }
