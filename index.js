@@ -155,7 +155,6 @@ async function getMLBBData(userId, serverId) {
     const result = { username: null, region: null, bindAccounts: [], devices: { android: 0, ios: 0 }, ttl: null };
     
     try {
-        // AMBIL DATA DARI GOPAY
         const goPayResponse = await axios.post("https://gopay.co.id/games/v1/order/user-account", {
             code: "MOBILE_LEGENDS",
             data: { 
@@ -178,7 +177,6 @@ async function getMLBBData(userId, serverId) {
             const countryCode = g.countryOrigin || "ID";
             result.region = getCountryName(countryCode);
             
-            // AMBIL DATA DARI CHECKTON
             if (API_KEY_CHECKTON) {
                 try {
                     const checktonResponse = await axios.post("https://checkton.online/backend/info", {
@@ -195,19 +193,14 @@ async function getMLBBData(userId, serverId) {
                     
                     if (checktonResponse.data?.data) {
                         const c = checktonResponse.data.data;
-                        
                         if (c.devices) {
                             result.devices.android = c.devices.android?.total || 0;
                             result.devices.ios = c.devices.ios?.total || 0;
                         }
-                        
                         if (c.bind_accounts && Array.isArray(c.bind_accounts)) {
                             result.bindAccounts = c.bind_accounts;
                         }
-                        
-                        if (c.ttl) {
-                            result.ttl = c.ttl;
-                        }
+                        if (c.ttl) result.ttl = c.ttl;
                     }
                 } catch (error) {
                     console.log("Checkton error:", error.message);
@@ -326,60 +319,17 @@ else {
         }
     }
 
-    // ================== MIDDLEWARE (DENGAN DETEKSI SPASI) ==================
+    // ================== MIDDLEWARE (MINIMALIS - HANYA UNTUK COMMAND PUBLIC) ==================
     bot.on('message', async (msg) => {
-        const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username, text = msg.text, chatType = msg.chat.type;
-        if (!text || chatType !== 'private') return;
-
-        // ADMIN BEBAS DARI PENGECEKAN
-        if (isAdmin(userId)) return;
-
-        // COMMAND PUBLIK TANPA CEK
+        const chatId = msg.chat.id, userId = msg.from.id, text = msg.text, chatType = msg.chat.type;
+        if (!text || chatType !== 'private' || isAdmin(userId)) return;
+        
+        // COMMAND PUBLIK TANPA CEK - LANGSUNG IJINKAN
         const publicCommands = ['/start', '/langganan', '/status', '/offinfo', '/oninfo', '/ranking', '/listpremium', '/listbanned', '/addban', '/unban', '/addpremium'];
         if (publicCommands.includes(text.split(' ')[0])) return;
-
-        // ===== DETEKSI COMMAND /info (FLEKSIBEL, MENGIZINKAN SPASI) =====
-        const isInfoCommand = /^\s*\/\s*info\b/i.test(text); // Mendeteksi /info, / info, /INFO, dll
         
-        // ===== CEK USERNAME (WAJIB) =====
-        if (!username) {
-            if (isInfoCommand) {
-                await bot.sendMessage(chatId,
-                    `USERNAME DIPERLUKAN\n\n` +
-                    `Untuk menggunakan perintah ini, Anda harus memiliki username Telegram.\n\n` +
-                    `Cara membuat username:\n` +
-                    `1. Buka Settings\n` +
-                    `2. Pilih Username\n` +
-                    `3. Buat username baru\n` +
-                    `4. Simpan`
-                );
-            }
-            return; // TETAP RETURN UNTUK SEMUA
-        }
-
-        // ===== CEK JOIN (HANYA UNTUK COMMAND /info) =====
-        if (isInfoCommand) {
-            const joined = await checkJoin(userId);
-            const missing = [];
-            if (!joined.channel) missing.push(CHANNEL);
-            if (!joined.group) missing.push(GROUP);
-
-            if (missing.length > 0) {
-                const buttons = missing.map(ch => [{
-                    text: `Bergabung ke ${ch.replace('@', '')}`,
-                    url: `https://t.me/${ch.replace('@', '')}`
-                }]);
-                
-                await bot.sendMessage(chatId,
-                    `AKSES TERBATAS\n\n` +
-                    `Untuk menggunakan bot ini, Anda perlu bergabung dengan:\n` +
-                    missing.map(ch => `• ${ch}`).join('\n') + 
-                    `\n\nSilakan klik tombol di bawah untuk bergabung, lalu coba lagi.`,
-                    { reply_markup: { inline_keyboard: buttons } }
-                );
-                return; // HENTIKAN PROSES
-            }
-        }
+        // UNTUK COMMAND LAIN, TIDAK ADA TINDAKAN DI MIDDLEWARE
+        // SEMUA PENGECEKAN DILAKUKAN DI MASING-MASING COMMAND HANDLER
     });
 
     // ================== COMMAND /start ==================
@@ -416,7 +366,6 @@ else {
     bot.onText(/\/status/, async (msg) => {
         const userId = msg.from.id;
         
-        // CEK BAN
         if (isBanned(userId) && !isAdmin(userId)) {
             await bot.sendMessage(msg.chat.id,
                 `STATUS AKUN\n\n` +
@@ -570,23 +519,30 @@ else {
         }
     });
 
-    // ================== COMMAND /info (DENGAN DETEKSI SPASI) ==================
+    // ================== COMMAND /info (SEMUA PENGECEKAN DI SINI) ==================
     bot.onText(/^\s*\/\s*info(?:\s+(.+))?$/i, async (msg, match) => {
         const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username;
         
-        // ===== PENGAMAN: CEK USERNAME LAGI =====
-        if (!username && !isAdmin(userId)) {
-            console.log(`User ${userId} tanpa username mencoba /info - diabaikan`);
-            return; // DIAM SAJA
-        }
-        
-        // ===== CEK BAN =====
+        // ===== 1. CEK BAN =====
         if (isBanned(userId) && !isAdmin(userId)) {
-            console.log(`User ${userId} (banned) mencoba /info - diabaikan`);
             return; // DIAM SAJA
         }
         
-        // ===== CEK FITUR INFO =====
+        // ===== 2. CEK USERNAME =====
+        if (!username && !isAdmin(userId)) {
+            await bot.sendMessage(chatId,
+                `USERNAME DIPERLUKAN\n\n` +
+                `Untuk menggunakan perintah ini, Anda harus memiliki username Telegram.\n\n` +
+                `Cara membuat username:\n` +
+                `1. Buka Settings\n` +
+                `2. Pilih Username\n` +
+                `3. Buat username baru\n` +
+                `4. Simpan`
+            );
+            return;
+        }
+        
+        // ===== 3. CEK FITUR INFO =====
         if (!db.feature.info && !isAdmin(userId)) {
             await bot.sendMessage(chatId,
                 `FITUR SEDANG NONAKTIF\n\n` +
@@ -595,7 +551,29 @@ else {
             return;
         }
         
-        // ===== CEK FORMAT =====
+        // ===== 4. CEK JOIN =====
+        const joined = await checkJoin(userId);
+        const missing = [];
+        if (!joined.channel) missing.push(CHANNEL);
+        if (!joined.group) missing.push(GROUP);
+
+        if (missing.length > 0 && !isAdmin(userId)) {
+            const buttons = missing.map(ch => [{
+                text: `Bergabung ke ${ch.replace('@', '')}`,
+                url: `https://t.me/${ch.replace('@', '')}`
+            }]);
+            
+            await bot.sendMessage(chatId,
+                `AKSES TERBATAS\n\n` +
+                `Untuk menggunakan bot ini, Anda perlu bergabung dengan:\n` +
+                missing.map(ch => `• ${ch}`).join('\n') + 
+                `\n\nSilakan klik tombol di bawah untuk bergabung, lalu coba lagi.`,
+                { reply_markup: { inline_keyboard: buttons } }
+            );
+            return;
+        }
+        
+        // ===== 5. CEK FORMAT =====
         if (!match || !match[1]) {
             await bot.sendMessage(chatId,
                 `INFORMASI PENGGUNAAN\n\n` +
@@ -625,14 +603,14 @@ else {
             return;
         }
         
-        // ===== CEK SPAM =====
+        // ===== 6. CEK SPAM =====
         const banned = recordInfoActivity(userId);
         if (banned) {
             console.log(`User ${userId} kena ban karena spam /info`);
             return; // DIAM SAJA
         }
         
-        // ===== CEK LIMIT =====
+        // ===== 7. CEK LIMIT =====
         const isFreeUser = !isAdmin(userId) && !isPremium(userId);
         const remaining = isFreeUser ? getRemainingLimit(userId) : 'Unlimited';
         
@@ -645,29 +623,7 @@ else {
             return;
         }
         
-        // ===== CEK JOIN (PENGAMAN TERAKHIR) =====
-        const joined = await checkJoin(userId);
-        const missing = [];
-        if (!joined.channel) missing.push(CHANNEL);
-        if (!joined.group) missing.push(GROUP);
-        
-        if (missing.length > 0 && !isAdmin(userId)) {
-            const buttons = missing.map(ch => [{
-                text: `Bergabung ke ${ch.replace('@', '')}`,
-                url: `https://t.me/${ch.replace('@', '')}`
-            }]);
-            
-            await bot.sendMessage(chatId,
-                `AKSES TERBATAS\n\n` +
-                `Untuk menggunakan bot ini, Anda perlu bergabung dengan:\n` +
-                missing.map(ch => `• ${ch}`).join('\n') + 
-                `\n\nSilakan klik tombol di bawah untuk bergabung, lalu coba lagi.`,
-                { reply_markup: { inline_keyboard: buttons } }
-            );
-            return;
-        }
-        
-        // ===== PROSES AMBIL DATA =====
+        // ===== 8. PROSES AMBIL DATA =====
         const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data, mohon tunggu...');
         const data = await getMLBBData(targetId, serverId);
         
@@ -685,7 +641,7 @@ else {
             return;
         }
 
-        // ===== TAMPILKAN HASIL =====
+        // ===== 9. TAMPILKAN HASIL =====
         let output = `INFORMASI AKUN\n\n`;
         output += `ID: ${targetId}\n`;
         output += `Server: ${serverId}\n`;
@@ -709,7 +665,7 @@ else {
             }
         });
 
-        // ===== UPDATE LIMIT JIKA FREE USER =====
+        // ===== 10. UPDATE LIMIT JIKA FREE USER =====
         if (isFreeUser) {
             db.users[userId] = db.users[userId] || { username, success: 0 };
             db.users[userId].username = username;
@@ -800,4 +756,4 @@ else {
     });
 
     console.log('🤖 Bot started, Admin IDs:', ADMIN_IDS);
-                                                              }
+}
