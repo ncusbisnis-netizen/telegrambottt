@@ -532,17 +532,24 @@ else {
         }
     }
 
-    // ================== MIDDLEWARE (MINIMALIS - HANYA UNTUK COMMAND PUBLIC) ==================
+    // ================== MIDDLEWARE ==================
     bot.on('message', async (msg) => {
         const chatId = msg.chat.id, userId = msg.from.id, text = msg.text, chatType = msg.chat.type;
-        if (!text || chatType !== 'private' || isAdmin(userId)) return;
         
-        // COMMAND PUBLIK TANPA CEK - LANGSUNG IJINKAN
+        if (!text) return;
+        
+        // ===== HANYA RESPON DI PRIVATE CHAT =====
+        if (chatType !== 'private') {
+            return; // IGNORE SEMUA PESAN DI GRUP/CHANNEL
+        }
+        
+        if (isAdmin(userId)) return;
+        
+        // COMMAND PUBLIK TANPA CEK
         const publicCommands = ['/start', '/langganan', '/status', '/offinfo', '/oninfo', '/ranking', '/listpremium', '/listbanned', '/addban', '/unban', '/addpremium'];
         if (publicCommands.includes(text.split(' ')[0])) return;
         
         // UNTUK COMMAND LAIN, TIDAK ADA TINDAKAN DI MIDDLEWARE
-        // SEMUA PENGECEKAN DILAKUKAN DI MASING-MASING COMMAND HANDLER
     });
 
     // ================== COMMAND /start ==================
@@ -618,7 +625,7 @@ else {
             return;
         }
         
-        await bot.sendMessage(msg.chat.id, `Paket Unlimited tanpa batas\n\nPilih masa aktif:`, {
+        await bot.sendMessage(msg.chat.id, `Paket Unlimited tanpa limit\n\nPilih masa aktif:`, {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: '1 HARI - Rp 15.000', callback_data: 'bayar_1' }],
@@ -732,7 +739,7 @@ else {
         }
     });
 
-    // ================== COMMAND /info (SEMUA PENGECEKAN DI SINI) ==================
+    // ================== COMMAND /info ==================
     bot.onText(/^\s*\/\s*info(?:\s+(.+))?$/i, async (msg, match) => {
         const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username;
         
@@ -793,7 +800,7 @@ else {
                 `Format: /info ID_USER ID_SERVER\n` +
                 `Contoh: /info 643461181 8554\n\n` +
                 `ID_USER : ID akun Mobile Legends Anda\n` +
-                `ID_SERVER : ID server Anda (4 digit)`
+                `ID_SERVER : ID server Anda`
             );
             return;
         }
