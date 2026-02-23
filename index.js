@@ -33,257 +33,257 @@ const ADMIN_IDS = process.env.ADMIN_IDS
 
 // ================== REGION MAPPING ==================
 const countryMapping = {
-    'AF': '🇦🇫 Afghanistan',
-  'AX': '🇦🇽 Åland Islands',
-  'AL': '🇦🇱 Albania',
-  'DZ': '🇩🇿 Algeria',
-  'AS': '🇦🇸 American Samoa',
-  'AD': '🇦🇩 Andorra',
-  'AO': '🇦🇴 Angola',
-  'AI': '🇦🇮 Anguilla',
-  'AQ': '🇦🇶 Antarctica',
-  'AG': '🇦🇬 Antigua and Barbuda',
-  'AR': '🇦🇷 Argentina',
-  'AM': '🇦🇲 Armenia',
-  'AW': '🇦🇼 Aruba',
-  'AU': '🇦🇺 Australia',
-  'AT': '🇦🇹 Austria',
-  'AZ': '🇦🇿 Azerbaijan',
-  'BS': '🇧🇸 Bahamas',
-  'BH': '🇧🇭 Bahrain',
-  'BD': '🇧🇩 Bangladesh',
-  'BB': '🇧🇧 Barbados',
-  'BY': '🇧🇾 Belarus',
-  'BE': '🇧🇪 Belgium',
-  'BZ': '🇧🇿 Belize',
-  'BJ': '🇧🇯 Benin',
-  'BM': '🇧🇲 Bermuda',
-  'BT': '🇧🇹 Bhutan',
-  'BO': '🇧🇴 Bolivia, Plurinational State of bolivia',
-  'BA': '🇧🇦 Bosnia and Herzegovina',
-  'BW': '🇧🇼 Botswana',
-  'BV': '🇧🇻 Bouvet Island',
-  'BR': '🇧🇷 Brazil',
-  'IO': '🇮🇴 British Indian Ocean Territory',
-  'BN': '🇧🇳 Brunei Darussalam',
-  'BG': '🇧🇬 Bulgaria',
-  'BF': '🇧🇫 Burkina Faso',
-  'BI': '🇧🇮 Burundi',
-  'KH': '🇰🇭 Cambodia',
-  'CM': '🇨🇲 Cameroon',
-  'CA': '🇨🇦 Canada',
-  'CV': '🇨🇻 Cape Verde',
-  'KY': '🇰🇾 Cayman Islands',
-  'CF': '🇨🇫 Central African Republic',
-  'TD': '🇹🇩 Chad',
-  'CL': '🇨🇱 Chile',
-  'CN': '🇨🇳 China',
-  'CX': '🇨🇽 Christmas Island',
-  'CC': '🇨🇨 Cocos (Keeling) Islands',
-  'CO': '🇨🇴 Colombia',
-  'KM': '🇰🇲 Comoros',
-  'CG': '🇨🇬 Congo',
-  'CD': '🇨🇩 Congo, The Democratic Republic of the Congo',
-  'CK': '🇨🇰 Cook Islands',
-  'CR': '🇨🇷 Costa Rica',
-  'CI': "🇨🇮 Cote d'Ivoire",
-  'HR': '🇭🇷 Croatia',
-  'CU': '🇨🇺 Cuba',
-  'CY': '🇨🇾 Cyprus',
-  'CZ': '🇨🇿 Czech Republic',
-  'DK': '🇩🇰 Denmark',
-  'DJ': '🇩🇯 Djibouti',
-  'DM': '🇩🇲 Dominica',
-  'DO': '🇩🇴 Dominican Republic',
-  'EC': '🇪🇨 Ecuador',
-  'EG': '🇪🇬 Egypt',
-  'SV': '🇸🇻 El Salvador',
-  'GQ': '🇬🇶 Equatorial Guinea',
-  'ER': '🇪🇷 Eritrea',
-  'EE': '🇪🇪 Estonia',
-  'ET': '🇪🇹 Ethiopia',
-  'FK': '🇫🇰 Falkland Islands (Malvinas)',
-  'FO': '🇫🇴 Faroe Islands',
-  'FJ': '🇫🇯 Fiji',
-  'FI': '🇫🇮 Finland',
-  'FR': '🇫🇷 France',
-  'GF': '🇬🇫 French Guiana',
-  'PF': '🇵🇫 French Polynesia',
-  'TF': '🇹🇫 French Southern Territories',
-  'GA': '🇬🇦 Gabon',
-  'GM': '🇬🇲 Gambia',
-  'GE': '🇬🇪 Georgia',
-  'DE': '🇩🇪 Germany',
-  'GH': '🇬🇭 Ghana',
-  'GI': '🇬🇮 Gibraltar',
-  'GR': '🇬🇷 Greece',
-  'GL': '🇬🇱 Greenland',
-  'GD': '🇬🇩 Grenada',
-  'GP': '🇬🇵 Guadeloupe',
-  'GU': '🇬🇺 Guam',
-  'GT': '🇬🇹 Guatemala',
-  'GG': '🇬🇬 Guernsey',
-  'GN': '🇬🇳 Guinea',
-  'GW': '🇬🇼 Guinea-Bissau',
-  'GY': '🇬🇾 Guyana',
-  'HT': '🇭🇹 Haiti',
-  'HM': '🇭🇲 Heard Island and Mcdonald Islands',
-  'VA': '🇻🇦 Holy See (Vatican City State)',
-  'HN': '🇭🇳 Honduras',
-  'HK': '🇭🇰 Hong Kong',
-  'HU': '🇭🇺 Hungary',
-  'IS': '🇮🇸 Iceland',
-  'IN': '🇮🇳 India',
-  'ID': '🇮🇩 Indonesia',
-  'IR': '🇮🇷 Iran, Islamic Republic of Persian Gulf',
-  'IQ': '🇮🇶 Iraq',
-  'IE': '🇮🇪 Ireland',
-  'IM': '🇮🇲 Isle of Man',
-  'IL': '🇮🇱 Israel',
-  'IT': '🇮🇹 Italy',
-  'JM': '🇯🇲 Jamaica',
-  'JP': '🇯🇵 Japan',
-  'JE': '🇯🇪 Jersey',
-  'JO': '🇯🇴 Jordan',
-  'KZ': '🇰🇿 Kazakhstan',
-  'KE': '🇰🇪 Kenya',
-  'KI': '🇰🇮 Kiribati',
-  'KP': "🇰🇵 Korea, Democratic People's Republic of Korea",
-  'KR': '🇰🇷 Korea, Republic of South Korea',
-  'XK': '🇽🇰 Kosovo',
-  'KW': '🇰🇼 Kuwait',
-  'KG': '🇰🇬 Kyrgyzstan',
-  'LA': '🇱🇦 Laos',
-  'LV': '🇱🇻 Latvia',
-  'LB': '🇱🇧 Lebanon',
-  'LS': '🇱🇸 Lesotho',
-  'LR': '🇱🇷 Liberia',
-  'LY': '🇱🇾 Libyan Arab Jamahiriya',
-  'LI': '🇱🇮 Liechtenstein',
-  'LT': '🇱🇹 Lithuania',
-  'LU': '🇱🇺 Luxembourg',
-  'MO': '🇲🇴 Macao',
-  'MK': '🇲🇰 Macedonia',
-  'MG': '🇲🇬 Madagascar',
-  'MW': '🇲🇼 Malawi',
-  'MY': '🇲🇾 Malaysia',
-  'MV': '🇲🇻 Maldives',
-  'ML': '🇲🇱 Mali',
-  'MT': '🇲🇹 Malta',
-  'MH': '🇲🇭 Marshall Islands',
-  'MQ': '🇲🇶 Martinique',
-  'MR': '🇲🇷 Mauritania',
-  'MU': '🇲🇺 Mauritius',
-  'YT': '🇾🇹 Mayotte',
-  'MX': '🇲🇽 Mexico',
-  'FM': '🇫🇲 Micronesia, Federated States of Micronesia',
-  'MD': '🇲🇩 Moldova',
-  'MC': '🇲🇨 Monaco',
-  'MN': '🇲🇳 Mongolia',
-  'ME': '🇲🇪 Montenegro',
-  'MS': '🇲🇸 Montserrat',
-  'MA': '🇲🇦 Morocco',
-  'MZ': '🇲🇿 Mozambique',
-  'MM': '🇲🇲 Myanmar',
-  'NA': '🇳🇦 Namibia',
-  'NR': '🇳🇷 Nauru',
-  'NP': '🇳🇵 Nepal',
-  'NL': '🇳🇱 Netherlands',
-  'AN': 'Netherlands Antilles',
-  'NC': '🇳🇨 New Caledonia',
-  'NZ': '🇳🇿 New Zealand',
-  'NI': '🇳🇮 Nicaragua',
-  'NE': '🇳🇪 Niger',
-  'NG': '🇳🇬 Nigeria',
-  'NU': '🇳🇺 Niue',
-  'NF': '🇳🇫 Norfolk Island',
-  'MP': '🇲🇵 Northern Mariana Islands',
-  'NO': '🇳🇴 Norway',
-  'OM': '🇴🇲 Oman',
-  'PK': '🇵🇰 Pakistan',
-  'PW': '🇵🇼 Palau',
-  'PS': '🇵🇸 Palestinian Territory, Occupied',
-  'PA': '🇵🇦 Panama',
-  'PG': '🇵🇬 Papua New Guinea',
-  'PY': '🇵🇾 Paraguay',
-  'PE': '🇵🇪 Peru',
-  'PH': '🇵🇭 Philippines',
-  'PN': '🇵🇳 Pitcairn',
-  'PL': '🇵🇱 Poland',
-  'PT': '🇵🇹 Portugal',
-  'PR': '🇵🇷 Puerto Rico',
-  'QA': '🇶🇦 Qatar',
-  'RO': '🇷🇴 Romania',
-  'RU': '🇷🇺 Russia',
-  'RW': '🇷🇼 Rwanda',
-  'RE': '🇷🇪 Reunion',
-  'BL': '🇧🇱 Saint Barthelemy',
-  'SH': '🇸🇭 Saint Helena, Ascension and Tristan Da Cunha',
-  'KN': '🇰🇳 Saint Kitts and Nevis',
-  'LC': '🇱🇨 Saint Lucia',
-  'MF': '🇲🇫 Saint Martin',
-  'PM': '🇵🇲 Saint Pierre and Miquelon',
-  'VC': '🇻🇨 Saint Vincent and the Grenadines',
-  'WS': '🇼🇸 Samoa',
-  'SM': '🇸🇲 San Marino',
-  'ST': '🇸🇹 Sao Tome and Principe',
-  'SA': '🇸🇦 Saudi Arabia',
-  'SN': '🇸🇳 Senegal',
-  'RS': '🇷🇸 Serbia',
-  'SC': '🇸🇨 Seychelles',
-  'SL': '🇸🇱 Sierra Leone',
-  'SG': '🇸🇬 Singapore',
-  'SK': '🇸🇰 Slovakia',
-  'SI': '🇸🇮 Slovenia',
-  'SB': '🇸🇧 Solomon Islands',
-  'SO': '🇸🇴 Somalia',
-  'ZA': '🇿🇦 South Africa',
-  'SS': '🇸🇸 South Sudan',
-  'GS': '🇬🇸 South Georgia and the South Sandwich Islands',
-  'ES': '🇪🇸 Spain',
-  'LK': '🇱🇰 Sri Lanka',
-  'SD': '🇸🇩 Sudan',
-  'SR': '🇸🇷 Suriname',
-  'SJ': '🇸🇯 Svalbard and Jan Mayen',
-  'SZ': '🇸🇿 Eswatini',
-  'SE': '🇸🇪 Sweden',
-  'CH': '🇨🇭 Switzerland',
-  'SY': '🇸🇾 Syrian Arab Republic',
-  'TW': '🇹🇼 Taiwan',
-  'TJ': '🇹🇯 Tajikistan',
-  'TZ': '🇹🇿 Tanzania, United Republic of Tanzania',
-  'TH': '🇹🇭 Thailand',
-  'TL': '🇹🇱 Timor-Leste',
-  'TG': '🇹🇬 Togo',
-  'TK': '🇹🇰 Tokelau',
-  'TO': '🇹🇴 Tonga',
-  'TT': '🇹🇹 Trinidad and Tobago',
-  'TN': '🇹🇳 Tunisia',
-  'TR': '🇹🇷 Turkey',
-  'TM': '🇹🇲 Turkmenistan',
-  'TC': '🇹🇨 Turks and Caicos Islands',
-  'TV': '🇹🇻 Tuvalu',
-  'UG': '🇺🇬 Uganda',
-  'UA': '🇺🇦 Ukraine',
-  'AE': '🇦🇪 United Arab Emirates',
-  'GB': '🇬🇧 United Kingdom',
-  'US': '🇺🇸 United States',
-  'UY': '🇺🇾 Uruguay',
-  'UZ': '🇺🇿 Uzbekistan',
-  'VU': '🇻🇺 Vanuatu',
-  'VE': '🇻🇪 Venezuela, Bolivarian Republic of Venezuela',
-  'VN': '🇻🇳 Vietnam',
-  'VG': '🇻🇬 Virgin Islands, British',
-  'VI': '🇻🇮 Virgin Islands, U.S.',
-  'WF': '🇼🇫 Wallis and Futuna',
-  'YE': '🇾🇪 Yemen',
-  'ZM': '🇿🇲 Zambia',
-  'ZW': '🇿🇼 Zimbabwe'
+    'AF': 'Afghanistan',
+    'AX': 'Aland Islands',
+    'AL': 'Albania',
+    'DZ': 'Algeria',
+    'AS': 'American Samoa',
+    'AD': 'Andorra',
+    'AO': 'Angola',
+    'AI': 'Anguilla',
+    'AQ': 'Antarctica',
+    'AG': 'Antigua and Barbuda',
+    'AR': 'Argentina',
+    'AM': 'Armenia',
+    'AW': 'Aruba',
+    'AU': 'Australia',
+    'AT': 'Austria',
+    'AZ': 'Azerbaijan',
+    'BS': 'Bahamas',
+    'BH': 'Bahrain',
+    'BD': 'Bangladesh',
+    'BB': 'Barbados',
+    'BY': 'Belarus',
+    'BE': 'Belgium',
+    'BZ': 'Belize',
+    'BJ': 'Benin',
+    'BM': 'Bermuda',
+    'BT': 'Bhutan',
+    'BO': 'Bolivia',
+    'BA': 'Bosnia and Herzegovina',
+    'BW': 'Botswana',
+    'BV': 'Bouvet Island',
+    'BR': 'Brazil',
+    'IO': 'British Indian Ocean Territory',
+    'BN': 'Brunei Darussalam',
+    'BG': 'Bulgaria',
+    'BF': 'Burkina Faso',
+    'BI': 'Burundi',
+    'KH': 'Cambodia',
+    'CM': 'Cameroon',
+    'CA': 'Canada',
+    'CV': 'Cape Verde',
+    'KY': 'Cayman Islands',
+    'CF': 'Central African Republic',
+    'TD': 'Chad',
+    'CL': 'Chile',
+    'CN': 'China',
+    'CX': 'Christmas Island',
+    'CC': 'Cocos (Keeling) Islands',
+    'CO': 'Colombia',
+    'KM': 'Comoros',
+    'CG': 'Congo',
+    'CD': 'Congo, The Democratic Republic of the Congo',
+    'CK': 'Cook Islands',
+    'CR': 'Costa Rica',
+    'CI': "Cote d'Ivoire",
+    'HR': 'Croatia',
+    'CU': 'Cuba',
+    'CY': 'Cyprus',
+    'CZ': 'Czech Republic',
+    'DK': 'Denmark',
+    'DJ': 'Djibouti',
+    'DM': 'Dominica',
+    'DO': 'Dominican Republic',
+    'EC': 'Ecuador',
+    'EG': 'Egypt',
+    'SV': 'El Salvador',
+    'GQ': 'Equatorial Guinea',
+    'ER': 'Eritrea',
+    'EE': 'Estonia',
+    'ET': 'Ethiopia',
+    'FK': 'Falkland Islands (Malvinas)',
+    'FO': 'Faroe Islands',
+    'FJ': 'Fiji',
+    'FI': 'Finland',
+    'FR': 'France',
+    'GF': 'French Guiana',
+    'PF': 'French Polynesia',
+    'TF': 'French Southern Territories',
+    'GA': 'Gabon',
+    'GM': 'Gambia',
+    'GE': 'Georgia',
+    'DE': 'Germany',
+    'GH': 'Ghana',
+    'GI': 'Gibraltar',
+    'GR': 'Greece',
+    'GL': 'Greenland',
+    'GD': 'Grenada',
+    'GP': 'Guadeloupe',
+    'GU': 'Guam',
+    'GT': 'Guatemala',
+    'GG': 'Guernsey',
+    'GN': 'Guinea',
+    'GW': 'Guinea-Bissau',
+    'GY': 'Guyana',
+    'HT': 'Haiti',
+    'HM': 'Heard Island and Mcdonald Islands',
+    'VA': 'Holy See (Vatican City State)',
+    'HN': 'Honduras',
+    'HK': 'Hong Kong',
+    'HU': 'Hungary',
+    'IS': 'Iceland',
+    'IN': 'India',
+    'ID': 'Indonesia',
+    'IR': 'Iran',
+    'IQ': 'Iraq',
+    'IE': 'Ireland',
+    'IM': 'Isle of Man',
+    'IL': 'Israel',
+    'IT': 'Italy',
+    'JM': 'Jamaica',
+    'JP': 'Japan',
+    'JE': 'Jersey',
+    'JO': 'Jordan',
+    'KZ': 'Kazakhstan',
+    'KE': 'Kenya',
+    'KI': 'Kiribati',
+    'KP': "Korea, Democratic People's Republic of Korea",
+    'KR': 'Korea, Republic of South Korea',
+    'XK': 'Kosovo',
+    'KW': 'Kuwait',
+    'KG': 'Kyrgyzstan',
+    'LA': 'Laos',
+    'LV': 'Latvia',
+    'LB': 'Lebanon',
+    'LS': 'Lesotho',
+    'LR': 'Liberia',
+    'LY': 'Libyan Arab Jamahiriya',
+    'LI': 'Liechtenstein',
+    'LT': 'Lithuania',
+    'LU': 'Luxembourg',
+    'MO': 'Macao',
+    'MK': 'Macedonia',
+    'MG': 'Madagascar',
+    'MW': 'Malawi',
+    'MY': 'Malaysia',
+    'MV': 'Maldives',
+    'ML': 'Mali',
+    'MT': 'Malta',
+    'MH': 'Marshall Islands',
+    'MQ': 'Martinique',
+    'MR': 'Mauritania',
+    'MU': 'Mauritius',
+    'YT': 'Mayotte',
+    'MX': 'Mexico',
+    'FM': 'Micronesia, Federated States of Micronesia',
+    'MD': 'Moldova',
+    'MC': 'Monaco',
+    'MN': 'Mongolia',
+    'ME': 'Montenegro',
+    'MS': 'Montserrat',
+    'MA': 'Morocco',
+    'MZ': 'Mozambique',
+    'MM': 'Myanmar',
+    'NA': 'Namibia',
+    'NR': 'Nauru',
+    'NP': 'Nepal',
+    'NL': 'Netherlands',
+    'AN': 'Netherlands Antilles',
+    'NC': 'New Caledonia',
+    'NZ': 'New Zealand',
+    'NI': 'Nicaragua',
+    'NE': 'Niger',
+    'NG': 'Nigeria',
+    'NU': 'Niue',
+    'NF': 'Norfolk Island',
+    'MP': 'Northern Mariana Islands',
+    'NO': 'Norway',
+    'OM': 'Oman',
+    'PK': 'Pakistan',
+    'PW': 'Palau',
+    'PS': 'Palestinian Territory, Occupied',
+    'PA': 'Panama',
+    'PG': 'Papua New Guinea',
+    'PY': 'Paraguay',
+    'PE': 'Peru',
+    'PH': 'Philippines',
+    'PN': 'Pitcairn',
+    'PL': 'Poland',
+    'PT': 'Portugal',
+    'PR': 'Puerto Rico',
+    'QA': 'Qatar',
+    'RO': 'Romania',
+    'RU': 'Russia',
+    'RW': 'Rwanda',
+    'RE': 'Reunion',
+    'BL': 'Saint Barthelemy',
+    'SH': 'Saint Helena, Ascension and Tristan Da Cunha',
+    'KN': 'Saint Kitts and Nevis',
+    'LC': 'Saint Lucia',
+    'MF': 'Saint Martin',
+    'PM': 'Saint Pierre and Miquelon',
+    'VC': 'Saint Vincent and the Grenadines',
+    'WS': 'Samoa',
+    'SM': 'San Marino',
+    'ST': 'Sao Tome and Principe',
+    'SA': 'Saudi Arabia',
+    'SN': 'Senegal',
+    'RS': 'Serbia',
+    'SC': 'Seychelles',
+    'SL': 'Sierra Leone',
+    'SG': 'Singapore',
+    'SK': 'Slovakia',
+    'SI': 'Slovenia',
+    'SB': 'Solomon Islands',
+    'SO': 'Somalia',
+    'ZA': 'South Africa',
+    'SS': 'South Sudan',
+    'GS': 'South Georgia and the South Sandwich Islands',
+    'ES': 'Spain',
+    'LK': 'Sri Lanka',
+    'SD': 'Sudan',
+    'SR': 'Suriname',
+    'SJ': 'Svalbard and Jan Mayen',
+    'SZ': 'Eswatini',
+    'SE': 'Sweden',
+    'CH': 'Switzerland',
+    'SY': 'Syrian Arab Republic',
+    'TW': 'Taiwan',
+    'TJ': 'Tajikistan',
+    'TZ': 'Tanzania, United Republic of Tanzania',
+    'TH': 'Thailand',
+    'TL': 'Timor-Leste',
+    'TG': 'Togo',
+    'TK': 'Tokelau',
+    'TO': 'Tonga',
+    'TT': 'Trinidad and Tobago',
+    'TN': 'Tunisia',
+    'TR': 'Turkey',
+    'TM': 'Turkmenistan',
+    'TC': 'Turks and Caicos Islands',
+    'TV': 'Tuvalu',
+    'UG': 'Uganda',
+    'UA': 'Ukraine',
+    'AE': 'United Arab Emirates',
+    'GB': 'United Kingdom',
+    'US': 'United States',
+    'UY': 'Uruguay',
+    'UZ': 'Uzbekistan',
+    'VU': 'Vanuatu',
+    'VE': 'Venezuela',
+    'VN': 'Vietnam',
+    'VG': 'Virgin Islands, British',
+    'VI': 'Virgin Islands, U.S.',
+    'WF': 'Wallis and Futuna',
+    'YE': 'Yemen',
+    'ZM': 'Zambia',
+    'ZW': 'Zimbabwe'
 };
 
 function getCountryName(countryCode) {
     const code = (countryCode || 'ID').toUpperCase();
-    return countryMapping[code] || `🌍 ${code}`;
+    return countryMapping[code] || code;
 }
 
 // ================== FUNGSI FORMAT LOKASI ==================
@@ -773,10 +773,14 @@ else {
                 
                 if (isAdmin(userId)) {
                     message += `ADMIN:\n`;
-                    message += `/offinfo /oninfo /ranking\n`;
-                    message += `/listpremium /listbanned\n`;
-                    message += `/addban ID /unban ID\n`;
-                    message += `/addpremium ID DURASI\n`;
+                    message += `/offinfo - Nonaktifkan fitur\n`;
+                    message += `/oninfo - Aktifkan fitur\n`;
+                    message += `/ranking - Peringkat user\n`;
+                    message += `/listpremium - Daftar premium\n`;
+                    message += `/listbanned - Daftar banned\n`;
+                    message += `/addban ID - Blokir user\n`;
+                    message += `/unban ID - Buka blokir\n`;
+                    message += `/addpremium ID DURASI - Tambah premium\n`;
                 }
                 
                 await bot.sendMessage(msg.chat.id, message);
@@ -828,7 +832,7 @@ else {
             }
         });
 
-        // ================== COMMAND /topup ==================
+        // ================== COMMAND /topup (DENGAN TOMBOL 2X LIPAT) ==================
         bot.onText(/\/topup/, async (msg) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -843,21 +847,15 @@ else {
                     {
                         reply_markup: {
                             inline_keyboard: [
-                                [
-                                    { text: 'Rp 5.000', callback_data: 'topup_5000' },
-                                    { text: 'Rp 10.000', callback_data: 'topup_10000' }
-                                ],
-                                [
-                                    { text: 'Rp 25.000', callback_data: 'topup_25000' },
-                                    { text: 'Rp 50.000', callback_data: 'topup_50000' }
-                                ],
-                                [
-                                    { text: 'Rp 100.000', callback_data: 'topup_100000' },
-                                    { text: 'Custom', callback_data: 'topup_custom' }
-                                ],
-                                [
-                                    { text: 'BATAL', callback_data: 'topup_batal' }
-                                ]
+                                [{ text: 'Rp 5.000', callback_data: 'topup_5000' }],
+                                [{ text: 'Rp 10.000', callback_data: 'topup_10000' }],
+                                [{ text: 'Rp 25.000', callback_data: 'topup_25000' }],
+                                [{ text: 'Rp 50.000', callback_data: 'topup_50000' }],
+                                [{ text: 'Rp 100.000', callback_data: 'topup_100000' }],
+                                [{ text: 'Rp 200.000', callback_data: 'topup_200000' }],
+                                [{ text: 'Rp 500.000', callback_data: 'topup_500000' }],
+                                [{ text: 'Rp 1.000.000', callback_data: 'topup_1000000' }],
+                                [{ text: 'BATAL', callback_data: 'topup_batal' }]
                             ]
                         }
                     }
@@ -1100,10 +1098,13 @@ else {
 
                 const d = data.detailed;
                 let output = `DETAIL AKUN\n\n`;
-                output += `ID: ${d.role_id}\nServer: ${d.zone_id}\n`;
-                output += `Nickname: ${d.name}\nLevel: ${d.level}\n`;
+                output += `ID: ${d.role_id}\n`;
+                output += `Server: ${d.zone_id}\n`;
+                output += `Nickname: ${d.name}\n`;
+                output += `Level: ${d.level}\n`;
                 output += `TTL: ${d.ttl || '-'}\n\n`;
-                output += `Current: ${d.current_tier}\nMax: ${d.max_tier}\n\n`;
+                output += `Current Tier: ${d.current_tier}\n`;
+                output += `Max Tier: ${d.max_tier}\n\n`;
                 output += `Total Skin: ${d.skin_count}\n`;
                 output += `Total Match: ${d.total_match_played?.toLocaleString()}\n`;
                 output += `Win Rate: ${d.overall_win_rate}\n`;
@@ -1241,7 +1242,7 @@ else {
             } catch (error) {
                 console.log('Error /find:', error.message);
                 try {
-                    await bot.deleteMessage(msg.chat.id, loadingMsg?.message_id);
+                    if (loadingMsg) await bot.deleteMessage(msg.chat.id, loadingMsg.message_id);
                 } catch {}
                 await bot.sendMessage(msg.chat.id, `Gagal mengambil data.`);
             }
@@ -1265,22 +1266,12 @@ else {
                     return;
                 }
 
-                if (data === 'topup_custom') {
-                    await bot.sendMessage(chatId,
-                        `TOP UP CUSTOM\n\n` +
-                        `Kirim nominal yang diinginkan.\n` +
-                        `Contoh: 50000 untuk Rp 50.000\n\n` +
-                        `Minimal: 10000\nMaksimal: 1000000\n\n` +
-                        `Balas pesan ini dengan nominal.`,
-                        { reply_markup: { force_reply: true } }
-                    );
-                    await bot.answerCallbackQuery(cb.id);
-                    return;
-                }
-
                 if (data.startsWith('topup_')) {
                     const amount = parseInt(data.replace('topup_', ''));
-                    if (isNaN(amount) || amount < 5000) {
+                    
+                    // Validasi nominal yang valid
+                    const validAmounts = [5000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000];
+                    if (!validAmounts.includes(amount)) {
                         await bot.sendMessage(chatId, 'Nominal tidak valid.');
                         await bot.answerCallbackQuery(cb.id);
                         return;
@@ -1534,6 +1525,162 @@ else {
                 users.forEach(([id,data],i) => message += `${i+1}. ${data.username || 'unknown'} - ${data.success}x\n`);
                 await bot.sendMessage(msg.chat.id, message || 'Belum ada data');
             } catch (error) {}
+        });
+
+        // ================== LIST PREMIUM ==================
+        bot.onText(/\/listpremium/, async (msg) => {
+            try {
+                if (msg.chat.type !== 'private') return;
+                if (!isAdmin(msg.from.id)) return;
+                
+                let message = 'DAFTAR USER PREMIUM\n\n';
+                const premiumList = Object.entries(db.premium || {});
+                
+                if (premiumList.length === 0) {
+                    message += 'Belum ada user premium.';
+                } else {
+                    premiumList.forEach(([id, data], i) => {
+                        const expired = moment.unix(data.expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm');
+                        message += `${i+1}. ${id} - ${data.duration}\n`;
+                        message += `   Exp: ${expired} WIB\n\n`;
+                    });
+                }
+                
+                await bot.sendMessage(msg.chat.id, message);
+            } catch (error) {
+                console.log('Error /listpremium:', error.message);
+            }
+        });
+
+        // ================== LIST BANNED ==================
+        bot.onText(/\/listbanned/, async (msg) => {
+            try {
+                if (msg.chat.type !== 'private') return;
+                if (!isAdmin(msg.from.id)) return;
+                
+                let message = 'DAFTAR USER BANNED\n\n';
+                const bannedList = Object.entries(spamData).filter(([_, d]) => d.banned);
+                
+                if (bannedList.length === 0) {
+                    message += 'Tidak ada user yang diblokir.';
+                } else {
+                    bannedList.forEach(([id, d], i) => {
+                        const date = moment(d.bannedAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm');
+                        message += `${i+1}. ${id}\n`;
+                        message += `   Alasan: ${d.banReason || 'Tidak ada'}\n`;
+                        message += `   Tanggal: ${date} WIB\n\n`;
+                    });
+                }
+                
+                await bot.sendMessage(msg.chat.id, message);
+            } catch (error) {
+                console.log('Error /listbanned:', error.message);
+            }
+        });
+
+        // ================== ADD BAN ==================
+        bot.onText(/\/addban(?:\s+(\d+)(?:\s+(.+))?)?/, async (msg, match) => {
+            try {
+                if (msg.chat.type !== 'private') return;
+                if (!isAdmin(msg.from.id)) return;
+                
+                if (!match[1]) {
+                    await bot.sendMessage(msg.chat.id, 'Format: /addban ID [alasan]');
+                    return;
+                }
+                
+                const targetId = parseInt(match[1]);
+                const reason = match[2] || 'Ban manual oleh admin';
+                
+                const now = Date.now();
+                spamData[targetId] = { 
+                    banned: true, 
+                    bannedAt: now, 
+                    banReason: reason, 
+                    infoCount: [] 
+                };
+                await saveSpamData();
+                
+                await bot.sendMessage(msg.chat.id, `User ${targetId} telah diblokir.\nAlasan: ${reason}`);
+                
+                try {
+                    await bot.sendMessage(targetId, 
+                        `AKUN ANDA DIBLOKIR\n\n` +
+                        `Alasan: ${reason}\n` +
+                        `Hubungi admin jika ada kesalahan.`
+                    );
+                } catch (e) {}
+                
+            } catch (error) {
+                console.log('Error /addban:', error.message);
+            }
+        });
+
+        // ================== UNBAN ==================
+        bot.onText(/\/unban (\d+)/, async (msg, match) => {
+            try {
+                if (msg.chat.type !== 'private') return;
+                if (!isAdmin(msg.from.id)) return;
+                
+                const targetId = parseInt(match[1]);
+                
+                if (spamData[targetId]) {
+                    spamData[targetId].banned = false;
+                    spamData[targetId].infoCount = [];
+                    await saveSpamData();
+                    await bot.sendMessage(msg.chat.id, `User ${targetId} telah di-unban.`);
+                    
+                    try {
+                        await bot.sendMessage(targetId, `Akun Anda telah di-unban. Silakan gunakan bot kembali.`);
+                    } catch (e) {}
+                } else {
+                    await bot.sendMessage(msg.chat.id, `User ${targetId} tidak ditemukan.`);
+                }
+            } catch (error) {
+                console.log('Error /unban:', error.message);
+            }
+        });
+
+        // ================== ADD PREMIUM ==================
+        bot.onText(/\/addpremium (\d+) (\d+)/, async (msg, match) => {
+            try {
+                if (msg.chat.type !== 'private') return;
+                if (!isAdmin(msg.from.id)) return;
+                
+                const targetId = parseInt(match[1]);
+                const days = parseInt(match[2]);
+                
+                if (days < 1 || days > 365) {
+                    await bot.sendMessage(msg.chat.id, 'Durasi harus 1-365 hari.');
+                    return;
+                }
+                
+                const now = moment().tz('Asia/Jakarta').unix();
+                const expiredAt = now + (days * 86400);
+                
+                db.premium[targetId] = { 
+                    activated_at: now, 
+                    expired_at: expiredAt, 
+                    duration: `${days} Hari (Manual)` 
+                };
+                await saveDB();
+                
+                await bot.sendMessage(msg.chat.id, 
+                    `Premium ${days} hari untuk ${targetId}.\n` +
+                    `Berlaku sampai: ${moment.unix(expiredAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB`
+                );
+                
+                try {
+                    await bot.sendMessage(targetId, 
+                        `AKUN ANDA DIUPGRADE\n\n` +
+                        `Sekarang Anda adalah user PREMIUM selama ${days} hari.\n` +
+                        `Berlaku sampai: ${moment.unix(expiredAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB`
+                    );
+                } catch (e) {}
+                
+            } catch (error) {
+                console.log('Error /addpremium:', error.message);
+            }
         });
 
         console.log('Bot started, Admin IDs:', ADMIN_IDS);
