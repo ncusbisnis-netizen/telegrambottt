@@ -5,6 +5,7 @@ const fs = require('fs');
 const moment = require('moment-timezone');
 const cron = require('node-cron');
 const QRCode = require('qrcode');
+const { Pool } = require('pg'); // <-- TAMBAHKAN INI
 
 // ================== CEK JENIS PROSES ==================
 const IS_WORKER = process.env.DYNO && process.env.DYNO.includes('worker');
@@ -20,7 +21,7 @@ const ADMIN_IDS = process.env.ADMIN_IDS
     ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim())) 
     : [];
 
-// ================== COUNTRY MAPPING ==================
+// ================== REGION ONLY INDONESIA ==================
 const countryMapping = {
     'AF': '🇦🇫 Afghanistan',
   'AX': '🇦🇽 Åland Islands',
@@ -275,63 +276,134 @@ function getCountryName(countryCode) {
     return countryMapping[code] || `🌍 ${code}`;
 }
 
-// ================== DATABASE ==================
+// ================== DATABASE POSTGRES ==================
 let db = { users: {}, total_success: 0, feature: { info: true }, premium: {}, pending_payments: {} };
 let spamData = {};
 
-function loadDB() {
-    try {
-        if (fs.existsSync('database.json')) {
-            db = JSON.parse(fs.readFileSync('database.json', 'utf8'));
-        } else {
-            fs.writeFileSync('database.json', JSON.stringify(db, null, 2));
-        }
-    } catch (error) {}
-}
-function saveDB() { fs.writeFileSync('database.json', JSON.stringify(db, null, 2)); }
+// Koneksi ke Postgres (DATABASE_URL otomatis dari Heroku)
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+});
 
-function loadSpamData() {
+// Inisialisasi tabel
+async function initDB() {
     try {
-        if (fs.existsSync('spam.json')) {
-            spamData = JSON.parse(fs.readFileSync('spam.json', 'utf8'));
-        } else {
-            spamData = {};
-            fs.writeFileSync('spam.json', JSON.stringify(spamData, null, 2));
-        }
-    } catch (error) {}
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS bot_data (
+                key VARCHAR(50) PRIMARY KEY,
+                value JSONB NOT NULL,
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        `);
+        console.log('✅ Tabel bot_data siap');
+    } catch (error) {
+        console.error('❌ Gagal init database:', error.message);
+    }
 }
-function saveSpamData() { fs.writeFileSync('spam.json', JSON.stringify(spamData, null, 2)); }
 
-loadDB(); loadSpamData();
+// Load data dari Postgres
+async function loadDB() {
+    try {
+        const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['database']);
+        if (res.rows.length > 0) {
+            db = res.rows[0].value;
+            console.log('✅ Load database dari Postgres');
+        } else {
+            console.log('📁 Database kosong, pakai default');
+        }
+    } catch (error) {
+        console.error('❌ Gagal load database:', error.message);
+    }
+}
+
+// Save data ke Postgres
+async function saveDB() {
+    try {
+        await pool.query(
+            `INSERT INTO bot_data (key, value, updated_at) 
+             VALUES ($1, $2, NOW())
+             ON CONFLICT (key) DO UPDATE 
+             SET value = $2, updated_at = NOW()`,
+            ['database', db]
+        );
+    } catch (error) {
+        console.error('❌ Gagal save database:', error.message);
+        // Fallback: simpan ke file
+        fs.writeFileSync('database.json', JSON.stringify(db, null, 2));
+    }
+}
+
+// Load spam data dari Postgres
+async function loadSpamData() {
+    try {
+        const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['spam']);
+        if (res.rows.length > 0) {
+            spamData = res.rows[0].value;
+            console.log('✅ Load spam data dari Postgres');
+        }
+    } catch (error) {
+        console.error('❌ Gagal load spam:', error.message);
+    }
+}
+
+// Save spam data ke Postgres
+async function saveSpamData() {
+    try {
+        await pool.query(
+            `INSERT INTO bot_data (key, value, updated_at) 
+             VALUES ($1, $2, NOW())
+             ON CONFLICT (key) DO UPDATE 
+             SET value = $2, updated_at = NOW()`,
+            ['spam', spamData]
+        );
+    } catch (error) {
+        console.error('❌ Gagal save spam:', error.message);
+        fs.writeFileSync('spam.json', JSON.stringify(spamData, null, 2));
+    }
+}
+
+// Inisialisasi dan load data
+initDB().then(async () => {
+    await loadDB();
+    await loadSpamData();
+});
 
 // ================== FUNGSI UTILITY ==================
 function isAdmin(userId) { return ADMIN_IDS.includes(userId); }
-function isPremium(userId) {
+
+async function isPremium(userId) {
     const premium = db.premium[userId];
     if (!premium) return false;
     const now = moment().tz('Asia/Jakarta').unix();
     if (premium.expired_at < now) {
-        delete db.premium[userId]; saveDB(); return false;
+        delete db.premium[userId]; 
+        await saveDB(); 
+        return false;
     }
     return true;
 }
+
 function getUserStatus(userId) {
     if (isAdmin(userId)) return { type: 'ADMIN', limit: 'Unlimited' };
-    if (isPremium(userId)) return { type: 'PREMIUM', limit: 'Unlimited' };
+    if (db.premium[userId]) return { type: 'PREMIUM', limit: 'Unlimited' };
     return { type: 'FREE', limit: 10, used: db.users[userId]?.success || 0 };
 }
+
 function getRemainingLimit(userId) {
     const status = getUserStatus(userId);
     if (status.type !== 'FREE') return 'Unlimited';
     return Math.max(0, status.limit - status.used);
 }
+
 function formatRupiah(amount) {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 }
 
 // ================== ANTI-SPAM ==================
 function isBanned(userId) { return spamData[userId]?.banned === true; }
-function recordInfoActivity(userId) {
+
+async function recordInfoActivity(userId) {
     const now = Date.now();
     if (!spamData[userId]) spamData[userId] = { banned: false, infoCount: [] };
     if (spamData[userId].banned) return false;
@@ -342,30 +414,33 @@ function recordInfoActivity(userId) {
         spamData[userId].bannedAt = now;
         spamData[userId].banReason = 'Spam /info 10x dalam 1 menit';
         spamData[userId].infoCount = [];
-        saveSpamData();
+        await saveSpamData();
         return true;
     }
-    saveSpamData();
+    await saveSpamData();
     return false;
 }
-function unbanUser(userId) {
+
+async function unbanUser(userId) {
     if (spamData[userId]) {
         spamData[userId].banned = false;
         spamData[userId].infoCount = [];
-        saveSpamData();
+        await saveSpamData();
         return true;
     }
     return false;
 }
-function addBan(userId, reason = 'Ban manual oleh admin') {
-    spamData[userId] = { banned: true, bannedAt: Date.now(), banReason: reason, infoCount: [] };
-    saveSpamData();
+
+async function addBan(userId, reason = 'Ban manual oleh admin') {
+    const now = Date.now();
+    spamData[userId] = { banned: true, bannedAt: now, banReason: reason, infoCount: [] };
+    await saveSpamData();
     return true;
 }
 
 // ================== FUNGSI GET DATA MLBB ==================
 async function getMLBBData(userId, serverId) {
-    const result = { username: null, region: null, bindAccounts: [], devices: { android: 0, ios: 0 }, ttl: null };
+    const result = { username: null, region: '🇮🇩 Indonesia', bindAccounts: [], devices: { android: 0, ios: 0 }, ttl: null };
     
     try {
         const goPayResponse = await axios.post("https://gopay.co.id/games/v1/order/user-account", {
@@ -387,8 +462,7 @@ async function getMLBBData(userId, serverId) {
         if (goPayResponse.data?.data) {
             const g = goPayResponse.data.data;
             result.username = g.username || "Tidak ditemukan";
-            const countryCode = g.countryOrigin || "ID";
-            result.region = getCountryName(countryCode);
+            result.region = '🇮🇩 Indonesia'; // Tetap Indonesia
             
             if (API_KEY_CHECKTON) {
                 try {
@@ -448,7 +522,7 @@ async function createPakasirTransaction(amount, duration, userId) {
                 expired_at: expiredAt.unix(),
                 payment_number: payment.payment_number
             };
-            saveDB();
+            await saveDB();
             return {
                 success: true, orderId, qrString: payment.payment_number, amount,
                 expiredAt: expiredAt.format('YYYY-MM-DD HH:mm:ss')
@@ -629,7 +703,7 @@ else {
         
         const userId = msg.from.id;
         
-        if (isPremium(userId)) {
+        if (await isPremium(userId)) {
             const expired = moment.unix(db.premium[userId].expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss');
             await bot.sendMessage(msg.chat.id, `ANDA SUDAH PREMIUM\n\nBerlaku sampai: ${expired} WIB`);
             return;
@@ -693,7 +767,7 @@ else {
                 db.pending_payments[payment.orderId] = db.pending_payments[payment.orderId] || {};
                 db.pending_payments[payment.orderId].messageId = sentMessage.message_id;
                 db.pending_payments[payment.orderId].chatId = chatId;
-                saveDB();
+                await saveDB();
             } catch {
                 await bot.sendMessage(chatId, `PEMBAYARAN QRIS\n\nPaket: ${selected.name}\nHarga: ${formatRupiah(selected.price)}\n\nQR Code:\n${payment.qrString}\n\nOrder ID: ${payment.orderId}\nBerlaku sampai: ${payment.expiredAt} WIB`);
             }
@@ -713,7 +787,7 @@ else {
                         try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
                     }
                     delete db.pending_payments[orderId];
-                    saveDB();
+                    await saveDB();
                     continue;
                 }
 
@@ -738,7 +812,7 @@ else {
                         order_id: orderId 
                     };
                     db.pending_payments[orderId].status = 'paid';
-                    saveDB();
+                    await saveDB();
 
                     if (data.messageId && data.chatId) {
                         try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
@@ -845,14 +919,14 @@ else {
         }
         
         // ===== 6. CEK SPAM =====
-        const banned = recordInfoActivity(userId);
+        const banned = await recordInfoActivity(userId);
         if (banned) {
             console.log(`User ${userId} kena ban karena spam /info`);
             return; // DIAM SAJA
         }
         
         // ===== 7. CEK LIMIT =====
-        const isFreeUser = !isAdmin(userId) && !isPremium(userId);
+        const isFreeUser = !isAdmin(userId) && !(await isPremium(userId));
         const remaining = isFreeUser ? getRemainingLimit(userId) : 'Unlimited';
         
         if (isFreeUser && remaining <= 0) {
@@ -912,25 +986,25 @@ else {
             db.users[userId].username = username;
             db.users[userId].success += 1;
             db.total_success += 1;
-            saveDB();
+            await saveDB();
         }
     });
 
     // ================== ADMIN COMMANDS ==================
-    bot.onText(/\/offinfo/, (msg) => { 
+    bot.onText(/\/offinfo/, async (msg) => { 
         if (msg.chat.type !== 'private') return;
         if (isAdmin(msg.from.id)) { 
             db.feature.info = false; 
-            saveDB(); 
+            await saveDB(); 
             bot.sendMessage(msg.chat.id, 'Fitur /info dinonaktifkan.'); 
         } 
     });
 
-    bot.onText(/\/oninfo/, (msg) => { 
+    bot.onText(/\/oninfo/, async (msg) => { 
         if (msg.chat.type !== 'private') return;
         if (isAdmin(msg.from.id)) { 
             db.feature.info = true; 
-            saveDB(); 
+            await saveDB(); 
             bot.sendMessage(msg.chat.id, 'Fitur /info diaktifkan.'); 
         } 
     });
@@ -946,7 +1020,7 @@ else {
         await bot.sendMessage(msg.chat.id, message || 'Belum ada data');
     });
 
-    bot.onText(/\/listpremium/, (msg) => {
+    bot.onText(/\/listpremium/, async (msg) => {
         if (msg.chat.type !== 'private') return;
         if (!isAdmin(msg.from.id)) return;
         let message = 'DAFTAR PREMIUM\n\n';
@@ -957,7 +1031,7 @@ else {
         bot.sendMessage(msg.chat.id, message || 'Belum ada');
     });
 
-    bot.onText(/\/listbanned/, (msg) => {
+    bot.onText(/\/listbanned/, async (msg) => {
         if (msg.chat.type !== 'private') return;
         if (!isAdmin(msg.from.id)) return;
         let message = 'DAFTAR BANNED\n\n';
@@ -969,19 +1043,19 @@ else {
         bot.sendMessage(msg.chat.id, message || 'Tidak ada');
     });
 
-    bot.onText(/\/addban(?:\s+(\d+)(?:\s+(.+))?)?/, (msg, match) => {
+    bot.onText(/\/addban(?:\s+(\d+)(?:\s+(.+))?)?/, async (msg, match) => {
         if (msg.chat.type !== 'private') return;
         if (!isAdmin(msg.from.id)) return;
         if (!match[1]) return bot.sendMessage(msg.chat.id, 'Format: /addban ID [alasan]');
-        addBan(parseInt(match[1]), match[2] || 'Ban manual');
+        await addBan(parseInt(match[1]), match[2] || 'Ban manual');
         bot.sendMessage(msg.chat.id, `User ${match[1]} diblokir.`);
     });
 
-    bot.onText(/\/unban (.+)/, (msg, match) => {
+    bot.onText(/\/unban (.+)/, async (msg, match) => {
         if (msg.chat.type !== 'private') return;
         if (!isAdmin(msg.from.id)) return;
         const id = parseInt(match[1]);
-        if (unbanUser(id)) bot.sendMessage(msg.chat.id, `User ${id} di-unban.`);
+        if (await unbanUser(id)) bot.sendMessage(msg.chat.id, `User ${id} di-unban.`);
         else bot.sendMessage(msg.chat.id, `User ${id} tidak ditemukan.`);
     });
 
@@ -997,7 +1071,7 @@ else {
             expired_at: now + (days * 86400), 
             duration: `${days} Hari (Manual)` 
         };
-        saveDB();
+        await saveDB();
         bot.sendMessage(msg.chat.id, `Premium ${days} hari untuk ${targetId}.`);
         try { 
             await bot.sendMessage(targetId, `Akun Anda diupgrade PREMIUM ${days} hari.`); 
