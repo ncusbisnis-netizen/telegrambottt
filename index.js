@@ -5,7 +5,7 @@ const fs = require('fs');
 const moment = require('moment-timezone');
 const cron = require('node-cron');
 const QRCode = require('qrcode');
-const { Pool } = require('pg'); // <-- TAMBAHKAN INI
+const { Pool } = require('pg');
 
 // ================== CEK JENIS PROSES ==================
 const IS_WORKER = process.env.DYNO && process.env.DYNO.includes('worker');
@@ -280,13 +280,11 @@ function getCountryName(countryCode) {
 let db = { users: {}, total_success: 0, feature: { info: true }, premium: {}, pending_payments: {} };
 let spamData = {};
 
-// Koneksi ke Postgres (DATABASE_URL otomatis dari Heroku)
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
 });
 
-// Inisialisasi tabel
 async function initDB() {
     try {
         await pool.query(`
@@ -302,7 +300,6 @@ async function initDB() {
     }
 }
 
-// Load data dari Postgres
 async function loadDB() {
     try {
         const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['database']);
@@ -317,7 +314,6 @@ async function loadDB() {
     }
 }
 
-// Save data ke Postgres
 async function saveDB() {
     try {
         await pool.query(
@@ -329,12 +325,10 @@ async function saveDB() {
         );
     } catch (error) {
         console.error('❌ Gagal save database:', error.message);
-        // Fallback: simpan ke file
         fs.writeFileSync('database.json', JSON.stringify(db, null, 2));
     }
 }
 
-// Load spam data dari Postgres
 async function loadSpamData() {
     try {
         const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['spam']);
@@ -347,7 +341,6 @@ async function loadSpamData() {
     }
 }
 
-// Save spam data ke Postgres
 async function saveSpamData() {
     try {
         await pool.query(
@@ -363,7 +356,6 @@ async function saveSpamData() {
     }
 }
 
-// Inisialisasi dan load data
 initDB().then(async () => {
     await loadDB();
     await loadSpamData();
@@ -438,66 +430,55 @@ async function addBan(userId, reason = 'Ban manual oleh admin') {
     return true;
 }
 
-// ================== FUNGSI GET DATA MLBB ==================
-async function getMLBBData(userId, serverId) {
-    const result = { username: null, region: '🇮🇩 Indonesia', bindAccounts: [], devices: { android: 0, ios: 0 }, ttl: null };
+// ================== FUNGSI GET DATA MLBB (DENGAN TYPE) ==================
+async function getMLBBData(userId, serverId, type = 'bind') {
+    const result = { 
+        username: null, 
+        region: '🇮🇩 Indonesia', 
+        bindAccounts: [], 
+        devices: { android: 0, ios: 0 }, 
+        ttl: null,
+        detailed: null 
+    };
     
     try {
-        const goPayResponse = await axios.post("https://gopay.co.id/games/v1/order/user-account", {
-            code: "MOBILE_LEGENDS",
-            data: { 
-                userId: String(userId), 
-                zoneId: String(serverId) 
-            }
+        const checktonResponse = await axios.post("https://checkton.online/backend/info", {
+            role_id: String(userId),
+            zone_id: String(serverId),
+            type: type
         }, {
-            headers: {
-                "Content-Type": "application/json",
-                "X-Client": "web-mobile",
-                "X-Timestamp": Date.now(),
-                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36"
+            headers: { 
+                "Content-Type": "application/json", 
+                "x-api-key": API_KEY_CHECKTON 
             },
-            timeout: 10000
+            timeout: 15000
         });
         
-        if (goPayResponse.data?.data) {
-            const g = goPayResponse.data.data;
-            result.username = g.username || "Tidak ditemukan";
-            result.region = '🇮🇩 Indonesia'; // Tetap Indonesia
+        if (checktonResponse.data?.data) {
+            const c = checktonResponse.data.data;
             
-            if (API_KEY_CHECKTON) {
-                try {
-                    const checktonResponse = await axios.post("https://checkton.online/backend/info", {
-                        role_id: String(userId),
-                        zone_id: String(serverId),
-                        type: "bind"
-                    }, {
-                        headers: { 
-                            "Content-Type": "application/json", 
-                            "x-api-key": API_KEY_CHECKTON 
-                        },
-                        timeout: 15000
-                    });
-                    
-                    if (checktonResponse.data?.data) {
-                        const c = checktonResponse.data.data;
-                        if (c.devices) {
-                            result.devices.android = c.devices.android?.total || 0;
-                            result.devices.ios = c.devices.ios?.total || 0;
-                        }
-                        if (c.bind_accounts && Array.isArray(c.bind_accounts)) {
-                            result.bindAccounts = c.bind_accounts;
-                        }
-                        if (c.ttl) result.ttl = c.ttl;
-                    }
-                } catch (error) {
-                    console.log("Checkton error:", error.message);
+            result.username = c.nickname || "Tidak ditemukan";
+            result.region = '🇮🇩 Indonesia';
+            result.ttl = c.ttl || null;
+            
+            if (type === 'bind') {
+                if (c.devices) {
+                    result.devices.android = c.devices.android?.total || 0;
+                    result.devices.ios = c.devices.ios?.total || 0;
                 }
+                if (c.bind_accounts && Array.isArray(c.bind_accounts)) {
+                    result.bindAccounts = c.bind_accounts;
+                }
+            }
+            
+            if (type === 'lookup') {
+                result.detailed = c;
             }
         } else {
             return null;
         }
     } catch (error) {
-        console.log("GoPay error:", error.message);
+        console.log(`Error getMLBBData (${type}):`, error.message);
         return null;
     }
 
@@ -555,7 +536,7 @@ if (!IS_WORKER) {
     app.get('/tes.php', async (req, res) => {
         const { userId, serverId, role_id, zone_id } = req.query;
         if (!userId || !serverId || !role_id || !zone_id) return res.status(400).send('❌ Parameter tidak lengkap');
-        const data = await getMLBBData(userId, serverId);
+        const data = await getMLBBData(userId, serverId, 'bind');
         if (!data?.username) return res.status(500).send('❌ Gagal mengambil data');
         
         let output = `[userId] => ${userId}\n[serverId] => ${serverId}\n[username] => ${data.username}\n[region] => ${data.region}\n\n`;
@@ -583,7 +564,6 @@ else {
     console.log('🤖 Bot worker started');
     const bot = new TelegramBot(BOT_TOKEN, { polling: { interval: 300, autoStart: true, params: { timeout: 10 } } });
 
-    // ================== FUNGSI CEK JOIN ==================
     async function checkJoin(userId) {
         try {
             let isChannelMember = false, isGroupMember = false;
@@ -612,24 +592,19 @@ else {
         
         if (!text) return;
         
-        // ===== HANYA RESPON DI PRIVATE CHAT - FILTER UTAMA =====
         if (chatType !== 'private') {
             console.log(`⚠️ Pesan dari grup diabaikan: ${chatId}`);
-            return; // IGNORE SEMUA PESAN DI GRUP/CHANNEL
+            return;
         }
         
         if (isAdmin(userId)) return;
         
-        // COMMAND PUBLIK TANPA CEK
         const publicCommands = ['/start', '/langganan', '/status', '/offinfo', '/oninfo', '/ranking', '/listpremium', '/listbanned', '/addban', '/unban', '/addpremium'];
         if (publicCommands.includes(text.split(' ')[0])) return;
-        
-        // UNTUK COMMAND LAIN, TIDAK ADA TINDAKAN DI MIDDLEWARE
     });
 
     // ================== COMMAND /start ==================
     bot.onText(/\/start/, async (msg) => {
-        // FILTER GRUP
         if (msg.chat.type !== 'private') return;
         
         const userId = msg.from.id;
@@ -641,7 +616,8 @@ else {
         else message += `Akses: Unlimited\n\n`;
         
         message += `DAFTAR PERINTAH:\n`;
-        message += `/info ID SERVER - Cek akun MLBB\n`;
+        message += `/info ID SERVER - Cek akun MLBB (dasar)\n`;
+        message += `/cek ID SERVER - Cek akun MLBB (detail lengkap)\n`;
         message += `/status - Cek status akun\n`;
         message += `/langganan - Lihat paket premium\n`;
         
@@ -662,7 +638,6 @@ else {
 
     // ================== COMMAND /status ==================
     bot.onText(/\/status/, async (msg) => {
-        // FILTER GRUP
         if (msg.chat.type !== 'private') return;
         
         const userId = msg.from.id;
@@ -698,7 +673,6 @@ else {
 
     // ================== COMMAND /langganan ==================
     bot.onText(/\/langganan/, async (msg) => {
-        // FILTER GRUP
         if (msg.chat.type !== 'private') return;
         
         const userId = msg.from.id;
@@ -726,7 +700,6 @@ else {
     bot.on('callback_query', async (cb) => {
         const msg = cb.message;
         
-        // FILTER GRUP - JIKA CALLBACK DARI GRUP, IGNORE
         if (msg.chat.type !== 'private') {
             await bot.answerCallbackQuery(cb.id, { text: 'Bot hanya berfungsi di chat pribadi' });
             return;
@@ -833,21 +806,15 @@ else {
 
     // ================== COMMAND /info ==================
     bot.onText(/^\s*\/\s*info(?:\s+(.+))?$/i, async (msg, match) => {
-        // FILTER GRUP
         if (msg.chat.type !== 'private') return;
         
         const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username;
         
-        // ===== 1. CEK BAN =====
-        if (isBanned(userId) && !isAdmin(userId)) {
-            return; // DIAM SAJA
-        }
+        if (isBanned(userId) && !isAdmin(userId)) return;
         
-        // ===== 2. CEK USERNAME =====
         if (!username && !isAdmin(userId)) {
             await bot.sendMessage(chatId,
                 `USERNAME DIPERLUKAN\n\n` +
-                `Untuk menggunakan perintah ini, Anda harus memiliki username Telegram.\n\n` +
                 `Cara membuat username:\n` +
                 `1. Buka Settings\n` +
                 `2. Pilih Username\n` +
@@ -857,16 +824,11 @@ else {
             return;
         }
         
-        // ===== 3. CEK FITUR INFO =====
         if (!db.feature.info && !isAdmin(userId)) {
-            await bot.sendMessage(chatId,
-                `FITUR SEDANG NONAKTIF\n\n` +
-                `Fitur /info sedang dinonaktifkan oleh administrator.`
-            );
+            await bot.sendMessage(chatId, `FITUR SEDANG NONAKTIF`);
             return;
         }
         
-        // ===== 4. CEK JOIN =====
         const joined = await checkJoin(userId);
         const missing = [];
         if (!joined.channel) missing.push(CHANNEL);
@@ -880,33 +842,25 @@ else {
             
             await bot.sendMessage(chatId,
                 `AKSES TERBATAS\n\n` +
-                `Untuk menggunakan bot ini, Anda perlu bergabung dengan:\n` +
-                missing.map(ch => `• ${ch}`).join('\n') + 
-                `\n\nSilakan klik tombol di bawah untuk bergabung, lalu coba lagi.`,
+                `Anda perlu bergabung dengan:\n` +
+                missing.map(ch => `• ${ch}`).join('\n'),
                 { reply_markup: { inline_keyboard: buttons } }
             );
             return;
         }
         
-        // ===== 5. CEK FORMAT =====
         if (!match || !match[1]) {
             await bot.sendMessage(chatId,
                 `INFORMASI PENGGUNAAN\n\n` +
                 `Format: /info ID_USER ID_SERVER\n` +
-                `Contoh: /info 643461181 8554\n\n` +
-                `ID_USER : ID akun Mobile Legends Anda\n` +
-                `ID_SERVER : ID server Anda`
+                `Contoh: /info 643461181 8554`
             );
             return;
         }
         
         const args = match[1].trim().split(/\s+/);
         if (args.length < 2) {
-            await bot.sendMessage(chatId,
-                `FORMAT TIDAK LENGKAP\n\n` +
-                `Gunakan: /info ID_USER ID_SERVER\n` +
-                `Contoh: /info 643461181 8554`
-            );
+            await bot.sendMessage(chatId, `Format: /info ID_USER ID_SERVER`);
             return;
         }
         
@@ -914,49 +868,31 @@ else {
         const serverId = args[1];
         
         if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-            await bot.sendMessage(chatId, 'ID dan Server harus berupa angka.');
+            await bot.sendMessage(chatId, 'ID dan Server harus angka.');
             return;
         }
         
-        // ===== 6. CEK SPAM =====
         const banned = await recordInfoActivity(userId);
-        if (banned) {
-            console.log(`User ${userId} kena ban karena spam /info`);
-            return; // DIAM SAJA
-        }
+        if (banned) return;
         
-        // ===== 7. CEK LIMIT =====
         const isFreeUser = !isAdmin(userId) && !(await isPremium(userId));
         const remaining = isFreeUser ? getRemainingLimit(userId) : 'Unlimited';
         
         if (isFreeUser && remaining <= 0) {
-            await bot.sendMessage(chatId, 
-                `BATAS PENGGUNAAN HABIS\n\n` +
-                `Anda telah mencapai batas penggunaan gratis (10x).\n` +
-                `Gunakan /langganan untuk upgrade ke premium.`
-            );
+            await bot.sendMessage(chatId, `BATAS PENGGUNAAN HABIS\n\nGunakan /langganan.`);
             return;
         }
         
-        // ===== 8. PROSES AMBIL DATA =====
-        const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data, mohon tunggu...');
-        const data = await getMLBBData(targetId, serverId);
+        const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data...');
+        const data = await getMLBBData(targetId, serverId, 'bind');
         
         await bot.deleteMessage(chatId, loadingMsg.message_id);
         
         if (!data?.username) {
-            await bot.sendMessage(chatId, 
-                `GAGAL MENGAMBIL DATA\n\n` +
-                `Tidak dapat mengambil data akun.\n` +
-                `Kemungkinan penyebab:\n` +
-                `• ID atau Server salah\n` +
-                `• Server sedang sibuk\n\n` +
-                `Silakan coba lagi nanti.`
-            );
+            await bot.sendMessage(chatId, `GAGAL MENGAMBIL DATA`);
             return;
         }
 
-        // ===== 9. TAMPILKAN HASIL =====
         let output = `INFORMASI AKUN\n\n`;
         output += `ID: ${targetId}\n`;
         output += `Server: ${serverId}\n`;
@@ -980,7 +916,175 @@ else {
             }
         });
 
-        // ===== 10. UPDATE LIMIT JIKA FREE USER =====
+        if (isFreeUser) {
+            db.users[userId] = db.users[userId] || { username, success: 0 };
+            db.users[userId].username = username;
+            db.users[userId].success += 1;
+            db.total_success += 1;
+            await saveDB();
+        }
+    });
+
+    // ================== COMMAND /cek ==================
+    bot.onText(/^\s*\/\s*cek(?:\s+(.+))?$/i, async (msg, match) => {
+        if (msg.chat.type !== 'private') return;
+        
+        const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username;
+        
+        if (isBanned(userId) && !isAdmin(userId)) return;
+        
+        if (!username && !isAdmin(userId)) {
+            await bot.sendMessage(chatId,
+                `USERNAME DIPERLUKAN\n\n` +
+                `Cara membuat username:\n` +
+                `1. Buka Settings\n` +
+                `2. Pilih Username\n` +
+                `3. Buat username baru\n` +
+                `4. Simpan`
+            );
+            return;
+        }
+        
+        if (!db.feature.info && !isAdmin(userId)) {
+            await bot.sendMessage(chatId, `FITUR SEDANG NONAKTIF`);
+            return;
+        }
+        
+        const joined = await checkJoin(userId);
+        const missing = [];
+        if (!joined.channel) missing.push(CHANNEL);
+        if (!joined.group) missing.push(GROUP);
+
+        if (missing.length > 0 && !isAdmin(userId)) {
+            const buttons = missing.map(ch => [{
+                text: `Bergabung ke ${ch.replace('@', '')}`,
+                url: `https://t.me/${ch.replace('@', '')}`
+            }]);
+            
+            await bot.sendMessage(chatId,
+                `AKSES TERBATAS\n\n` +
+                `Anda perlu bergabung dengan:\n` +
+                missing.map(ch => `• ${ch}`).join('\n'),
+                { reply_markup: { inline_keyboard: buttons } }
+            );
+            return;
+        }
+        
+        if (!match || !match[1]) {
+            await bot.sendMessage(chatId,
+                `CEK DATA DETAIL MLBB\n\n` +
+                `Format: /cek ID_USER ID_SERVER\n` +
+                `Contoh: /cek 643461181 8554\n\n` +
+                `Menampilkan data lengkap (skin, hero, statistik)`
+            );
+            return;
+        }
+        
+        const args = match[1].trim().split(/\s+/);
+        if (args.length < 2) {
+            await bot.sendMessage(chatId, `Format: /cek ID_USER ID_SERVER`);
+            return;
+        }
+        
+        const targetId = args[0];
+        const serverId = args[1];
+        
+        if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
+            await bot.sendMessage(chatId, 'ID dan Server harus angka.');
+            return;
+        }
+        
+        const banned = await recordInfoActivity(userId);
+        if (banned) return;
+        
+        const isFreeUser = !isAdmin(userId) && !(await isPremium(userId));
+        const remaining = isFreeUser ? getRemainingLimit(userId) : 'Unlimited';
+        
+        if (isFreeUser && remaining <= 0) {
+            await bot.sendMessage(chatId, `BATAS PENGGUNAAN HABIS\n\nGunakan /langganan.`);
+            return;
+        }
+        
+        const loadingMsg = await bot.sendMessage(chatId, '🔍 Mengambil data detail...');
+        const data = await getMLBBData(targetId, serverId, 'lookup');
+        
+        await bot.deleteMessage(chatId, loadingMsg.message_id);
+        
+        if (!data?.detailed) {
+            await bot.sendMessage(chatId, `GAGAL MENGAMBIL DATA DETAIL`);
+            return;
+        }
+
+        const d = data.detailed;
+        let output = `📊 *DETAIL AKUN MLBB*\n\n`;
+        
+        output += `*IDENTITAS*\n`;
+        output += `ID: ${d.role_id}\n`;
+        output += `Server: ${d.zone_id}\n`;
+        output += `Nickname: ${d.name}\n`;
+        output += `Level: ${d.level}\n`;
+        output += `TTL: ${d.ttl || '-'}\n\n`;
+        
+        output += `*RANK & TIER*\n`;
+        output += `Current: ${d.current_tier}\n`;
+        output += `Max: ${d.max_tier}\n`;
+        output += `Achievement Points: ${d.achievement_points?.toLocaleString()}\n\n`;
+        
+        output += `*KOLEKSI*\n`;
+        output += `Total Hero: ${d.hero_count}\n`;
+        output += `Total Skin: ${d.skin_count}\n`;
+        output += `Supreme: ${d.supreme_skins}\n`;
+        output += `Grand: ${d.grand_skins}\n`;
+        output += `Exquisite: ${d.exquisite_skins}\n`;
+        output += `Deluxe: ${d.deluxe_skins}\n`;
+        output += `Exceptional: ${d.exceptional_skins}\n`;
+        output += `Common: ${d.common_skins}\n\n`;
+        
+        if (d.top_3_hero_details && d.top_3_hero_details.length > 0) {
+            output += `*TOP 3 HERO*\n`;
+            d.top_3_hero_details.forEach((h, i) => {
+                output += `${i+1}. ${h.hero}\n`;
+                output += `   Matches: ${h.matches} | WR: ${h.win_rate}\n`;
+                output += `   Power: ${h.power}\n`;
+            });
+            output += `\n`;
+        }
+        
+        output += `*STATISTIK*\n`;
+        output += `Total Match: ${d.total_match_played?.toLocaleString()}\n`;
+        output += `Win Rate: ${d.overall_win_rate}\n`;
+        output += `KDA: ${d.kda}\n`;
+        output += `MVP: ${d.total_mvp}\n`;
+        output += `Double Kill: ${d.double_kill}\n`;
+        output += `Triple Kill: ${d.triple_kill}\n`;
+        output += `Maniac: ${d.maniac_kill}\n`;
+        output += `Savage: ${d.savage_kill}\n`;
+        output += `Legendary: ${d.legendary_kill}\n\n`;
+        
+        if (d.squad_name) {
+            output += `*SQUAD*\n`;
+            output += `Name: ${d.squad_name}\n`;
+            output += `Prefix: ${d.squad_prefix || '-'}\n`;
+            output += `ID: ${d.squad_id}\n\n`;
+        }
+        
+        if (d.last_match_data) {
+            output += `*LAST MATCH*\n`;
+            output += `Hero: ${d.last_match_data.hero_name}\n`;
+            output += `K/D/A: ${d.last_match_data.kills}/${d.last_match_data.deaths}/${d.last_match_data.assists}\n`;
+            output += `Gold: ${d.last_match_data.gold?.toLocaleString()}\n`;
+            output += `Damage: ${d.last_match_data.hero_damage?.toLocaleString()}\n`;
+            output += `Duration: ${d.last_match_duration}\n`;
+            output += `Date: ${d.last_match_date}\n`;
+        }
+
+        await bot.sendMessage(chatId, output, {
+            parse_mode: 'Markdown',
+            reply_markup: { 
+                inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
+            }
+        });
+
         if (isFreeUser) {
             db.users[userId] = db.users[userId] || { username, success: 0 };
             db.users[userId].username = username;
@@ -996,7 +1100,7 @@ else {
         if (isAdmin(msg.from.id)) { 
             db.feature.info = false; 
             await saveDB(); 
-            bot.sendMessage(msg.chat.id, 'Fitur /info dinonaktifkan.'); 
+            bot.sendMessage(msg.chat.id, 'Fitur /info dan /cek dinonaktifkan.'); 
         } 
     });
 
@@ -1005,7 +1109,7 @@ else {
         if (isAdmin(msg.from.id)) { 
             db.feature.info = true; 
             await saveDB(); 
-            bot.sendMessage(msg.chat.id, 'Fitur /info diaktifkan.'); 
+            bot.sendMessage(msg.chat.id, 'Fitur /info dan /cek diaktifkan.'); 
         } 
     });
 
@@ -1079,4 +1183,4 @@ else {
     });
 
     console.log('🤖 Bot started, Admin IDs:', ADMIN_IDS);
-    }
+}
