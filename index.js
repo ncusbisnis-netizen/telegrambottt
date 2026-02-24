@@ -9,12 +9,12 @@ const { Pool } = require('pg');
 
 // ================== GLOBAL ERROR HANDLER ==================
 process.on('uncaughtException', (error) => {
-    console.log('❌ ERROR GLOBAL:', error.message);
+    console.log('ERROR GLOBAL:', error.message);
     console.log(error.stack);
 });
 
 process.on('unhandledRejection', (reason) => {
-    console.log('❌ UNHANDLED REJECTION:', reason);
+    console.log('UNHANDLED REJECTION:', reason);
 });
 
 // ================== CEK JENIS PROSES ==================
@@ -33,257 +33,256 @@ const ADMIN_IDS = process.env.ADMIN_IDS
 
 // ================== REGION MAPPING ==================
 const countryMapping = {
-    'AF': '🇦🇫 Afghanistan',
-  'AX': '🇦🇽 Åland Islands',
-  'AL': '🇦🇱 Albania',
-  'DZ': '🇩🇿 Algeria',
-  'AS': '🇦🇸 American Samoa',
-  'AD': '🇦🇩 Andorra',
-  'AO': '🇦🇴 Angola',
-  'AI': '🇦🇮 Anguilla',
-  'AQ': '🇦🇶 Antarctica',
-  'AG': '🇦🇬 Antigua and Barbuda',
-  'AR': '🇦🇷 Argentina',
-  'AM': '🇦🇲 Armenia',
-  'AW': '🇦🇼 Aruba',
-  'AU': '🇦🇺 Australia',
-  'AT': '🇦🇹 Austria',
-  'AZ': '🇦🇿 Azerbaijan',
-  'BS': '🇧🇸 Bahamas',
-  'BH': '🇧🇭 Bahrain',
-  'BD': '🇧🇩 Bangladesh',
-  'BB': '🇧🇧 Barbados',
-  'BY': '🇧🇾 Belarus',
-  'BE': '🇧🇪 Belgium',
-  'BZ': '🇧🇿 Belize',
-  'BJ': '🇧🇯 Benin',
-  'BM': '🇧🇲 Bermuda',
-  'BT': '🇧🇹 Bhutan',
-  'BO': '🇧🇴 Bolivia, Plurinational State of bolivia',
-  'BA': '🇧🇦 Bosnia and Herzegovina',
-  'BW': '🇧🇼 Botswana',
-  'BV': '🇧🇻 Bouvet Island',
-  'BR': '🇧🇷 Brazil',
-  'IO': '🇮🇴 British Indian Ocean Territory',
-  'BN': '🇧🇳 Brunei Darussalam',
-  'BG': '🇧🇬 Bulgaria',
-  'BF': '🇧🇫 Burkina Faso',
-  'BI': '🇧🇮 Burundi',
-  'KH': '🇰🇭 Cambodia',
-  'CM': '🇨🇲 Cameroon',
-  'CA': '🇨🇦 Canada',
-  'CV': '🇨🇻 Cape Verde',
-  'KY': '🇰🇾 Cayman Islands',
-  'CF': '🇨🇫 Central African Republic',
-  'TD': '🇹🇩 Chad',
-  'CL': '🇨🇱 Chile',
-  'CN': '🇨🇳 China',
-  'CX': '🇨🇽 Christmas Island',
-  'CC': '🇨🇨 Cocos (Keeling) Islands',
-  'CO': '🇨🇴 Colombia',
-  'KM': '🇰🇲 Comoros',
-  'CG': '🇨🇬 Congo',
-  'CD': '🇨🇩 Congo, The Democratic Republic of the Congo',
-  'CK': '🇨🇰 Cook Islands',
-  'CR': '🇨🇷 Costa Rica',
-  'CI': "🇨🇮 Cote d'Ivoire",
-  'HR': '🇭🇷 Croatia',
-  'CU': '🇨🇺 Cuba',
-  'CY': '🇨🇾 Cyprus',
-  'CZ': '🇨🇿 Czech Republic',
-  'DK': '🇩🇰 Denmark',
-  'DJ': '🇩🇯 Djibouti',
-  'DM': '🇩🇲 Dominica',
-  'DO': '🇩🇴 Dominican Republic',
-  'EC': '🇪🇨 Ecuador',
-  'EG': '🇪🇬 Egypt',
-  'SV': '🇸🇻 El Salvador',
-  'GQ': '🇬🇶 Equatorial Guinea',
-  'ER': '🇪🇷 Eritrea',
-  'EE': '🇪🇪 Estonia',
-  'ET': '🇪🇹 Ethiopia',
-  'FK': '🇫🇰 Falkland Islands (Malvinas)',
-  'FO': '🇫🇴 Faroe Islands',
-  'FJ': '🇫🇯 Fiji',
-  'FI': '🇫🇮 Finland',
-  'FR': '🇫🇷 France',
-  'GF': '🇬🇫 French Guiana',
-  'PF': '🇵🇫 French Polynesia',
-  'TF': '🇹🇫 French Southern Territories',
-  'GA': '🇬🇦 Gabon',
-  'GM': '🇬🇲 Gambia',
-  'GE': '🇬🇪 Georgia',
-  'DE': '🇩🇪 Germany',
-  'GH': '🇬🇭 Ghana',
-  'GI': '🇬🇮 Gibraltar',
-  'GR': '🇬🇷 Greece',
-  'GL': '🇬🇱 Greenland',
-  'GD': '🇬🇩 Grenada',
-  'GP': '🇬🇵 Guadeloupe',
-  'GU': '🇬🇺 Guam',
-  'GT': '🇬🇹 Guatemala',
-  'GG': '🇬🇬 Guernsey',
-  'GN': '🇬🇳 Guinea',
-  'GW': '🇬🇼 Guinea-Bissau',
-  'GY': '🇬🇾 Guyana',
-  'HT': '🇭🇹 Haiti',
-  'HM': '🇭🇲 Heard Island and Mcdonald Islands',
-  'VA': '🇻🇦 Holy See (Vatican City State)',
-  'HN': '🇭🇳 Honduras',
-  'HK': '🇭🇰 Hong Kong',
-  'HU': '🇭🇺 Hungary',
-  'IS': '🇮🇸 Iceland',
-  'IN': '🇮🇳 India',
-  'ID': '🇮🇩 Indonesia',
-  'IR': '🇮🇷 Iran, Islamic Republic of Persian Gulf',
-  'IQ': '🇮🇶 Iraq',
-  'IE': '🇮🇪 Ireland',
-  'IM': '🇮🇲 Isle of Man',
-  'IL': '🇮🇱 Israel',
-  'IT': '🇮🇹 Italy',
-  'JM': '🇯🇲 Jamaica',
-  'JP': '🇯🇵 Japan',
-  'JE': '🇯🇪 Jersey',
-  'JO': '🇯🇴 Jordan',
-  'KZ': '🇰🇿 Kazakhstan',
-  'KE': '🇰🇪 Kenya',
-  'KI': '🇰🇮 Kiribati',
-  'KP': "🇰🇵 Korea, Democratic People's Republic of Korea",
-  'KR': '🇰🇷 Korea, Republic of South Korea',
-  'XK': '🇽🇰 Kosovo',
-  'KW': '🇰🇼 Kuwait',
-  'KG': '🇰🇬 Kyrgyzstan',
-  'LA': '🇱🇦 Laos',
-  'LV': '🇱🇻 Latvia',
-  'LB': '🇱🇧 Lebanon',
-  'LS': '🇱🇸 Lesotho',
-  'LR': '🇱🇷 Liberia',
-  'LY': '🇱🇾 Libyan Arab Jamahiriya',
-  'LI': '🇱🇮 Liechtenstein',
-  'LT': '🇱🇹 Lithuania',
-  'LU': '🇱🇺 Luxembourg',
-  'MO': '🇲🇴 Macao',
-  'MK': '🇲🇰 Macedonia',
-  'MG': '🇲🇬 Madagascar',
-  'MW': '🇲🇼 Malawi',
-  'MY': '🇲🇾 Malaysia',
-  'MV': '🇲🇻 Maldives',
-  'ML': '🇲🇱 Mali',
-  'MT': '🇲🇹 Malta',
-  'MH': '🇲🇭 Marshall Islands',
-  'MQ': '🇲🇶 Martinique',
-  'MR': '🇲🇷 Mauritania',
-  'MU': '🇲🇺 Mauritius',
-  'YT': '🇾🇹 Mayotte',
-  'MX': '🇲🇽 Mexico',
-  'FM': '🇫🇲 Micronesia, Federated States of Micronesia',
-  'MD': '🇲🇩 Moldova',
-  'MC': '🇲🇨 Monaco',
-  'MN': '🇲🇳 Mongolia',
-  'ME': '🇲🇪 Montenegro',
-  'MS': '🇲🇸 Montserrat',
-  'MA': '🇲🇦 Morocco',
-  'MZ': '🇲🇿 Mozambique',
-  'MM': '🇲🇲 Myanmar',
-  'NA': '🇳🇦 Namibia',
-  'NR': '🇳🇷 Nauru',
-  'NP': '🇳🇵 Nepal',
-  'NL': '🇳🇱 Netherlands',
-  'AN': 'Netherlands Antilles',
-  'NC': '🇳🇨 New Caledonia',
-  'NZ': '🇳🇿 New Zealand',
-  'NI': '🇳🇮 Nicaragua',
-  'NE': '🇳🇪 Niger',
-  'NG': '🇳🇬 Nigeria',
-  'NU': '🇳🇺 Niue',
-  'NF': '🇳🇫 Norfolk Island',
-  'MP': '🇲🇵 Northern Mariana Islands',
-  'NO': '🇳🇴 Norway',
-  'OM': '🇴🇲 Oman',
-  'PK': '🇵🇰 Pakistan',
-  'PW': '🇵🇼 Palau',
-  'PS': '🇵🇸 Palestinian Territory, Occupied',
-  'PA': '🇵🇦 Panama',
-  'PG': '🇵🇬 Papua New Guinea',
-  'PY': '🇵🇾 Paraguay',
-  'PE': '🇵🇪 Peru',
-  'PH': '🇵🇭 Philippines',
-  'PN': '🇵🇳 Pitcairn',
-  'PL': '🇵🇱 Poland',
-  'PT': '🇵🇹 Portugal',
-  'PR': '🇵🇷 Puerto Rico',
-  'QA': '🇶🇦 Qatar',
-  'RO': '🇷🇴 Romania',
-  'RU': '🇷🇺 Russia',
-  'RW': '🇷🇼 Rwanda',
-  'RE': '🇷🇪 Reunion',
-  'BL': '🇧🇱 Saint Barthelemy',
-  'SH': '🇸🇭 Saint Helena, Ascension and Tristan Da Cunha',
-  'KN': '🇰🇳 Saint Kitts and Nevis',
-  'LC': '🇱🇨 Saint Lucia',
-  'MF': '🇲🇫 Saint Martin',
-  'PM': '🇵🇲 Saint Pierre and Miquelon',
-  'VC': '🇻🇨 Saint Vincent and the Grenadines',
-  'WS': '🇼🇸 Samoa',
-  'SM': '🇸🇲 San Marino',
-  'ST': '🇸🇹 Sao Tome and Principe',
-  'SA': '🇸🇦 Saudi Arabia',
-  'SN': '🇸🇳 Senegal',
-  'RS': '🇷🇸 Serbia',
-  'SC': '🇸🇨 Seychelles',
-  'SL': '🇸🇱 Sierra Leone',
-  'SG': '🇸🇬 Singapore',
-  'SK': '🇸🇰 Slovakia',
-  'SI': '🇸🇮 Slovenia',
-  'SB': '🇸🇧 Solomon Islands',
-  'SO': '🇸🇴 Somalia',
-  'ZA': '🇿🇦 South Africa',
-  'SS': '🇸🇸 South Sudan',
-  'GS': '🇬🇸 South Georgia and the South Sandwich Islands',
-  'ES': '🇪🇸 Spain',
-  'LK': '🇱🇰 Sri Lanka',
-  'SD': '🇸🇩 Sudan',
-  'SR': '🇸🇷 Suriname',
-  'SJ': '🇸🇯 Svalbard and Jan Mayen',
-  'SZ': '🇸🇿 Eswatini',
-  'SE': '🇸🇪 Sweden',
-  'CH': '🇨🇭 Switzerland',
-  'SY': '🇸🇾 Syrian Arab Republic',
-  'TW': '🇹🇼 Taiwan',
-  'TJ': '🇹🇯 Tajikistan',
-  'TZ': '🇹🇿 Tanzania, United Republic of Tanzania',
-  'TH': '🇹🇭 Thailand',
-  'TL': '🇹🇱 Timor-Leste',
-  'TG': '🇹🇬 Togo',
-  'TK': '🇹🇰 Tokelau',
-  'TO': '🇹🇴 Tonga',
-  'TT': '🇹🇹 Trinidad and Tobago',
-  'TN': '🇹🇳 Tunisia',
-  'TR': '🇹🇷 Turkey',
-  'TM': '🇹🇲 Turkmenistan',
-  'TC': '🇹🇨 Turks and Caicos Islands',
-  'TV': '🇹🇻 Tuvalu',
-  'UG': '🇺🇬 Uganda',
-  'UA': '🇺🇦 Ukraine',
-  'AE': '🇦🇪 United Arab Emirates',
-  'GB': '🇬🇧 United Kingdom',
-  'US': '🇺🇸 United States',
-  'UY': '🇺🇾 Uruguay',
-  'UZ': '🇺🇿 Uzbekistan',
-  'VU': '🇻🇺 Vanuatu',
-  'VE': '🇻🇪 Venezuela, Bolivarian Republic of Venezuela',
-  'VN': '🇻🇳 Vietnam',
-  'VG': '🇻🇬 Virgin Islands, British',
-  'VI': '🇻🇮 Virgin Islands, U.S.',
-  'WF': '🇼🇫 Wallis and Futuna',
-  'YE': '🇾🇪 Yemen',
-  'ZM': '🇿🇲 Zambia',
-  'ZW': '🇿🇼 Zimbabwe'
+    'AF': 'Afghanistan',
+    'AX': 'Aland Islands',
+    'AL': 'Albania',
+    'DZ': 'Algeria',
+    'AS': 'American Samoa',
+    'AD': 'Andorra',
+    'AO': 'Angola',
+    'AI': 'Anguilla',
+    'AQ': 'Antarctica',
+    'AG': 'Antigua and Barbuda',
+    'AR': 'Argentina',
+    'AM': 'Armenia',
+    'AW': 'Aruba',
+    'AU': 'Australia',
+    'AT': 'Austria',
+    'AZ': 'Azerbaijan',
+    'BS': 'Bahamas',
+    'BH': 'Bahrain',
+    'BD': 'Bangladesh',
+    'BB': 'Barbados',
+    'BY': 'Belarus',
+    'BE': 'Belgium',
+    'BZ': 'Belize',
+    'BJ': 'Benin',
+    'BM': 'Bermuda',
+    'BT': 'Bhutan',
+    'BO': 'Bolivia',
+    'BA': 'Bosnia and Herzegovina',
+    'BW': 'Botswana',
+    'BV': 'Bouvet Island',
+    'BR': 'Brazil',
+    'IO': 'British Indian Ocean Territory',
+    'BN': 'Brunei Darussalam',
+    'BG': 'Bulgaria',
+    'BF': 'Burkina Faso',
+    'BI': 'Burundi',
+    'KH': 'Cambodia',
+    'CM': 'Cameroon',
+    'CA': 'Canada',
+    'CV': 'Cape Verde',
+    'KY': 'Cayman Islands',
+    'CF': 'Central African Republic',
+    'TD': 'Chad',
+    'CL': 'Chile',
+    'CN': 'China',
+    'CX': 'Christmas Island',
+    'CC': 'Cocos (Keeling) Islands',
+    'CO': 'Colombia',
+    'KM': 'Comoros',
+    'CG': 'Congo',
+    'CD': 'Congo, Democratic Republic',
+    'CK': 'Cook Islands',
+    'CR': 'Costa Rica',
+    'CI': "Cote d'Ivoire",
+    'HR': 'Croatia',
+    'CU': 'Cuba',
+    'CY': 'Cyprus',
+    'CZ': 'Czech Republic',
+    'DK': 'Denmark',
+    'DJ': 'Djibouti',
+    'DM': 'Dominica',
+    'DO': 'Dominican Republic',
+    'EC': 'Ecuador',
+    'EG': 'Egypt',
+    'SV': 'El Salvador',
+    'GQ': 'Equatorial Guinea',
+    'ER': 'Eritrea',
+    'EE': 'Estonia',
+    'ET': 'Ethiopia',
+    'FK': 'Falkland Islands',
+    'FO': 'Faroe Islands',
+    'FJ': 'Fiji',
+    'FI': 'Finland',
+    'FR': 'France',
+    'GF': 'French Guiana',
+    'PF': 'French Polynesia',
+    'TF': 'French Southern Territories',
+    'GA': 'Gabon',
+    'GM': 'Gambia',
+    'GE': 'Georgia',
+    'DE': 'Germany',
+    'GH': 'Ghana',
+    'GI': 'Gibraltar',
+    'GR': 'Greece',
+    'GL': 'Greenland',
+    'GD': 'Grenada',
+    'GP': 'Guadeloupe',
+    'GU': 'Guam',
+    'GT': 'Guatemala',
+    'GG': 'Guernsey',
+    'GN': 'Guinea',
+    'GW': 'Guinea-Bissau',
+    'GY': 'Guyana',
+    'HT': 'Haiti',
+    'HM': 'Heard Island',
+    'VA': 'Vatican City',
+    'HN': 'Honduras',
+    'HK': 'Hong Kong',
+    'HU': 'Hungary',
+    'IS': 'Iceland',
+    'IN': 'India',
+    'ID': 'Indonesia',
+    'IR': 'Iran',
+    'IQ': 'Iraq',
+    'IE': 'Ireland',
+    'IM': 'Isle of Man',
+    'IL': 'Israel',
+    'IT': 'Italy',
+    'JM': 'Jamaica',
+    'JP': 'Japan',
+    'JE': 'Jersey',
+    'JO': 'Jordan',
+    'KZ': 'Kazakhstan',
+    'KE': 'Kenya',
+    'KI': 'Kiribati',
+    'KP': 'North Korea',
+    'KR': 'South Korea',
+    'XK': 'Kosovo',
+    'KW': 'Kuwait',
+    'KG': 'Kyrgyzstan',
+    'LA': 'Laos',
+    'LV': 'Latvia',
+    'LB': 'Lebanon',
+    'LS': 'Lesotho',
+    'LR': 'Liberia',
+    'LY': 'Libya',
+    'LI': 'Liechtenstein',
+    'LT': 'Lithuania',
+    'LU': 'Luxembourg',
+    'MO': 'Macao',
+    'MK': 'Macedonia',
+    'MG': 'Madagascar',
+    'MW': 'Malawi',
+    'MY': 'Malaysia',
+    'MV': 'Maldives',
+    'ML': 'Mali',
+    'MT': 'Malta',
+    'MH': 'Marshall Islands',
+    'MQ': 'Martinique',
+    'MR': 'Mauritania',
+    'MU': 'Mauritius',
+    'YT': 'Mayotte',
+    'MX': 'Mexico',
+    'FM': 'Micronesia',
+    'MD': 'Moldova',
+    'MC': 'Monaco',
+    'MN': 'Mongolia',
+    'ME': 'Montenegro',
+    'MS': 'Montserrat',
+    'MA': 'Morocco',
+    'MZ': 'Mozambique',
+    'MM': 'Myanmar',
+    'NA': 'Namibia',
+    'NR': 'Nauru',
+    'NP': 'Nepal',
+    'NL': 'Netherlands',
+    'NC': 'New Caledonia',
+    'NZ': 'New Zealand',
+    'NI': 'Nicaragua',
+    'NE': 'Niger',
+    'NG': 'Nigeria',
+    'NU': 'Niue',
+    'NF': 'Norfolk Island',
+    'MP': 'Northern Mariana Islands',
+    'NO': 'Norway',
+    'OM': 'Oman',
+    'PK': 'Pakistan',
+    'PW': 'Palau',
+    'PS': 'Palestine',
+    'PA': 'Panama',
+    'PG': 'Papua New Guinea',
+    'PY': 'Paraguay',
+    'PE': 'Peru',
+    'PH': 'Philippines',
+    'PN': 'Pitcairn',
+    'PL': 'Poland',
+    'PT': 'Portugal',
+    'PR': 'Puerto Rico',
+    'QA': 'Qatar',
+    'RO': 'Romania',
+    'RU': 'Russia',
+    'RW': 'Rwanda',
+    'RE': 'Reunion',
+    'BL': 'Saint Barthelemy',
+    'SH': 'Saint Helena',
+    'KN': 'Saint Kitts and Nevis',
+    'LC': 'Saint Lucia',
+    'MF': 'Saint Martin',
+    'PM': 'Saint Pierre and Miquelon',
+    'VC': 'Saint Vincent',
+    'WS': 'Samoa',
+    'SM': 'San Marino',
+    'ST': 'Sao Tome and Principe',
+    'SA': 'Saudi Arabia',
+    'SN': 'Senegal',
+    'RS': 'Serbia',
+    'SC': 'Seychelles',
+    'SL': 'Sierra Leone',
+    'SG': 'Singapore',
+    'SK': 'Slovakia',
+    'SI': 'Slovenia',
+    'SB': 'Solomon Islands',
+    'SO': 'Somalia',
+    'ZA': 'South Africa',
+    'SS': 'South Sudan',
+    'GS': 'South Georgia',
+    'ES': 'Spain',
+    'LK': 'Sri Lanka',
+    'SD': 'Sudan',
+    'SR': 'Suriname',
+    'SJ': 'Svalbard and Jan Mayen',
+    'SZ': 'Eswatini',
+    'SE': 'Sweden',
+    'CH': 'Switzerland',
+    'SY': 'Syria',
+    'TW': 'Taiwan',
+    'TJ': 'Tajikistan',
+    'TZ': 'Tanzania',
+    'TH': 'Thailand',
+    'TL': 'Timor-Leste',
+    'TG': 'Togo',
+    'TK': 'Tokelau',
+    'TO': 'Tonga',
+    'TT': 'Trinidad and Tobago',
+    'TN': 'Tunisia',
+    'TR': 'Turkey',
+    'TM': 'Turkmenistan',
+    'TC': 'Turks and Caicos Islands',
+    'TV': 'Tuvalu',
+    'UG': 'Uganda',
+    'UA': 'Ukraine',
+    'AE': 'United Arab Emirates',
+    'GB': 'United Kingdom',
+    'US': 'United States',
+    'UY': 'Uruguay',
+    'UZ': 'Uzbekistan',
+    'VU': 'Vanuatu',
+    'VE': 'Venezuela',
+    'VN': 'Vietnam',
+    'VG': 'British Virgin Islands',
+    'VI': 'U.S. Virgin Islands',
+    'WF': 'Wallis and Futuna',
+    'YE': 'Yemen',
+    'ZM': 'Zambia',
+    'ZW': 'Zimbabwe'
 };
 
 function getCountryName(countryCode) {
     const code = (countryCode || 'ID').toUpperCase();
-    return countryMapping[code] || `🌍 ${code}`;
+    return countryMapping[code] || code;
 }
 
 // ================== FUNGSI FORMAT LOKASI ==================
@@ -342,7 +341,7 @@ async function addCredits(userId, amount, orderId = null) {
         await saveDB();
         return db.users[userId].credits;
     } catch (error) {
-        console.log('❌ Error addCredits:', error.message);
+        console.log('Error addCredits:', error.message);
         return getUserCredits(userId);
     }
 }
@@ -368,7 +367,7 @@ async function activatePremium(userId, days, duration, paymentMethod = 'saldo') 
         
         return expiredAt;
     } catch (error) {
-        console.log('❌ Error activatePremium:', error.message);
+        console.log('Error activatePremium:', error.message);
         return null;
     }
 }
@@ -398,9 +397,9 @@ async function initDB() {
                 updated_at TIMESTAMP DEFAULT NOW()
             )
         `);
-        console.log('✅ Tabel bot_data siap');
+        console.log('Tabel bot_data siap');
     } catch (error) {
-        console.log('❌ Gagal init database:', error.message);
+        console.log('Gagal init database:', error.message);
     }
 }
 
@@ -409,12 +408,12 @@ async function loadDB() {
         const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['database']);
         if (res.rows.length > 0) {
             db = res.rows[0].value;
-            console.log('✅ Load database dari Postgres');
+            console.log('Load database dari Postgres');
         } else {
-            console.log('📁 Database kosong, pakai default');
+            console.log('Database kosong, pakai default');
         }
     } catch (error) {
-        console.log('❌ Gagal load database:', error.message);
+        console.log('Gagal load database:', error.message);
     }
 }
 
@@ -428,7 +427,7 @@ async function saveDB() {
             ['database', db]
         );
     } catch (error) {
-        console.log('❌ Gagal save database:', error.message);
+        console.log('Gagal save database:', error.message);
         try {
             fs.writeFileSync('database.json', JSON.stringify(db, null, 2));
         } catch (e) {}
@@ -440,10 +439,10 @@ async function loadSpamData() {
         const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['spam']);
         if (res.rows.length > 0) {
             spamData = res.rows[0].value;
-            console.log('✅ Load spam data dari Postgres');
+            console.log('Load spam data dari Postgres');
         }
     } catch (error) {
-        console.log('❌ Gagal load spam:', error.message);
+        console.log('Gagal load spam:', error.message);
     }
 }
 
@@ -457,7 +456,7 @@ async function saveSpamData() {
             ['spam', spamData]
         );
     } catch (error) {
-        console.log('❌ Gagal save spam:', error.message);
+        console.log('Gagal save spam:', error.message);
         try {
             fs.writeFileSync('spam.json', JSON.stringify(spamData, null, 2));
         } catch (e) {}
@@ -578,7 +577,7 @@ async function addBan(userId, reason = 'Ban manual oleh admin') {
     }
 }
 
-// ================== FUNGSI GET DATA MLBB ==================
+// ================== FUNGSI GET DATA MLBB (OPTIMIZED) ==================
 async function getMLBBData(userId, serverId, type = 'bind') {
     const result = { 
         username: null, 
@@ -590,9 +589,9 @@ async function getMLBBData(userId, serverId, type = 'bind') {
     };
     
     try {
-        console.log(`📡 Mencoba ambil data ${type} untuk ${userId} server ${serverId}`);
+        console.log(`Mencoba ambil data ${type} untuk ${userId} server ${serverId}`);
         
-        // AMBIL DATA DASAR DARI GOPAY (UNTUK SEMUA TYPE)
+        // PRIORITAS 1: AMBIL DATA DARI GOPAY (CEPAT)
         try {
             const goPayResponse = await axios.post("https://gopay.co.id/games/v1/order/user-account", {
                 code: "MOBILE_LEGENDS",
@@ -607,24 +606,89 @@ async function getMLBBData(userId, serverId, type = 'bind') {
                     "X-Timestamp": Date.now(),
                     "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36"
                 },
-                timeout: 10000
+                timeout: 8000
             });
             
             if (goPayResponse.data?.data) {
                 const g = goPayResponse.data.data;
-                
-                // GANTI + JADI SPASI
                 result.username = g.username ? g.username.replace(/\+/g, ' ') : "Tidak ditemukan";
                 result.region = getCountryName(g.countryOrigin);
-                
-                console.log(`✅ GoPay sukses: ${result.username}, region: ${result.region}`);
+                console.log(`GoPay sukses: ${result.username}, region: ${result.region}`);
             }
         } catch (goPayError) {
-            console.log(`⚠️ GoPay error:`, goPayError.message);
-            // TETAP LANJUT, CHECKTON MASIH BISA JADI BACKUP
+            console.log(`GoPay error:`, goPayError.message);
         }
         
-        // AMBIL DATA DARI CHECKTON
+        // Untuk /info, cukup data GoPay dulu, Checkton jalan di background
+        if (type === 'bind' && result.username) {
+            console.log(`Menggunakan data GoPay untuk /info`);
+            // Jalankan Checkton di background
+            getChecktonData(userId, serverId, type, result).catch(e => {});
+            return result;
+        }
+        
+        // PRIORITAS 2: AMBIL DATA DARI CHECKTON (UNTUK DETAIL)
+        try {
+            const checktonResponse = await axios.post("https://checkton.online/backend/info", {
+                role_id: String(userId),
+                zone_id: String(serverId),
+                type: type
+            }, {
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "x-api-key": API_KEY_CHECKTON 
+                },
+                timeout: 20000
+            });
+            
+            if (checktonResponse.data?.data) {
+                const c = checktonResponse.data.data;
+                
+                if (!result.username) {
+                    result.username = c.nickname || "Tidak ditemukan";
+                    result.region = getCountryName(c.country);
+                }
+                
+                result.ttl = c.ttl || null;
+                
+                if (type === 'bind') {
+                    if (c.devices) {
+                        result.devices.android = c.devices.android?.total || 0;
+                        result.devices.ios = c.devices.ios?.total || 0;
+                    }
+                    if (c.bind_accounts && Array.isArray(c.bind_accounts)) {
+                        result.bindAccounts = c.bind_accounts;
+                    }
+                }
+                
+                if (type === 'lookup') {
+                    result.detailed = c;
+                }
+                
+                console.log(`Checkton data berhasil diambil`);
+            }
+        } catch (checktonError) {
+            console.log(`Checkton error:`, checktonError.message);
+        }
+        
+        // Jika tidak ada data sama sekali
+        if (!result.username) {
+            result.username = "Tidak ditemukan";
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.log(`Error getMLBBData:`, error.message);
+        return result.username ? result : null;
+    }
+}
+
+// Fungsi untuk ambil data Checkton di background
+async function getChecktonData(userId, serverId, type, result) {
+    try {
+        console.log(`Background: Ambil data Checkton untuk ${userId}`);
+        
         const checktonResponse = await axios.post("https://checkton.online/backend/info", {
             role_id: String(userId),
             zone_id: String(serverId),
@@ -634,58 +698,34 @@ async function getMLBBData(userId, serverId, type = 'bind') {
                 "Content-Type": "application/json", 
                 "x-api-key": API_KEY_CHECKTON 
             },
-            timeout: 15000
+            timeout: 20000
         });
-        
-        console.log(`✅ Checkton response status: ${checktonResponse.status}`);
         
         if (checktonResponse.data?.data) {
             const c = checktonResponse.data.data;
             
-            // JIKA GOPAY GAGAL, PAKAI DATA DARI CHECKTON
-            if (!result.username) {
-                result.username = c.nickname || "Tidak ditemukan";
-                result.region = getCountryName(c.country);
+            if (c.devices) {
+                result.devices.android = c.devices.android?.total || 0;
+                result.devices.ios = c.devices.ios?.total || 0;
             }
-            
+            if (c.bind_accounts && Array.isArray(c.bind_accounts)) {
+                result.bindAccounts = c.bind_accounts;
+            }
             result.ttl = c.ttl || null;
             
-            if (type === 'bind') {
-                if (c.devices) {
-                    result.devices.android = c.devices.android?.total || 0;
-                    result.devices.ios = c.devices.ios?.total || 0;
-                }
-                if (c.bind_accounts && Array.isArray(c.bind_accounts)) {
-                    result.bindAccounts = c.bind_accounts;
-                }
-            }
+            console.log(`Background: Data Checkton untuk ${userId} berhasil`);
             
-            if (type === 'lookup') {
-                result.detailed = c;
-            }
-            
-            console.log(`✅ Checkton data berhasil diambil`);
+            await saveDB();
         }
-        
-        return result;
-        
     } catch (error) {
-        console.log(`❌ Error getMLBBData (${type}):`, error.message);
-        
-        // KALAU CHECKTON ERROR, TAPI GOPAY SUDAH DAPAT, TETAP KEMBALIKAN DATA GOPAY
-        if (result.username) {
-            console.log(`⚠️ Menggunakan data GoPay saja (Checkton error)`);
-            return result;
-        }
-        
-        return null;
+        console.log(`Background: Checkton error untuk ${userId}:`, error.message);
     }
 }
 
 // ================== FUNGSI UNTUK /find ==================
 async function findPlayerByName(name) {
     try {
-        console.log(`📡 Mencari player dengan nama: ${name}`);
+        console.log(`Mencari player dengan nama: ${name}`);
         
         const response = await axios.post("https://checkton.online/backend/info", {
             name: name,
@@ -698,21 +738,17 @@ async function findPlayerByName(name) {
             timeout: 15000
         });
         
-        console.log(`✅ Response status: ${response.status}`);
+        console.log(`Response status: ${response.status}`);
         
         if (response.data && response.data.status === 0) {
-            console.log(`✅ Ditemukan ${response.data.data?.length || 0} hasil`);
+            console.log(`Ditemukan ${response.data.data?.length || 0} hasil`);
             return response.data.data;
         } else {
-            console.log(`⚠️ Response:`, response.data);
+            console.log(`Response:`, response.data);
             return null;
         }
     } catch (error) {
-        console.log(`❌ Error findPlayerByName:`, error.message);
-        if (error.response) {
-            console.log('📋 Detail error:', error.response.data);
-            console.log('📋 Status code:', error.response.status);
-        }
+        console.log(`Error findPlayerByName:`, error.message);
         return null;
     }
 }
@@ -721,7 +757,7 @@ async function findPlayerByName(name) {
 async function createPakasirTopup(amount, userId) {
     try {
         const orderId = `TOPUP-${userId}-${Date.now()}`;
-        console.log(`🔄 Membuat topup: ${orderId}, amount: ${amount}, user: ${userId}`);
+        console.log(`Membuat topup: ${orderId}, amount: ${amount}, user: ${userId}`);
         
         const response = await axios.post(
             `${process.env.PAKASIR_BASE_URL || 'https://app.pakasir.com/api'}/transactioncreate/qris`,
@@ -751,7 +787,7 @@ async function createPakasirTopup(amount, userId) {
             
             await saveDB();
             
-            console.log(`✅ Topup pending saved: ${orderId} untuk user ${userId}`);
+            console.log(`Topup pending saved: ${orderId} untuk user ${userId}`);
             
             return {
                 success: true,
@@ -763,7 +799,7 @@ async function createPakasirTopup(amount, userId) {
         }
         return { success: false, error: 'Invalid response' };
     } catch (error) {
-        console.log('❌ Error createPakasirTopup:', error.message);
+        console.log('Error createPakasirTopup:', error.message);
         return { success: false, error: error.message };
     }
 }
@@ -829,7 +865,7 @@ if (!IS_WORKER) {
         setImmediate(async () => {
             try {
                 const body = req.body;
-                console.log('🔔 WEBHOOK PAKASIR:', JSON.stringify(body));
+                console.log('WEBHOOK PAKASIR:', JSON.stringify(body));
                 
                 const { order_id, status, amount } = body;
                 
@@ -839,7 +875,7 @@ if (!IS_WORKER) {
                 await loadSpamData();
                 
                 if (status === 'completed' || status === 'paid') {
-                    console.log(`✅ Pembayaran sukses: ${order_id}`);
+                    console.log(`Pembayaran sukses: ${order_id}`);
                     
                     if (order_id.startsWith('TOPUP-')) {
                         const topupData = db.pending_topups?.[order_id];
@@ -854,7 +890,7 @@ if (!IS_WORKER) {
                     }
                 }
             } catch (error) {
-                console.log('❌ Error proses webhook:', error.message);
+                console.log('Error proses webhook:', error.message);
             }
         });
     });
@@ -946,11 +982,11 @@ if (!IS_WORKER) {
         }
     });
 
-    app.listen(PORT, () => console.log(`🌐 Web server running on port ${PORT}`));
+    app.listen(PORT, () => console.log(`Web server running on port ${PORT}`));
 } 
 // ================== BOT TELEGRAM (WORKER) ==================
 else {
-    console.log('🤖 Bot worker started');
+    console.log('Bot worker started');
     
     try {
         const bot = new TelegramBot(BOT_TOKEN, { 
@@ -962,7 +998,7 @@ else {
         });
 
         bot.on('polling_error', (error) => {
-            console.log('⚠️ Polling error:', error.message);
+            console.log('Polling error:', error.message);
         });
 
         async function checkJoin(userId) {
@@ -1045,7 +1081,7 @@ else {
                 
                 await bot.sendMessage(msg.chat.id, message);
             } catch (error) {
-                console.log('❌ Error /start:', error.message);
+                console.log('Error /start:', error.message);
             }
         });
 
@@ -1088,7 +1124,7 @@ else {
                 
                 await bot.sendMessage(msg.chat.id, message);
             } catch (error) {
-                console.log('❌ Error /status:', error.message);
+                console.log('Error /status:', error.message);
             }
         });
 
@@ -1131,7 +1167,7 @@ else {
                     }
                 );
             } catch (error) {
-                console.log('❌ Error /topup:', error.message);
+                console.log('Error /topup:', error.message);
             }
         });
 
@@ -1168,11 +1204,11 @@ else {
                     }
                 );
             } catch (error) {
-                console.log('❌ Error /langganan:', error.message);
+                console.log('Error /langganan:', error.message);
             }
         });
 
-        // ================== COMMAND /info ==================
+        // ================== COMMAND /info (OPTIMIZED) ==================
         bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1181,7 +1217,7 @@ else {
                     await bot.sendMessage(msg.chat.id,
                         `INFORMASI PENGGUNAAN\n\n` +
                         `Format: /info ID_USER ID_SERVER\n` +
-                        `Contoh: /info 643461181 8554`
+                        `Contoh: /info 1848626191 1752`
                     );
                     return;
                 }
@@ -1234,6 +1270,11 @@ else {
                     return;
                 }
                 
+                if (targetId.length < 6) {
+                    await bot.sendMessage(chatId, 'ID User MLBB minimal 6 digit. Pastikan ID benar.');
+                    return;
+                }
+                
                 const banned = await recordInfoActivity(userId);
                 if (banned) return;
                 
@@ -1253,8 +1294,27 @@ else {
                 
                 await bot.deleteMessage(chatId, loadingMsg.message_id);
                 
-                if (!data?.username) {
-                    await bot.sendMessage(chatId, `GAGAL MENGAMBIL DATA`);
+                if (!data || !data.username) {
+                    await bot.sendMessage(chatId, 
+                        `GAGAL MENGAMBIL DATA\n\n` +
+                        `ID: ${targetId}\n` +
+                        `Server: ${serverId}\n\n` +
+                        `Kemungkinan penyebab:\n` +
+                        `• ID/Server salah\n` +
+                        `• Akun tidak ditemukan\n` +
+                        `• Server API sibuk\n\n` +
+                        `Coba periksa kembali ID dan Server Anda.`
+                    );
+                    return;
+                }
+                
+                if (data.username === "Tidak ditemukan") {
+                    await bot.sendMessage(chatId, 
+                        `AKUN TIDAK DITEMUKAN\n\n` +
+                        `ID: ${targetId}\n` +
+                        `Server: ${serverId}\n\n` +
+                        `Pastikan ID dan Server benar.`
+                    );
                     return;
                 }
 
@@ -1265,21 +1325,53 @@ else {
                 if (data.ttl) output += `Tanggal Pembuatan: ${data.ttl}\n`;
                 output += `Region: ${data.region}\n\n`;
                 
-                if (data.bindAccounts?.length > 0) {
+                if (data.bindAccounts && data.bindAccounts.length > 0) {
                     output += `BIND INFO:\n`;
-                    data.bindAccounts.forEach(b => output += `• ${b.platform}: ${b.details || 'empty.'}\n`);
+                    data.bindAccounts.forEach(b => output += `- ${b.platform}: ${b.details || 'empty'}\n`);
                     output += `\n`;
                 }
                 
                 output += `Device Login:\n`;
-                output += `• Android: ${data.devices.android} perangkat\n`;
-                output += `• iOS: ${data.devices.ios} perangkat`;
+                output += `- Android: ${data.devices.android} perangkat\n`;
+                output += `- iOS: ${data.devices.ios} perangkat`;
 
-                await bot.sendMessage(chatId, output, {
+                const sentMsg = await bot.sendMessage(chatId, output, {
                     reply_markup: { 
                         inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
                     }
                 });
+
+                // Cek apakah data dari Checkton sudah masuk (tunggu 3 detik)
+                setTimeout(async () => {
+                    try {
+                        if (data.bindAccounts && data.bindAccounts.length > 0 && data.bindAccounts.length > 0) {
+                            let updatedOutput = `INFORMASI AKUN (LENGKAP)\n\n`;
+                            updatedOutput += `ID: ${targetId}\n`;
+                            updatedOutput += `Server: ${serverId}\n`;
+                            updatedOutput += `Nickname: ${data.username}\n`;
+                            if (data.ttl) updatedOutput += `Tanggal Pembuatan: ${data.ttl}\n`;
+                            updatedOutput += `Region: ${data.region}\n\n`;
+                            
+                            if (data.bindAccounts && data.bindAccounts.length > 0) {
+                                updatedOutput += `BIND INFO:\n`;
+                                data.bindAccounts.forEach(b => updatedOutput += `- ${b.platform}: ${b.details || 'empty'}\n`);
+                                updatedOutput += `\n`;
+                            }
+                            
+                            updatedOutput += `Device Login:\n`;
+                            updatedOutput += `- Android: ${data.devices.android} perangkat\n`;
+                            updatedOutput += `- iOS: ${data.devices.ios} perangkat`;
+                            
+                            await bot.editMessageText(updatedOutput, {
+                                chat_id: chatId,
+                                message_id: sentMsg.message_id,
+                                reply_markup: { 
+                                    inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
+                                }
+                            });
+                        }
+                    } catch (e) {}
+                }, 3000);
 
                 if (isFreeUser) {
                     db.users[userId] = db.users[userId] || { username, success: 0, credits: getUserCredits(userId) };
@@ -1289,11 +1381,14 @@ else {
                     await saveDB();
                 }
             } catch (error) {
-                console.log('❌ Error /info:', error.message);
+                console.log('Error /info:', error.message);
+                try {
+                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi nanti.');
+                } catch {}
             }
         });
 
-        // ================== COMMAND /cek ==================
+        // ================== COMMAND /cek (OPTIMIZED) ==================
         bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1345,6 +1440,11 @@ else {
                     return;
                 }
                 
+                if (targetId.length < 6) {
+                    await bot.sendMessage(chatId, 'ID User MLBB minimal 6 digit. Pastikan ID benar.');
+                    return;
+                }
+                
                 const banned = await recordInfoActivity(userId);
                 if (banned) return;
                 
@@ -1361,8 +1461,17 @@ else {
                 
                 await bot.deleteMessage(chatId, loadingMsg.message_id);
                 
-                if (!data?.detailed) {
-                    await bot.sendMessage(chatId, `GAGAL MENGAMBIL DATA`);
+                if (!data || !data.detailed) {
+                    await bot.sendMessage(chatId, 
+                        `GAGAL MENGAMBIL DATA DETAIL\n\n` +
+                        `ID: ${targetId}\n` +
+                        `Server: ${serverId}\n\n` +
+                        `Kemungkinan penyebab:\n` +
+                        `• ID/Server salah\n` +
+                        `• Akun tidak ditemukan\n` +
+                        `• Server API sedang sibuk\n\n` +
+                        `Coba gunakan /info untuk data dasar.`
+                    );
                     return;
                 }
 
@@ -1433,7 +1542,10 @@ else {
                     await saveDB();
                 }
             } catch (error) {
-                console.log('❌ Error /cek:', error.message);
+                console.log('Error /cek:', error.message);
+                try {
+                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi nanti.');
+                } catch {}
             }
         });
 
@@ -1495,14 +1607,14 @@ else {
                 const banned = await recordInfoActivity(userId);
                 if (banned) return;
                 
-                const loadingMsg = await bot.sendMessage(chatId, '🔍 Mencari data...');
+                const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
                 
                 const results = await findPlayerByName(searchName);
                 
                 await bot.deleteMessage(chatId, loadingMsg.message_id);
                 
                 if (!results || results.length === 0) {
-                    await bot.sendMessage(chatId, `❌ Tidak ada akun ditemukan dengan nama "${searchName}"`);
+                    await bot.sendMessage(chatId, `Tidak ada akun ditemukan dengan nama "${searchName}"`);
                     return;
                 }
                 
@@ -1511,7 +1623,7 @@ else {
                     await saveDB();
                 }
                 
-                let output = `🔍 HASIL PENCARIAN: ${searchName}\n\n`;
+                let output = `HASIL PENCARIAN: ${searchName}\n\n`;
                 output += `Ditemukan ${results.length} akun:\n\n`;
                 
                 results.forEach((item, index) => {
@@ -1528,23 +1640,23 @@ else {
                     output += `--------------------\n`;
                 });
                 
-                output += `\n💰 Sisa saldo: ${getUserCredits(userId)} credits`;
+                output += `\nSisa saldo: ${getUserCredits(userId)} credits`;
                 
                 await bot.sendMessage(chatId, output);
                 
             } catch (error) {
-                console.log('❌ Error /find:', error.message);
+                console.log('Error /find:', error.message);
                 try {
                     await bot.deleteMessage(msg.chat.id, loadingMsg?.message_id);
                 } catch {}
-                await bot.sendMessage(msg.chat.id, `❌ Gagal mengambil data.`);
+                await bot.sendMessage(msg.chat.id, `Gagal mengambil data.`);
             }
         });
 
         // ================== CALLBACK QUERY HANDLER ==================
         bot.on('callback_query', async (cb) => {
             try {
-                console.log('📞 Callback diterima:', cb.data);
+                console.log('Callback diterima:', cb.data);
                 
                 const msg = cb.message;
                 if (!msg || msg.chat.type !== 'private') {
@@ -1611,11 +1723,11 @@ else {
                             db.pending_topups[payment.orderId].messageId = sentMessage.message_id;
                             db.pending_topups[payment.orderId].chatId = chatId;
                             await saveDB();
-                            console.log(`✅ Message ID tersimpan untuk ${payment.orderId}`);
+                            console.log(`Message ID tersimpan untuk ${payment.orderId}`);
                         }
                         
                     } catch (qrError) {
-                        console.log('❌ Error kirim QR:', qrError.message);
+                        console.log('Error kirim QR:', qrError.message);
                         await bot.sendMessage(chatId,
                             `TOP UP SALDO\n\n` +
                             `Nominal: Rp ${amount.toLocaleString()}\n` +
@@ -1683,27 +1795,27 @@ else {
                 await bot.answerCallbackQuery(cb.id, { text: 'Perintah tidak dikenal' });
                 
             } catch (error) {
-                console.log('❌ Error callback:', error.message);
+                console.log('Error callback:', error.message);
                 try {
                     await bot.answerCallbackQuery(cb.id, { text: 'Terjadi kesalahan' });
                 } catch (e) {}
             }
         });
 
-        // ================== AUTO CHECK PAYMENT (CRON JOB - TANPA NOTIF) ==================
+        // ================== AUTO CHECK PAYMENT (CRON JOB) ==================
         cron.schedule('* * * * *', async () => {
             try {
-                console.log('🔍 Cron job berjalan (backup mode)');
+                console.log('Cron job berjalan (backup mode)');
                 
                 for (const [orderId, data] of Object.entries(db.pending_topups || {})) {
                     if (data.status === 'pending') {
                         const status = await checkPakasirTransaction(orderId, data.amount);
                         
                         if (status === 'completed' || status === 'paid') {
-                            console.log(`✅ Cron job: Topup sukses ${orderId}`);
+                            console.log(`Cron job: Topup sukses ${orderId}`);
                             
                             if (data.processed) {
-                                console.log(`⏭️ Order ${orderId} sudah diproses, lewati`);
+                                console.log(`Order ${orderId} sudah diproses, lewati`);
                                 continue;
                             }
                             
@@ -1721,7 +1833,7 @@ else {
                                 try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
                             }
                             
-                            console.log(`⏭️ Lewati notifikasi (webhook lebih cepat)`);
+                            console.log(`Lewati notifikasi (webhook lebih cepat)`);
                         }
                     }
                 }
@@ -1750,10 +1862,10 @@ else {
                         const status = await checkPakasirTransaction(orderId, data.amount);
                         
                         if (status === 'completed' || status === 'paid') {
-                            console.log(`✅ Cron job: Premium sukses ${orderId}`);
+                            console.log(`Cron job: Premium sukses ${orderId}`);
                             
                             if (data.processed) {
-                                console.log(`⏭️ Order ${orderId} sudah diproses, lewati`);
+                                console.log(`Order ${orderId} sudah diproses, lewati`);
                                 continue;
                             }
                             
@@ -1773,12 +1885,12 @@ else {
                                 try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
                             }
 
-                            console.log(`⏭️ Lewati notifikasi (webhook lebih cepat)`);
+                            console.log(`Lewati notifikasi (webhook lebih cepat)`);
                         }
                     }
                 }
             } catch (error) {
-                console.log('❌ Error cron:', error.message);
+                console.log('Error cron:', error.message);
             }
         });
 
@@ -2058,7 +2170,7 @@ else {
                 const newBalance = await addCredits(targetId, amount, null);
                 
                 await bot.sendMessage(msg.chat.id, 
-                    `✅ TOPUP MANUAL BERHASIL\n\n` +
+                    `TOPUP MANUAL BERHASIL\n\n` +
                     `User: ${targetId}\n` +
                     `Jumlah: ${amount} credits\n` +
                     `Saldo sekarang: ${newBalance} credits`
@@ -2066,7 +2178,7 @@ else {
                 
                 try {
                     await bot.sendMessage(targetId, 
-                        `💰 SALDO DITAMBAH ADMIN\n\n` +
+                        `SALDO DITAMBAH ADMIN\n\n` +
                         `Saldo Anda bertambah ${amount} credits.\n` +
                         `Saldo sekarang: ${newBalance} credits`
                     );
@@ -2077,9 +2189,9 @@ else {
             }
         });
 
-        console.log('✅ Bot started, Admin IDs:', ADMIN_IDS);
+        console.log('Bot started, Admin IDs:', ADMIN_IDS);
         
     } catch (error) {
-        console.log('❌ FATAL ERROR:', error.message);
+        console.log('FATAL ERROR:', error.message);
     }
 }
