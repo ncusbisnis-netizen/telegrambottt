@@ -590,6 +590,8 @@ async function getMLBBData(userId, serverId, type = 'bind') {
     };
     
     try {
+        console.log(`📡 Mencoba ambil data ${type} untuk ${userId} server ${serverId}`);
+        
         const checktonResponse = await axios.post("https://checkton.online/backend/info", {
             role_id: String(userId),
             zone_id: String(serverId),
@@ -601,6 +603,8 @@ async function getMLBBData(userId, serverId, type = 'bind') {
             },
             timeout: 15000
         });
+        
+        console.log(`✅ Response status: ${checktonResponse.status}`);
         
         if (checktonResponse.data?.data) {
             const c = checktonResponse.data.data;
@@ -622,15 +626,56 @@ async function getMLBBData(userId, serverId, type = 'bind') {
             if (type === 'lookup') {
                 result.detailed = c;
             }
+            
+            console.log(`✅ Data ${type} berhasil diambil`);
+            return result;
         } else {
+            console.log(`⚠️ Response tidak memiliki data:`, checktonResponse.data);
             return null;
         }
     } catch (error) {
         console.log(`❌ Error getMLBBData (${type}):`, error.message);
+        if (error.response) {
+            console.log('📋 Detail error:', error.response.data);
+            console.log('📋 Status code:', error.response.status);
+        }
         return null;
     }
+}
 
-    return result;
+// ================== FUNGSI UNTUK /find ==================
+async function findPlayerByName(name) {
+    try {
+        console.log(`📡 Mencari player dengan nama: ${name}`);
+        
+        const response = await axios.post("https://checkton.online/backend/info", {
+            name: name,
+            type: "find"
+        }, {
+            headers: { 
+                "Content-Type": "application/json", 
+                "x-api-key": API_KEY_CHECKTON 
+            },
+            timeout: 15000
+        });
+        
+        console.log(`✅ Response status: ${response.status}`);
+        
+        if (response.data && response.data.status === 0) {
+            console.log(`✅ Ditemukan ${response.data.data?.length || 0} hasil`);
+            return response.data.data;
+        } else {
+            console.log(`⚠️ Response:`, response.data);
+            return null;
+        }
+    } catch (error) {
+        console.log(`❌ Error findPlayerByName:`, error.message);
+        if (error.response) {
+            console.log('📋 Detail error:', error.response.data);
+            console.log('📋 Status code:', error.response.status);
+        }
+        return null;
+    }
 }
 
 // ================== PAKASIR API UNTUK TOPUP ==================
@@ -790,7 +835,6 @@ if (!IS_WORKER) {
             const data = db.pending_topups?.[orderId];
             if (!data) return;
             
-            // CEK APAKAH SUDAH DIPROSES
             if (data.processed) {
                 console.log(`⏭️ Order ${orderId} sudah diproses, lewati`);
                 return;
@@ -1132,9 +1176,12 @@ else {
             try {
                 if (msg.chat.type !== 'private') return;
                 
-                // VALIDASI match
-                if (!match) {
-                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan, coba lagi.');
+                if (!match || !match[1]) {
+                    await bot.sendMessage(msg.chat.id,
+                        `INFORMASI PENGGUNAAN\n\n` +
+                        `Format: /info ID_USER ID_SERVER\n` +
+                        `Contoh: /info 643461181 8554`
+                    );
                     return;
                 }
                 
@@ -1168,15 +1215,6 @@ else {
                         `Anda perlu bergabung dengan:\n` +
                         missing.map(ch => `• ${ch}`).join('\n'),
                         { reply_markup: { inline_keyboard: buttons } }
-                    );
-                    return;
-                }
-                
-                if (!match[1]) {
-                    await bot.sendMessage(chatId,
-                        `INFORMASI PENGGUNAAN\n\n` +
-                        `Format: /info ID_USER ID_SERVER\n` +
-                        `Contoh: /info 643461181 8554`
                     );
                     return;
                 }
@@ -1258,8 +1296,8 @@ else {
             try {
                 if (msg.chat.type !== 'private') return;
                 
-                if (!match) {
-                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan, coba lagi.');
+                if (!match || !match[1]) {
+                    await bot.sendMessage(msg.chat.id, `Format: /cek ID_USER ID_SERVER\nContoh: /cek 643461181 8554`);
                     return;
                 }
                 
@@ -1288,11 +1326,6 @@ else {
                         url: `https://t.me/${ch.replace('@', '')}`
                     }]);
                     await bot.sendMessage(chatId, `AKSES TERBATAS...`, { reply_markup: { inline_keyboard: buttons } });
-                    return;
-                }
-                
-                if (!match[1]) {
-                    await bot.sendMessage(chatId, `Format: /cek ID_USER ID_SERVER\nContoh: /cek 643461181 8554`);
                     return;
                 }
                 
@@ -1406,12 +1439,18 @@ else {
             try {
                 if (msg.chat.type !== 'private') return;
                 
-                if (!match) {
-                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan, coba lagi.');
+                if (!match || !match[1]) {
+                    await bot.sendMessage(msg.chat.id,
+                        `FIND PLAYER\n\n` +
+                        `Format: /find NICKNAME\n` +
+                        `Contoh: /find RRQ Jule\n\n` +
+                        `Biaya: 5000 credits`
+                    );
                     return;
                 }
                 
                 const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username;
+                const searchName = match[1].trim();
                 
                 if (isBanned(userId) && !isAdmin(userId)) return;
                 
@@ -1439,18 +1478,6 @@ else {
                     return;
                 }
                 
-                if (!match[1]) {
-                    await bot.sendMessage(chatId,
-                        `FIND PLAYER\n\n` +
-                        `Format: /find NICKNAME\n` +
-                        `Contoh: /find RRQ Jule\n\n` +
-                        `Biaya: 5000 credits`
-                    );
-                    return;
-                }
-                
-                const searchName = match[1].trim();
-                
                 const credits = getUserCredits(userId);
                 if (credits < 5000 && !isAdmin(userId)) {
                     await bot.sendMessage(chatId,
@@ -1465,30 +1492,14 @@ else {
                 const banned = await recordInfoActivity(userId);
                 if (banned) return;
                 
-                const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
+                const loadingMsg = await bot.sendMessage(chatId, '🔍 Mencari data...');
                 
-                const response = await axios.post("https://checkton.online/backend/info", {
-                    name: searchName,
-                    type: "find"
-                }, {
-                    headers: { 
-                        "Content-Type": "application/json", 
-                        "x-api-key": API_KEY_CHECKTON 
-                    },
-                    timeout: 15000
-                });
+                const results = await findPlayerByName(searchName);
                 
                 await bot.deleteMessage(chatId, loadingMsg.message_id);
                 
-                if (!response.data || response.data.status !== 0) {
-                    await bot.sendMessage(chatId, `Gagal mengambil data.`);
-                    return;
-                }
-                
-                const results = response.data.data;
-                
                 if (!results || results.length === 0) {
-                    await bot.sendMessage(chatId, `Tidak ada akun ditemukan dengan nama "${searchName}"`);
+                    await bot.sendMessage(chatId, `❌ Tidak ada akun ditemukan dengan nama "${searchName}"`);
                     return;
                 }
                 
@@ -1497,7 +1508,7 @@ else {
                     await saveDB();
                 }
                 
-                let output = `HASIL PENCARIAN: ${searchName}\n\n`;
+                let output = `🔍 HASIL PENCARIAN: ${searchName}\n\n`;
                 output += `Ditemukan ${results.length} akun:\n\n`;
                 
                 results.forEach((item, index) => {
@@ -1514,7 +1525,7 @@ else {
                     output += `--------------------\n`;
                 });
                 
-                output += `\nSisa saldo: ${getUserCredits(userId)} credits`;
+                output += `\n💰 Sisa saldo: ${getUserCredits(userId)} credits`;
                 
                 await bot.sendMessage(chatId, output);
                 
@@ -1523,7 +1534,7 @@ else {
                 try {
                     await bot.deleteMessage(msg.chat.id, loadingMsg?.message_id);
                 } catch {}
-                await bot.sendMessage(msg.chat.id, `Gagal mengambil data.`);
+                await bot.sendMessage(msg.chat.id, `❌ Gagal mengambil data.`);
             }
         });
 
@@ -1680,7 +1691,6 @@ else {
             try {
                 console.log('🔍 Cron job berjalan');
                 
-                // CEK TOPUP
                 for (const [orderId, data] of Object.entries(db.pending_topups || {})) {
                     if (data.status === 'pending') {
                         const status = await checkPakasirTransaction(orderId, data.amount);
@@ -1688,13 +1698,11 @@ else {
                         if (status === 'completed' || status === 'paid') {
                             console.log(`✅ Cron job: Topup sukses ${orderId}`);
                             
-                            // CEK APAKAH SUDAH DIPROSES
                             if (data.processed) {
                                 console.log(`⏭️ Order ${orderId} sudah diproses, lewati`);
                                 continue;
                             }
                             
-                            // CEK APAKAH SUDAH DINOTIFIKASI
                             if (data.notified) {
                                 console.log(`⏭️ Order ${orderId} sudah dinotifikasi, lewati`);
                                 continue;
@@ -1727,7 +1735,6 @@ else {
                     }
                 }
                 
-                // CEK PREMIUM
                 for (const [orderId, data] of Object.entries(db.pending_payments || {})) {
                     if (orderId.startsWith('TOPUP-')) {
                         if (!db.pending_topups) db.pending_topups = {};
@@ -2096,4 +2103,4 @@ else {
     } catch (error) {
         console.log('❌ FATAL ERROR:', error.message);
     }
-}
+                                                                                 }
