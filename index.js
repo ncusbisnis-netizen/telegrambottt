@@ -1686,11 +1686,12 @@ else {
             }
         });
 
-        // ================== AUTO CHECK PAYMENT (CRON JOB) ==================
+        // ================== AUTO CHECK PAYMENT (CRON JOB - TANPA NOTIFIKASI) ==================
         cron.schedule('* * * * *', async () => {
             try {
-                console.log('🔍 Cron job berjalan');
+                console.log('🔍 Cron job berjalan (backup mode)');
                 
+                // CEK TOPUP
                 for (const [orderId, data] of Object.entries(db.pending_topups || {})) {
                     if (data.status === 'pending') {
                         const status = await checkPakasirTransaction(orderId, data.amount);
@@ -1703,38 +1704,26 @@ else {
                                 continue;
                             }
                             
-                            if (data.notified) {
-                                console.log(`⏭️ Order ${orderId} sudah dinotifikasi, lewati`);
-                                continue;
-                            }
-                            
                             const userId = data.userId;
                             const amount = data.amount;
                             
                             await addCredits(userId, amount, orderId);
                             
                             db.pending_topups[orderId].status = 'paid';
-                            db.pending_topups[orderId].notified = true;
                             db.pending_topups[orderId].processed = true;
+                            db.pending_topups[orderId].notified = true;
                             await saveDB();
                             
                             if (data.messageId && data.chatId) {
                                 try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
                             }
                             
-                            try {
-                                await bot.sendMessage(userId,
-                                    `TOP UP BERHASIL\n\n` +
-                                    `Nominal: Rp ${amount.toLocaleString()}\n` +
-                                    `Saldo bertambah: ${amount} credits\n` +
-                                    `Saldo sekarang: ${getUserCredits(userId)} credits`
-                                );
-                                console.log(`📨 Notifikasi topup dikirim via cron ke user ${userId}`);
-                            } catch (e) {}
+                            console.log(`⏭️ Lewati notifikasi (webhook lebih cepat)`);
                         }
                     }
                 }
                 
+                // CEK PREMIUM
                 for (const [orderId, data] of Object.entries(db.pending_payments || {})) {
                     if (orderId.startsWith('TOPUP-')) {
                         if (!db.pending_topups) db.pending_topups = {};
@@ -1766,11 +1755,6 @@ else {
                                 continue;
                             }
                             
-                            if (data.notified) {
-                                console.log(`⏭️ Order ${orderId} sudah dinotifikasi, lewati`);
-                                continue;
-                            }
-                            
                             const userId = data.userId;
                             const days = { '1 Hari':1, '3 Hari':3, '7 Hari':7, '30 Hari':30 }[data.duration] || 1;
                             
@@ -1779,22 +1763,15 @@ else {
                             if (!expiredAt) continue;
                             
                             db.pending_payments[orderId].status = 'paid';
-                            db.pending_payments[orderId].notified = true;
                             db.pending_payments[orderId].processed = true;
+                            db.pending_payments[orderId].notified = true;
                             await saveDB();
 
                             if (data.messageId && data.chatId) {
                                 try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
                             }
 
-                            try {
-                                await bot.sendMessage(userId,
-                                    `PEMBAYARAN BERHASIL\n\n` +
-                                    `Premium ${data.duration} telah diaktifkan.\n` +
-                                    `Berlaku sampai: ${moment.unix(expiredAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB`
-                                );
-                                console.log(`📨 Notifikasi premium dikirim via cron ke user ${userId}`);
-                            } catch (e) {}
+                            console.log(`⏭️ Lewati notifikasi (webhook lebih cepat)`);
                         }
                     }
                 }
@@ -2103,4 +2080,4 @@ else {
     } catch (error) {
         console.log('❌ FATAL ERROR:', error.message);
     }
-                                                                                 }
+                                      }
