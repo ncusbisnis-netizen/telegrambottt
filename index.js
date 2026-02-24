@@ -607,7 +607,7 @@ async function getMLBBData(userId, serverId, type = 'bind') {
                     "X-Timestamp": Date.now(),
                     "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36"
                 },
-                timeout: 10000
+                timeout: 15000
             });
             
             if (goPayResponse.data?.data) {
