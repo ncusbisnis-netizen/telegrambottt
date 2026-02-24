@@ -637,25 +637,40 @@ async function getMLBBData(userId, serverId, type = 'bind') {
 async function createPakasirTopup(amount, userId) {
     try {
         const orderId = `TOPUP-${userId}-${Date.now()}`;
+        console.log(`🔄 Membuat topup: ${orderId}, amount: ${amount}, user: ${userId}`);
+        
         const response = await axios.post(
             `${process.env.PAKASIR_BASE_URL || 'https://app.pakasir.com/api'}/transactioncreate/qris`,
             { project: process.env.PAKASIR_SLUG || 'ncusspayment', order_id: orderId, amount, api_key: process.env.PAKASIR_API_KEY },
             { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
         );
+        
         if (response.data?.payment) {
             const payment = response.data.payment;
             const expiredAt = moment(payment.expired_at).tz('Asia/Jakarta');
             
+            // Hapus dari pending_payments jika ada
             delete db.pending_payments[orderId];
             
-            if (!db.pending_topups) db.pending_topups = {};
+            // PASTIKAN pending_topups ADA
+            if (!db.pending_topups) {
+                db.pending_topups = {};
+            }
+            
+            // SIMPAN DATA DENGAN LENGKAP
             db.pending_topups[orderId] = {
                 userId: userId,
                 amount: amount,
                 status: 'pending',
-                created_at: Date.now()
+                created_at: Date.now(),
+                order_id: orderId
             };
+            
+            // LANGSUNG SAVE KE DATABASE
             await saveDB();
+            
+            console.log(`✅ Topup pending saved: ${orderId} untuk user ${userId}`);
+            console.log(`📊 Total pending topups: ${Object.keys(db.pending_topups).length}`);
             
             return {
                 success: true,
@@ -667,6 +682,7 @@ async function createPakasirTopup(amount, userId) {
         }
         return { success: false, error: 'Invalid response' };
     } catch (error) {
+        console.log('❌ Error createPakasirTopup:', error.message);
         return { success: false, error: error.message };
     }
 }
@@ -726,14 +742,9 @@ if (!IS_WORKER) {
 
     // ================== WEBHOOK PAKASIR - PRIORITAS TERTINGGI ==================
     app.post('/webhook/pakasir', (req, res) => {
-        // 1. RESPON 200 OK LANGSUNG (PRIORITAS UTAMA)
-        res.status(200).json({ 
-            status: 'ok',
-            message: 'Webhook diterima, akan diproses',
-            time: Date.now()
-        });
+        // RESPON 200 OK LANGSUNG
+        res.status(200).json({ status: 'ok' });
         
-        // 2. PROSES DI BACKGROUND (setelah response terkirim)
         setImmediate(async () => {
             try {
                 const body = req.body;
@@ -746,17 +757,36 @@ if (!IS_WORKER) {
                     return;
                 }
                 
+                // RELOAD DATABASE DARI POSTGRES
+                await loadDB();
+                await loadSpamData();
+                
                 if (status === 'completed' || status === 'paid') {
                     console.log(`✅ Pembayaran sukses: ${order_id}, amount: ${amount}`);
                     
                     if (order_id.startsWith('TOPUP-')) {
-                        await processTopupSuccess(order_id, amount);
+                        // CEK DI pending_topups
+                        const topupData = db.pending_topups?.[order_id];
+                        if (topupData) {
+                            console.log(`✅ Data topup ditemukan untuk ${order_id}`);
+                            await processTopupSuccess(order_id, amount);
+                        } else {
+                            console.log(`❌ Data topup TIDAK ditemukan: ${order_id}`);
+                            console.log('📊 Pending topups keys:', Object.keys(db.pending_topups || {}));
+                        }
                     } else {
-                        await processPremiumSuccess(order_id, amount);
+                        // CEK DI pending_payments
+                        const premiumData = db.pending_payments?.[order_id];
+                        if (premiumData) {
+                            console.log(`✅ Data premium ditemukan untuk ${order_id}`);
+                            await processPremiumSuccess(order_id, amount);
+                        } else {
+                            console.log(`❌ Data premium tidak ditemukan: ${order_id}`);
+                        }
                     }
                 }
             } catch (error) {
-                console.log('Error proses webhook:', error.message);
+                console.log('❌ Error proses webhook:', error.message);
             }
         });
     });
@@ -766,11 +796,12 @@ if (!IS_WORKER) {
         try {
             const data = db.pending_topups?.[orderId];
             if (!data) {
-                console.log(`Data topup tidak ditemukan: ${orderId}`);
+                console.log(`❌ Data topup tidak ditemukan: ${orderId}`);
                 return;
             }
             
             const userId = data.userId;
+            console.log(`💰 Memproses topup user ${userId}, amount: ${amount}`);
             
             await addCredits(userId, amount, orderId);
             
@@ -781,6 +812,7 @@ if (!IS_WORKER) {
                 try {
                     const bot = new TelegramBot(BOT_TOKEN);
                     await bot.deleteMessage(data.chatId, data.messageId);
+                    console.log(`🗑️ QRIS dihapus untuk ${orderId}`);
                 } catch (e) {}
             }
             
@@ -792,11 +824,12 @@ if (!IS_WORKER) {
                     `Saldo bertambah: ${amount} credits\n` +
                     `Saldo sekarang: ${getUserCredits(userId)} credits`
                 );
+                console.log(`📨 Notifikasi topup dikirim ke user ${userId}`);
             } catch (e) {}
             
             console.log(`✅ Topup sukses user ${userId}, saldo: ${getUserCredits(userId)}`);
         } catch (error) {
-            console.log('Error processTopupSuccess:', error.message);
+            console.log('❌ Error processTopupSuccess:', error.message);
         }
     }
 
@@ -805,7 +838,7 @@ if (!IS_WORKER) {
         try {
             const data = db.pending_payments?.[orderId];
             if (!data) {
-                console.log(`Data premium tidak ditemukan: ${orderId}`);
+                console.log(`❌ Data premium tidak ditemukan: ${orderId}`);
                 return;
             }
             
@@ -820,7 +853,7 @@ if (!IS_WORKER) {
             const expiredAt = await activatePremium(userId, days, data.duration, 'qris');
             
             if (!expiredAt) {
-                console.log('Gagal aktivasi premium');
+                console.log('❌ Gagal aktivasi premium');
                 return;
             }
             
@@ -831,6 +864,7 @@ if (!IS_WORKER) {
                 try {
                     const bot = new TelegramBot(BOT_TOKEN);
                     await bot.deleteMessage(data.chatId, data.messageId);
+                    console.log(`🗑️ QRIS premium dihapus untuk ${orderId}`);
                 } catch (e) {}
             }
             
@@ -841,11 +875,12 @@ if (!IS_WORKER) {
                     `Premium ${data.duration} telah diaktifkan.\n` +
                     `Berlaku sampai: ${moment.unix(expiredAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB`
                 );
+                console.log(`📨 Notifikasi premium dikirim ke user ${userId}`);
             } catch (e) {}
             
             console.log(`✅ Premium sukses user ${userId}, sampai: ${moment.unix(expiredAt).format()}`);
         } catch (error) {
-            console.log('Error processPremiumSuccess:', error.message);
+            console.log('❌ Error processPremiumSuccess:', error.message);
         }
     }
 
@@ -875,11 +910,11 @@ if (!IS_WORKER) {
         }
     });
 
-    app.listen(PORT, () => console.log(`Web server running on port ${PORT}`));
+    app.listen(PORT, () => console.log(`🌐 Web server running on port ${PORT}`));
 } 
 // ================== BOT TELEGRAM (WORKER) ==================
 else {
-    console.log('Bot worker started');
+    console.log('🤖 Bot worker started');
     
     try {
         const bot = new TelegramBot(BOT_TOKEN, { 
@@ -1325,7 +1360,7 @@ else {
             }
         });
 
-        // ================== COMMAND /find (DIPERBAIKI) ==================
+        // ================== COMMAND /find ==================
         bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1512,13 +1547,17 @@ else {
                                 `Scan QR code di atas untuk membayar.`
                         });
                         
-                        if (db.pending_topups[payment.orderId]) {
+                        if (db.pending_topups && db.pending_topups[payment.orderId]) {
                             db.pending_topups[payment.orderId].messageId = sentMessage.message_id;
                             db.pending_topups[payment.orderId].chatId = chatId;
                             await saveDB();
+                            console.log(`✅ Message ID tersimpan untuk ${payment.orderId}`);
+                        } else {
+                            console.log(`❌ pending_topups[${payment.orderId}] tidak ditemukan!`);
                         }
                         
                     } catch (qrError) {
+                        console.log('Error kirim QR:', qrError.message);
                         await bot.sendMessage(chatId,
                             `TOP UP SALDO\n\n` +
                             `Nominal: Rp ${amount.toLocaleString()}\n` +
@@ -1590,6 +1629,99 @@ else {
                 try {
                     await bot.answerCallbackQuery(cb.id, { text: 'Terjadi kesalahan' });
                 } catch (e) {}
+            }
+        });
+
+        // ================== AUTO CHECK PAYMENT (CRON JOB) ==================
+        cron.schedule('* * * * *', async () => {
+            try {
+                console.log('🔍 Cron job berjalan');
+                
+                // CEK TOPUP
+                for (const [orderId, data] of Object.entries(db.pending_topups || {})) {
+                    if (data.status === 'pending') {
+                        const status = await checkPakasirTransaction(orderId, data.amount);
+                        
+                        if (status === 'completed' || status === 'paid') {
+                            console.log(`✅ Cron job: Topup sukses ${orderId}`);
+                            const userId = data.userId;
+                            const amount = data.amount;
+                            
+                            await addCredits(userId, amount, orderId);
+                            
+                            db.pending_topups[orderId].status = 'paid';
+                            await saveDB();
+                            
+                            if (data.messageId && data.chatId) {
+                                try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
+                            }
+                            
+                            try {
+                                await bot.sendMessage(userId,
+                                    `TOP UP BERHASIL\n\n` +
+                                    `Nominal: Rp ${amount.toLocaleString()}\n` +
+                                    `Saldo bertambah: ${amount} credits\n` +
+                                    `Saldo sekarang: ${getUserCredits(userId)} credits`
+                                );
+                            } catch (e) {}
+                        }
+                    }
+                }
+                
+                // CEK PREMIUM
+                for (const [orderId, data] of Object.entries(db.pending_payments || {})) {
+                    if (orderId.startsWith('TOPUP-')) {
+                        if (!db.pending_topups) db.pending_topups = {};
+                        db.pending_topups[orderId] = { ...data, status: data.status };
+                        delete db.pending_payments[orderId];
+                        await saveDB();
+                        continue;
+                    }
+                    
+                    if (data.status === 'pending') {
+                        const now = moment().tz('Asia/Jakarta').unix();
+                        
+                        if (data.expired_at < now) {
+                            if (data.messageId && data.chatId) {
+                                try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
+                            }
+                            delete db.pending_payments[orderId];
+                            await saveDB();
+                            continue;
+                        }
+
+                        const status = await checkPakasirTransaction(orderId, data.amount);
+                        
+                        if (status === 'completed' || status === 'paid') {
+                            const userId = data.userId;
+                            const days = { '1 Hari':1, '3 Hari':3, '7 Hari':7, '30 Hari':30 }[data.duration] || 1;
+                            
+                            const expiredAt = await activatePremium(userId, days, data.duration, 'qris');
+                            
+                            if (!expiredAt) {
+                                console.log('Gagal aktivasi premium untuk', orderId);
+                                continue;
+                            }
+                            
+                            db.pending_payments[orderId].status = 'paid';
+                            await saveDB();
+
+                            if (data.messageId && data.chatId) {
+                                try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
+                            }
+
+                            try {
+                                await bot.sendMessage(userId,
+                                    `PEMBAYARAN BERHASIL\n\n` +
+                                    `Premium ${data.duration} telah diaktifkan.\n` +
+                                    `Berlaku sampai: ${moment.unix(expiredAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB`
+                                );
+                            } catch (e) {}
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log('Error cron:', error.message);
             }
         });
 
@@ -1896,9 +2028,9 @@ else {
             }
         });
 
-        console.log('Bot started, Admin IDs:', ADMIN_IDS);
+        console.log('✅ Bot started, Admin IDs:', ADMIN_IDS);
         
     } catch (error) {
-        console.log('FATAL ERROR:', error.message);
+        console.log('❌ FATAL ERROR:', error.message);
     }
 }
