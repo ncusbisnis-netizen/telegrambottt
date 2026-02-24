@@ -649,21 +649,24 @@ async function createPakasirTopup(amount, userId) {
             const payment = response.data.payment;
             const expiredAt = moment(payment.expired_at).tz('Asia/Jakarta');
             
+            // Hapus dari pending_payments jika ada
             delete db.pending_payments[orderId];
             
+            // PASTIKAN pending_topups ADA
             if (!db.pending_topups) {
                 db.pending_topups = {};
             }
             
+            // SIMPAN DATA DENGAN LENGKAP
             db.pending_topups[orderId] = {
                 userId: userId,
                 amount: amount,
                 status: 'pending',
                 created_at: Date.now(),
-                order_id: orderId,
-                notified: false
+                order_id: orderId
             };
             
+            // LANGSUNG SAVE KE DATABASE
             await saveDB();
             
             console.log(`✅ Topup pending saved: ${orderId} untuk user ${userId}`);
@@ -703,8 +706,7 @@ async function createPakasirPremium(amount, duration, userId) {
                 userId, duration, amount, status: 'pending',
                 created_at: moment().tz('Asia/Jakarta').unix(),
                 expired_at: expiredAt.unix(),
-                payment_number: payment.payment_number,
-                notified: false
+                payment_number: payment.payment_number
             };
             await saveDB();
             return {
@@ -738,7 +740,9 @@ if (!IS_WORKER) {
 
     app.get('/', (req, res) => res.send('MLBB API Server is running'));
 
+    // ================== WEBHOOK PAKASIR - PRIORITAS TERTINGGI ==================
     app.post('/webhook/pakasir', (req, res) => {
+        // RESPON 200 OK LANGSUNG
         res.status(200).json({ status: 'ok' });
         
         setImmediate(async () => {
@@ -753,6 +757,7 @@ if (!IS_WORKER) {
                     return;
                 }
                 
+                // RELOAD DATABASE DARI POSTGRES
                 await loadDB();
                 await loadSpamData();
                 
@@ -760,14 +765,17 @@ if (!IS_WORKER) {
                     console.log(`✅ Pembayaran sukses: ${order_id}, amount: ${amount}`);
                     
                     if (order_id.startsWith('TOPUP-')) {
+                        // CEK DI pending_topups
                         const topupData = db.pending_topups?.[order_id];
                         if (topupData) {
                             console.log(`✅ Data topup ditemukan untuk ${order_id}`);
                             await processTopupSuccess(order_id, amount);
                         } else {
                             console.log(`❌ Data topup TIDAK ditemukan: ${order_id}`);
+                            console.log('📊 Pending topups keys:', Object.keys(db.pending_topups || {}));
                         }
                     } else {
+                        // CEK DI pending_payments
                         const premiumData = db.pending_payments?.[order_id];
                         if (premiumData) {
                             console.log(`✅ Data premium ditemukan untuk ${order_id}`);
@@ -783,10 +791,14 @@ if (!IS_WORKER) {
         });
     });
 
+    // FUNGSI PROSES TOPUP
     async function processTopupSuccess(orderId, amount) {
         try {
             const data = db.pending_topups?.[orderId];
-            if (!data) return;
+            if (!data) {
+                console.log(`❌ Data topup tidak ditemukan: ${orderId}`);
+                return;
+            }
             
             const userId = data.userId;
             console.log(`💰 Memproses topup user ${userId}, amount: ${amount}`);
@@ -794,7 +806,6 @@ if (!IS_WORKER) {
             await addCredits(userId, amount, orderId);
             
             db.pending_topups[orderId].status = 'paid';
-            db.pending_topups[orderId].notified = true;
             await saveDB();
             
             if (data.messageId && data.chatId) {
@@ -822,10 +833,14 @@ if (!IS_WORKER) {
         }
     }
 
+    // FUNGSI PROSES PREMIUM
     async function processPremiumSuccess(orderId, amount) {
         try {
             const data = db.pending_payments?.[orderId];
-            if (!data) return;
+            if (!data) {
+                console.log(`❌ Data premium tidak ditemukan: ${orderId}`);
+                return;
+            }
             
             const userId = data.userId;
             const days = { 
@@ -837,10 +852,12 @@ if (!IS_WORKER) {
             
             const expiredAt = await activatePremium(userId, days, data.duration, 'qris');
             
-            if (!expiredAt) return;
+            if (!expiredAt) {
+                console.log('❌ Gagal aktivasi premium');
+                return;
+            }
             
             db.pending_payments[orderId].status = 'paid';
-            db.pending_payments[orderId].notified = true;
             await saveDB();
             
             if (data.messageId && data.chatId) {
@@ -861,12 +878,13 @@ if (!IS_WORKER) {
                 console.log(`📨 Notifikasi premium dikirim ke user ${userId}`);
             } catch (e) {}
             
-            console.log(`✅ Premium sukses user ${userId}`);
+            console.log(`✅ Premium sukses user ${userId}, sampai: ${moment.unix(expiredAt).format()}`);
         } catch (error) {
             console.log('❌ Error processPremiumSuccess:', error.message);
         }
     }
 
+    // ENDPOINT TES PHP
     app.get('/tes.php', async (req, res) => {
         try {
             const { userId, serverId, role_id, zone_id } = req.query;
@@ -911,6 +929,7 @@ else {
             console.log('Polling error:', error.message);
         });
 
+        // ================== FUNGSI CEK JOIN ==================
         async function checkJoin(userId) {
             try {
                 let isChannelMember = false, isGroupMember = false;
@@ -933,11 +952,13 @@ else {
             }
         }
 
+        // ================== MIDDLEWARE ==================
         bot.on('message', async (msg) => {
             try {
                 const chatId = msg.chat.id, userId = msg.from.id, text = msg.text, chatType = msg.chat.type;
                 
                 if (!text) return;
+                
                 if (chatType !== 'private') return;
                 if (isAdmin(userId)) return;
                 
@@ -948,6 +969,7 @@ else {
             }
         });
 
+        // ================== COMMAND /start ==================
         bot.onText(/\/start/, async (msg) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -993,6 +1015,7 @@ else {
             }
         });
 
+        // ================== COMMAND /status ==================
         bot.onText(/\/status/, async (msg) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1035,6 +1058,7 @@ else {
             }
         });
 
+        // ================== COMMAND /topup ==================
         bot.onText(/\/topup/, async (msg) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1077,6 +1101,7 @@ else {
             }
         });
 
+        // ================== COMMAND /langganan ==================
         bot.onText(/\/langganan/, async (msg) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1113,7 +1138,8 @@ else {
             }
         });
 
-        bot.onText(/\/info/, async (msg) => {
+        // ================== COMMAND /info ==================
+        bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
                 
@@ -1233,6 +1259,7 @@ else {
             }
         });
 
+        // ================== COMMAND /cek ==================
         bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1306,58 +1333,53 @@ else {
                 }
 
                 const d = data.detailed;
-                let output = `DETAIL AKUN\n\n`;
-                output += `ID: ${d.role_id}\n`;
-                output += `Server: ${d.zone_id}\n`;
-                output += `Nickname: ${d.name}\n`;
-                output += `Level: ${d.level}\n`;
-                output += `TTL: ${d.ttl || '-'}\n\n`;
-                
-                output += `RANK & TIER\n`;
-                output += `Current: ${d.current_tier}\n`;
-                output += `Max: ${d.max_tier}\n`;
-                output += `Achievement Points: ${d.achievement_points?.toLocaleString() || '-'}\n\n`;
-                
-                output += `KOLEKSI SKIN\n`;
-                output += `Total: ${d.skin_count}\n`;
-                output += `Supreme: ${d.supreme_skins || 0} | Grand: ${d.grand_skins || 0}\n`;
-                output += `Exquisite: ${d.exquisite_skins || 0} | Deluxe: ${d.deluxe_skins || 0}\n`;
-                output += `Exceptional: ${d.exceptional_skins || 0} | Common: ${d.common_skins || 0}\n\n`;
-                
-                if (d.top_3_hero_details && d.top_3_hero_details.length > 0) {
-                    output += `TOP 3 HERO\n`;
-                    d.top_3_hero_details.forEach((h, i) => {
-                        output += `${i+1}. ${h.hero}\n`;
-                        output += `   Matches: ${h.matches} | WR: ${h.win_rate}\n`;
-                        output += `   Power: ${h.power}\n`;
-                    });
-                    output += `\n`;
-                }
-                
-                output += `STATISTIK\n`;
-                output += `Total Match: ${d.total_match_played?.toLocaleString()}\n`;
-                output += `Win Rate: ${d.overall_win_rate}\n`;
-                output += `KDA: ${d.kda}\n`;
-                output += `MVP: ${d.total_mvp}\n`;
-                output += `Savage: ${d.savage_kill} | Maniac: ${d.maniac_kill}\n`;
-                output += `Legendary: ${d.legendary_kill}\n\n`;
-                
-                if (d.squad_name) {
-                    output += `SQUAD\n`;
-                    output += `Name: ${d.squad_name}\n`;
-                    output += `Prefix: ${d.squad_prefix || '-'}\n`;
-                    output += `ID: ${d.squad_id}\n\n`;
-                }
-                
-                if (d.last_match_data) {
-                    output += `LAST MATCH\n`;
-                    output += `Hero: ${d.last_match_data.hero_name}\n`;
-                    output += `K/D/A: ${d.last_match_data.kills}/${d.last_match_data.deaths}/${d.last_match_data.assists}\n`;
-                    output += `Gold: ${d.last_match_data.gold?.toLocaleString()}\n`;
-                    output += `Damage: ${d.last_match_data.hero_damage?.toLocaleString()}\n`;
-                    output += `Duration: ${d.last_match_duration}\n`;
-                    output += `Date: ${d.last_match_date}\n`;
-                }
+let output = `DETAIL AKUN\n\n`;
+output += `ID: ${d.role_id}\nServer: ${d.zone_id}\n`;
+output += `Nickname: ${d.name}\nLevel: ${d.level}\n`;
+output += `TTL: ${d.ttl || '-'}\n\n`;
+output += `Current Tier: ${d.current_tier}\nMax Tier: ${d.max_tier}\n`;
+output += `Achievement Points: ${d.achievement_points?.toLocaleString()}\n\n`;
+
+output += `KOLEKSI SKIN\n`;
+output += `Total: ${d.skin_count}\n`;
+output += `Supreme: ${d.supreme_skins} | Grand: ${d.grand_skins}\n`;
+output += `Exquisite: ${d.exquisite_skins} | Deluxe: ${d.deluxe_skins}\n`;
+output += `Exceptional: ${d.exceptional_skins} | Common: ${d.common_skins}\n\n`;
+
+if (d.top_3_hero_details && d.top_3_hero_details.length > 0) {
+    output += `TOP 3 HERO\n`;
+    d.top_3_hero_details.forEach((h, i) => {
+        output += `${i+1}. ${h.hero}\n`;
+        output += `   Matches: ${h.matches} | WR: ${h.win_rate}\n`;
+        output += `   Power: ${h.power}\n`;
+    });
+    output += `\n`;
+}
+
+output += `STATISTIK\n`;
+output += `Total Match: ${d.total_match_played?.toLocaleString()}\n`;
+output += `Win Rate: ${d.overall_win_rate}\n`;
+output += `KDA: ${d.kda}\n`;
+output += `MVP: ${d.total_mvp}\n`;
+output += `Savage: ${d.savage_kill} | Maniac: ${d.maniac_kill}\n`;
+output += `Legendary: ${d.legendary_kill}\n\n`;
+
+if (d.squad_name) {
+    output += `SQUAD\n`;
+    output += `Name: ${d.squad_name}\n`;
+    output += `Prefix: ${d.squad_prefix || '-'}\n`;
+    output += `ID: ${d.squad_id}\n\n`;
+}
+
+if (d.last_match_data) {
+    output += `LAST MATCH\n`;
+    output += `Hero: ${d.last_match_data.hero_name}\n`;
+    output += `K/D/A: ${d.last_match_data.kills}/${d.last_match_data.deaths}/${d.last_match_data.assists}\n`;
+    output += `Gold: ${d.last_match_data.gold?.toLocaleString()}\n`;
+    output += `Damage: ${d.last_match_data.hero_damage?.toLocaleString()}\n`;
+    output += `Duration: ${d.last_match_duration}\n`;
+    output += `Date: ${d.last_match_date}\n`;
+}
 
                 await bot.sendMessage(chatId, output, {
                     reply_markup: { 
@@ -1376,6 +1398,7 @@ else {
             }
         });
 
+        // ================== COMMAND /find ==================
         bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1496,6 +1519,7 @@ else {
             }
         });
 
+        // ================== CALLBACK QUERY HANDLER ==================
         bot.on('callback_query', async (cb) => {
             try {
                 console.log('Callback diterima:', cb.data);
@@ -1566,6 +1590,8 @@ else {
                             db.pending_topups[payment.orderId].chatId = chatId;
                             await saveDB();
                             console.log(`✅ Message ID tersimpan untuk ${payment.orderId}`);
+                        } else {
+                            console.log(`❌ pending_topups[${payment.orderId}] tidak ditemukan!`);
                         }
                         
                     } catch (qrError) {
@@ -1656,20 +1682,12 @@ else {
                         
                         if (status === 'completed' || status === 'paid') {
                             console.log(`✅ Cron job: Topup sukses ${orderId}`);
-                            
-                            // CEK APAKAH SUDAH DINOTIFIKASI
-                            if (data.notified) {
-                                console.log(`⏭️ Order ${orderId} sudah dinotifikasi, lewati`);
-                                continue;
-                            }
-                            
                             const userId = data.userId;
                             const amount = data.amount;
                             
                             await addCredits(userId, amount, orderId);
                             
                             db.pending_topups[orderId].status = 'paid';
-                            db.pending_topups[orderId].notified = true;
                             await saveDB();
                             
                             if (data.messageId && data.chatId) {
@@ -1683,7 +1701,6 @@ else {
                                     `Saldo bertambah: ${amount} credits\n` +
                                     `Saldo sekarang: ${getUserCredits(userId)} credits`
                                 );
-                                console.log(`📨 Notifikasi topup dikirim via cron ke user ${userId}`);
                             } catch (e) {}
                         }
                     }
@@ -1714,13 +1731,6 @@ else {
                         const status = await checkPakasirTransaction(orderId, data.amount);
                         
                         if (status === 'completed' || status === 'paid') {
-                            console.log(`✅ Cron job: Premium sukses ${orderId}`);
-                            
-                            if (data.notified) {
-                                console.log(`⏭️ Order ${orderId} sudah dinotifikasi, lewati`);
-                                continue;
-                            }
-                            
                             const userId = data.userId;
                             const days = { '1 Hari':1, '3 Hari':3, '7 Hari':7, '30 Hari':30 }[data.duration] || 1;
                             
@@ -1732,7 +1742,6 @@ else {
                             }
                             
                             db.pending_payments[orderId].status = 'paid';
-                            db.pending_payments[orderId].notified = true;
                             await saveDB();
 
                             if (data.messageId && data.chatId) {
@@ -1745,7 +1754,6 @@ else {
                                     `Premium ${data.duration} telah diaktifkan.\n` +
                                     `Berlaku sampai: ${moment.unix(expiredAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB`
                                 );
-                                console.log(`📨 Notifikasi premium dikirim via cron ke user ${userId}`);
                             } catch (e) {}
                         }
                     }
@@ -1791,6 +1799,7 @@ else {
             } catch (error) {}
         });
 
+        // ================== LIST PREMIUM ==================
         bot.onText(/\/listpremium/, async (msg) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1815,6 +1824,7 @@ else {
             }
         });
 
+        // ================== DELETE PREMIUM ==================
         bot.onText(/\/deletepremium (\d+)/, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1842,6 +1852,7 @@ else {
             }
         });
 
+        // ================== LIST BANNED ==================
         bot.onText(/\/listbanned/, async (msg) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1867,6 +1878,7 @@ else {
             }
         });
 
+        // ================== LIST TOPUP ==================
         bot.onText(/\/listtopup(?:\s+(\d+))?/, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1916,6 +1928,7 @@ else {
             }
         });
 
+        // ================== ADD BAN ==================
         bot.onText(/\/addban(?:\s+(\d+)(?:\s+(.+))?)?/, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1953,6 +1966,7 @@ else {
             }
         });
 
+        // ================== UNBAN ==================
         bot.onText(/\/unban (\d+)/, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1977,6 +1991,7 @@ else {
             }
         });
 
+        // ================== ADD PREMIUM ==================
         bot.onText(/\/addpremium (\d+) (\d+)/, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -2015,6 +2030,7 @@ else {
             }
         });
 
+        // ================== ADD TOPUP ==================
         bot.onText(/\/addtopup (\d+) (\d+)/, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
