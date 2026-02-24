@@ -336,7 +336,7 @@ async function addCredits(userId, amount, orderId = null) {
             amount: amount,
             order_id: orderId,
             date: new Date().toISOString(),
-            method: 'admin' // untuk topup manual
+            method: orderId ? 'qris' : 'admin'
         });
         
         await saveDB();
@@ -716,7 +716,7 @@ async function checkPakasirTransaction(orderId, amount) {
     }
 }
 
-// ================== EXPRESS SERVER (WEB) ==================
+// ================== EXPRESS SERVER (WEB) - PAKASIR PRIORITAS ==================
 if (!IS_WORKER) {
     const app = express();
     const PORT = process.env.PORT || 3000;
@@ -724,75 +724,35 @@ if (!IS_WORKER) {
 
     app.get('/', (req, res) => res.send('MLBB API Server is running'));
 
-    // ================== WEBHOOK PAKASIR ==================
+    // ================== WEBHOOK PAKASIR - PRIORITAS TERTINGGI ==================
     app.post('/webhook/pakasir', (req, res) => {
-        res.status(200).json({ status: 'ok' });
+        // 1. RESPON 200 OK LANGSUNG (PRIORITAS UTAMA)
+        res.status(200).json({ 
+            status: 'ok',
+            message: 'Webhook diterima, akan diproses',
+            time: Date.now()
+        });
         
+        // 2. PROSES DI BACKGROUND (setelah response terkirim)
         setImmediate(async () => {
             try {
                 const body = req.body;
-                console.log('Webhook Pakasir:', body);
+                console.log('🔔 WEBHOOK PAKASIR:', JSON.stringify(body));
                 
                 const { order_id, status, amount } = body;
                 
-                if (!order_id || !status) return;
+                if (!order_id || !status) {
+                    console.log('Data tidak lengkap');
+                    return;
+                }
                 
                 if (status === 'completed' || status === 'paid') {
+                    console.log(`✅ Pembayaran sukses: ${order_id}, amount: ${amount}`);
+                    
                     if (order_id.startsWith('TOPUP-')) {
-                        const data = db.pending_topups?.[order_id];
-                        if (data) {
-                            const userId = data.userId;
-                            await addCredits(userId, amount, order_id);
-                            
-                            db.pending_topups[order_id].status = 'paid';
-                            await saveDB();
-                            
-                            if (data.messageId && data.chatId) {
-                                try {
-                                    const bot = new TelegramBot(BOT_TOKEN);
-                                    await bot.deleteMessage(data.chatId, data.messageId);
-                                } catch (e) {}
-                            }
-                            
-                            try {
-                                const bot = new TelegramBot(BOT_TOKEN);
-                                await bot.sendMessage(userId,
-                                    `TOP UP BERHASIL\n\n` +
-                                    `Nominal: Rp ${amount.toLocaleString()}\n` +
-                                    `Saldo bertambah: ${amount} credits\n` +
-                                    `Saldo sekarang: ${getUserCredits(userId)} credits`
-                                );
-                            } catch (e) {}
-                        }
+                        await processTopupSuccess(order_id, amount);
                     } else {
-                        const data = db.pending_payments?.[order_id];
-                        if (data) {
-                            const userId = data.userId;
-                            const days = { '1 Hari':1, '3 Hari':3, '7 Hari':7, '30 Hari':30 }[data.duration] || 1;
-                            
-                            const expiredAt = await activatePremium(userId, days, data.duration, 'qris');
-                            
-                            if (expiredAt) {
-                                db.pending_payments[order_id].status = 'paid';
-                                await saveDB();
-                                
-                                if (data.messageId && data.chatId) {
-                                    try {
-                                        const bot = new TelegramBot(BOT_TOKEN);
-                                        await bot.deleteMessage(data.chatId, data.messageId);
-                                    } catch (e) {}
-                                }
-                                
-                                try {
-                                    const bot = new TelegramBot(BOT_TOKEN);
-                                    await bot.sendMessage(userId,
-                                        `PEMBAYARAN BERHASIL\n\n` +
-                                        `Premium ${data.duration} telah diaktifkan.\n` +
-                                        `Berlaku sampai: ${moment.unix(expiredAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB`
-                                    );
-                                } catch (e) {}
-                            }
-                        }
+                        await processPremiumSuccess(order_id, amount);
                     }
                 }
             } catch (error) {
@@ -801,12 +761,105 @@ if (!IS_WORKER) {
         });
     });
 
+    // FUNGSI PROSES TOPUP
+    async function processTopupSuccess(orderId, amount) {
+        try {
+            const data = db.pending_topups?.[orderId];
+            if (!data) {
+                console.log(`Data topup tidak ditemukan: ${orderId}`);
+                return;
+            }
+            
+            const userId = data.userId;
+            
+            await addCredits(userId, amount, orderId);
+            
+            db.pending_topups[orderId].status = 'paid';
+            await saveDB();
+            
+            if (data.messageId && data.chatId) {
+                try {
+                    const bot = new TelegramBot(BOT_TOKEN);
+                    await bot.deleteMessage(data.chatId, data.messageId);
+                } catch (e) {}
+            }
+            
+            try {
+                const bot = new TelegramBot(BOT_TOKEN);
+                await bot.sendMessage(userId,
+                    `TOP UP BERHASIL\n\n` +
+                    `Nominal: Rp ${amount.toLocaleString()}\n` +
+                    `Saldo bertambah: ${amount} credits\n` +
+                    `Saldo sekarang: ${getUserCredits(userId)} credits`
+                );
+            } catch (e) {}
+            
+            console.log(`✅ Topup sukses user ${userId}, saldo: ${getUserCredits(userId)}`);
+        } catch (error) {
+            console.log('Error processTopupSuccess:', error.message);
+        }
+    }
+
+    // FUNGSI PROSES PREMIUM
+    async function processPremiumSuccess(orderId, amount) {
+        try {
+            const data = db.pending_payments?.[orderId];
+            if (!data) {
+                console.log(`Data premium tidak ditemukan: ${orderId}`);
+                return;
+            }
+            
+            const userId = data.userId;
+            const days = { 
+                '1 Hari': 1, 
+                '3 Hari': 3, 
+                '7 Hari': 7, 
+                '30 Hari': 30 
+            }[data.duration] || 1;
+            
+            const expiredAt = await activatePremium(userId, days, data.duration, 'qris');
+            
+            if (!expiredAt) {
+                console.log('Gagal aktivasi premium');
+                return;
+            }
+            
+            db.pending_payments[orderId].status = 'paid';
+            await saveDB();
+            
+            if (data.messageId && data.chatId) {
+                try {
+                    const bot = new TelegramBot(BOT_TOKEN);
+                    await bot.deleteMessage(data.chatId, data.messageId);
+                } catch (e) {}
+            }
+            
+            try {
+                const bot = new TelegramBot(BOT_TOKEN);
+                await bot.sendMessage(userId,
+                    `PEMBAYARAN BERHASIL\n\n` +
+                    `Premium ${data.duration} telah diaktifkan.\n` +
+                    `Berlaku sampai: ${moment.unix(expiredAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB`
+                );
+            } catch (e) {}
+            
+            console.log(`✅ Premium sukses user ${userId}, sampai: ${moment.unix(expiredAt).format()}`);
+        } catch (error) {
+            console.log('Error processPremiumSuccess:', error.message);
+        }
+    }
+
+    // ENDPOINT TES PHP
     app.get('/tes.php', async (req, res) => {
         try {
             const { userId, serverId, role_id, zone_id } = req.query;
-            if (!userId || !serverId || !role_id || !zone_id) return res.status(400).send('Parameter tidak lengkap');
+            if (!userId || !serverId || !role_id || !zone_id) {
+                return res.status(400).send('Parameter tidak lengkap');
+            }
             const data = await getMLBBData(userId, serverId, 'bind');
-            if (!data?.username) return res.status(500).send('Gagal mengambil data');
+            if (!data?.username) {
+                return res.status(500).send('Gagal mengambil data');
+            }
             
             let output = `[userId] => ${userId}\n[serverId] => ${serverId}\n[username] => ${data.username}\n[region] => ${data.region}\n\n`;
             output += `Android: ${data.devices.android} | iOS: ${data.devices.ios}\n\n`;
@@ -837,7 +890,6 @@ else {
             } 
         });
 
-        // Polling error handler
         bot.on('polling_error', (error) => {
             console.log('Polling error:', error.message);
         });
@@ -872,10 +924,7 @@ else {
                 
                 if (!text) return;
                 
-                if (chatType !== 'private') {
-                    return;
-                }
-                
+                if (chatType !== 'private') return;
                 if (isAdmin(userId)) return;
                 
                 const publicCommands = ['/start', '/langganan', '/topup', '/status', '/offinfo', '/oninfo', '/ranking', '/listpremium', '/listbanned', '/listtopup', '/addban', '/unban', '/addpremium', '/deletepremium', '/addtopup'];
@@ -1352,17 +1401,16 @@ else {
                 
                 if (!response.data || response.data.status !== 0) {
                     await bot.sendMessage(chatId, `Gagal mengambil data.`);
-                    return; // SALDO TIDAK BERKURANG
+                    return;
                 }
                 
                 const results = response.data.data;
                 
                 if (!results || results.length === 0) {
                     await bot.sendMessage(chatId, `Tidak ada akun ditemukan dengan nama "${searchName}"`);
-                    return; // SALDO TIDAK BERKURANG
+                    return;
                 }
                 
-                // HANYA KURANGI SALDO JIKA ADA HASIL
                 if (!isAdmin(userId)) {
                     db.users[userId].credits -= 5000;
                     await saveDB();
@@ -1395,7 +1443,6 @@ else {
                     await bot.deleteMessage(msg.chat.id, loadingMsg?.message_id);
                 } catch {}
                 await bot.sendMessage(msg.chat.id, `Gagal mengambil data.`);
-                // SALDO TIDAK BERKURANG
             }
         });
 
@@ -1813,7 +1860,7 @@ else {
             }
         });
 
-        // ================== ADD TOPUP (FITUR BARU) ==================
+        // ================== ADD TOPUP ==================
         bot.onText(/\/addtopup (\d+) (\d+)/, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1838,7 +1885,7 @@ else {
                 
                 try {
                     await bot.sendMessage(targetId, 
-                        `SALDO DITAMBAH ADMIN\n\n` +
+                        `💰 SALDO DITAMBAH ADMIN\n\n` +
                         `Saldo Anda bertambah ${amount} credits.\n` +
                         `Saldo sekarang: ${newBalance} credits`
                     );
