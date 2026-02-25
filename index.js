@@ -1782,6 +1782,17 @@ else {
             }
         });
 
+        // ================== RELOAD DATABASE PERIODIK ==================
+        setInterval(async () => {
+            try {
+                await loadDB();
+                await loadSpamData();
+                console.log('🔄 Database reloaded from Postgres');
+            } catch (error) {
+                console.log('❌ Error reloading database:', error.message);
+            }
+        }, 5000); // reload setiap 5 detik
+
         // ================== ADMIN COMMANDS ==================
         bot.onText(/\/offinfo/, async (msg) => { 
             try {
