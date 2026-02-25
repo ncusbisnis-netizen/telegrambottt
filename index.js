@@ -332,6 +332,8 @@ function getUserCredits(userId) {
 
 async function addCredits(userId, amount, orderId = null) {
     try {
+        console.log(`addCredits: user=${userId}, amount=${amount}, orderId=${orderId}`);
+        
         if (!db.users[userId]) {
             db.users[userId] = { 
                 username: '', 
@@ -345,7 +347,11 @@ async function addCredits(userId, amount, orderId = null) {
             db.users[userId].credits = 0;
         }
         
+        const sebelum = db.users[userId].credits;
         db.users[userId].credits += amount;
+        const sesudah = db.users[userId].credits;
+        
+        console.log(`Saldo: ${sebelum} -> ${sesudah}`);
         
         if (!db.users[userId].topup_history) {
             db.users[userId].topup_history = [];
@@ -358,11 +364,32 @@ async function addCredits(userId, amount, orderId = null) {
             method: orderId ? 'qris' : 'admin'
         });
         
+        console.log('Menyimpan ke database...');
         await saveDB();
+        console.log('Database tersimpan');
+        
+        const verifikasi = await getCreditsFromDB(userId);
+        console.log(`Verifikasi dari DB: ${verifikasi}`);
+        
         return db.users[userId].credits;
     } catch (error) {
         console.log('Error addCredits:', error.message);
+        console.log(error.stack);
         return getUserCredits(userId);
+    }
+}
+
+async function getCreditsFromDB(userId) {
+    try {
+        const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['database']);
+        if (res.rows.length > 0) {
+            const dbFromPostgres = res.rows[0].value;
+            return dbFromPostgres.users?.[userId]?.credits || 0;
+        }
+        return 0;
+    } catch (error) {
+        console.log('Error verifikasi DB:', error.message);
+        return 0;
     }
 }
 
@@ -425,32 +452,54 @@ async function initDB() {
 
 async function loadDB() {
     try {
+        console.log('Loading database dari Postgres...');
         const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['database']);
         if (res.rows.length > 0) {
             db = res.rows[0].value;
-            console.log('Load database dari Postgres');
+            console.log(`Load database sukses. Total users: ${Object.keys(db.users || {}).length}`);
+            
+            const testUser = db.users?.['7903152218'];
+            if (testUser) {
+                console.log(`User 7903152218: credits=${testUser.credits}`);
+            }
         } else {
             console.log('Database kosong, pakai default');
         }
     } catch (error) {
         console.log('Gagal load database:', error.message);
+        try {
+            if (fs.existsSync('database.json')) {
+                const data = fs.readFileSync('database.json', 'utf8');
+                db = JSON.parse(data);
+                console.log('Load dari file (fallback)');
+            }
+        } catch (e) {}
     }
 }
 
 async function saveDB() {
     try {
-        await pool.query(
+        console.log('Menyimpan database ke Postgres...');
+        const result = await pool.query(
             `INSERT INTO bot_data (key, value, updated_at) 
              VALUES ($1, $2, NOW())
              ON CONFLICT (key) DO UPDATE 
-             SET value = $2, updated_at = NOW()`,
+             SET value = $2, updated_at = NOW()
+             RETURNING *`,
             ['database', db]
         );
+        console.log('Database tersimpan di Postgres');
+        return true;
     } catch (error) {
         console.log('Gagal save database:', error.message);
+        console.log(error.stack);
         try {
             fs.writeFileSync('database.json', JSON.stringify(db, null, 2));
-        } catch (e) {}
+            console.log('Database tersimpan di file (fallback)');
+        } catch (e) {
+            console.log('Gagal save file:', e.message);
+        }
+        return false;
     }
 }
 
@@ -625,7 +674,7 @@ async function getMLBBData(userId, serverId, type = 'bind') {
                     "X-Timestamp": Date.now(),
                     "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36"
                 },
-                timeout: 25000
+                timeout: 45000
             });
             
             if (goPayResponse.data?.data) {
@@ -647,7 +696,7 @@ async function getMLBBData(userId, serverId, type = 'bind') {
                 "Content-Type": "application/json", 
                 "x-api-key": API_KEY_CHECKTON 
             },
-            timeout: 45000 // PERPANJANG JADI 45 DETIK
+            timeout: 45000
         });
         
         console.log(`Checkton response status: ${checktonResponse.status}`);
@@ -709,27 +758,23 @@ async function findPlayerByName(name) {
                 "Content-Type": "application/json", 
                 "x-api-key": API_KEY_CHECKTON 
             },
-            timeout: 45000 // PERPANJANG JADI 45 DETIK
+            timeout: 45000
         });
         
         console.log(`Response status: ${response.status}`);
         console.log(`Response data:`, JSON.stringify(response.data, null, 2));
         
-        // CEK BERBAGAI KEMUNGKINAN RESPONSE
         if (response.data) {
-            // KALAU STATUS 0 DAN ADA DATA
             if (response.data.status === 0 && response.data.data) {
                 console.log(`Ditemukan ${response.data.data?.length || 0} hasil`);
                 return response.data.data;
             }
             
-            // KALAU LANGSUNG DATA ARRAY
             if (Array.isArray(response.data)) {
                 console.log(`Ditemukan ${response.data.length} data`);
                 return response.data;
             }
             
-            // KALAU SINGLE OBJECT
             if (response.data.role_id) {
                 console.log(`Ditemukan single data`);
                 return [response.data];
@@ -765,27 +810,23 @@ async function getPlayerByRoleId(roleId) {
                 "Content-Type": "application/json", 
                 "x-api-key": API_KEY_CHECKTON 
             },
-            timeout: 45000 // PERPANJANG JADI 45 DETIK
+            timeout: 45000
         });
         
         console.log(`Response status: ${response.status}`);
         console.log(`Response data:`, JSON.stringify(response.data, null, 2));
         
-        // CEK BERBAGAI KEMUNGKINAN RESPONSE
         if (response.data) {
-            // KALAU STATUS 0 DAN ADA DATA
             if (response.data.status === 0 && response.data.data) {
                 console.log(`Ditemukan data player`);
                 return response.data.data;
             }
             
-            // KALAU LANGSUNG DATA ARRAY
             if (Array.isArray(response.data)) {
                 console.log(`Ditemukan ${response.data.length} data`);
                 return response.data;
             }
             
-            // KALAU SINGLE OBJECT
             if (response.data.role_id) {
                 console.log(`Ditemukan single data`);
                 return [response.data];
@@ -1099,9 +1140,13 @@ else {
             try {
                 if (msg.chat.type !== 'private') return;
                 
+                await loadDB();
+                
                 const userId = msg.from.id;
                 const status = getUserStatus(userId);
                 const credits = getUserCredits(userId);
+                
+                console.log(`/start untuk user ${userId}: credits=${credits}`);
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `User ID: ${userId}\n`;
@@ -1438,7 +1483,7 @@ else {
             }
         });
 
-        // ================== COMMAND /find (Nickname & Role ID) - DIPERBAIKI ==================
+        // ================== COMMAND /find (Nickname & Role ID) ==================
         bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1455,7 +1500,7 @@ else {
                         `• Via Role ID: /find ID\n` +
                         `  Contoh: /find 643461181\n\n` +
                         `Biaya: Rp 5.000 (untuk kedua metode)\n` +
-                        `Waktu pencarian: ±30 detik`
+                        `Waktu pencarian: ±45 detik`
                     );
                     return;
                 }
@@ -1489,7 +1534,6 @@ else {
                     return;
                 }
                 
-                // PASTIKAN USER OBJECT ADA
                 if (!db.users[userId]) {
                     db.users[userId] = { 
                         username: username || '', 
@@ -1521,16 +1565,14 @@ else {
                 const banned = await recordInfoActivity(userId);
                 if (banned) return;
                 
-                const loadingMsg = await bot.sendMessage(chatId, '🔍 Mencari data... (maksimal 45 detik)');
+                const loadingMsg = await bot.sendMessage(chatId, 'Mencari data... (maksimal 45 detik)');
                 
                 let results = null;
                 let isRoleIdSearch = false;
                 let searchSuccess = false;
                 
                 try {
-                    // CEK APAKAH INPUT ANGKA (ROLE ID) ATAU TEXT (NICKNAME)
                     if (/^\d+$/.test(input)) {
-                        // INPUT ADALAH ANGKA - SEARCH VIA ROLE ID
                         isRoleIdSearch = true;
                         console.log(`Mencari dengan role_id: ${input}`);
                         const playerData = await getPlayerByRoleId(input);
@@ -1539,7 +1581,6 @@ else {
                             searchSuccess = true;
                         }
                     } else {
-                        // INPUT ADALAH TEXT - SEARCH VIA NICKNAME
                         console.log(`Mencari dengan nickname: ${input}`);
                         results = await findPlayerByName(input);
                         if (results && results.length > 0) {
@@ -1553,20 +1594,16 @@ else {
                 
                 await bot.deleteMessage(chatId, loadingMsg.message_id);
                 
-                // CEK APAKAH DATA DITEMUKAN
                 if (!searchSuccess || !results || results.length === 0) {
                     if (isRoleIdSearch) {
-                        await bot.sendMessage(chatId, `❌ Tidak ada akun ditemukan dengan Role ID "${input}"`);
+                        await bot.sendMessage(chatId, `Gagal mengambil data. Saldo Anda tidak terpotong.`);
                     } else {
-                        await bot.sendMessage(chatId, `❌ Tidak ada akun ditemukan dengan nama "${input}"`);
+                        await bot.sendMessage(chatId, `Gagal mengambil data. Saldo Anda tidak terpotong.`);
                     }
-                    // JANGAN KURANGI SALDO KARENA DATA TIDAK DITEMUKAN
                     return;
                 }
                 
-                // KURANGI SALDO HANYA JIKA BUKAN ADMIN DAN DATA DITEMUKAN
                 if (!isAdmin(userId)) {
-                    // PASTIKAN credits ADA sebelum dikurangi
                     if (typeof db.users[userId].credits !== 'number') {
                         db.users[userId].credits = 0;
                     }
@@ -1575,8 +1612,8 @@ else {
                 }
                 
                 let output = isRoleIdSearch 
-                    ? `✅ HASIL PENCARIAN ROLE ID: ${input}\n\n`
-                    : `✅ HASIL PENCARIAN NICKNAME: ${input}\n\n`;
+                    ? `HASIL PENCARIAN ROLE ID: ${input}\n\n`
+                    : `HASIL PENCARIAN NICKNAME: ${input}\n\n`;
                 
                 output += `Ditemukan ${results.length} akun:\n\n`;
                 
@@ -1596,7 +1633,6 @@ else {
                         }
                     }
                     
-                    // TAMBAHKAN INFORMASI TAMBAHAN UNTUK SEARCH VIA ROLE ID
                     if (isRoleIdSearch) {
                         if (item.achievement_points) {
                             output += `Achievement Points: ${item.achievement_points.toLocaleString()}\n`;
@@ -1618,7 +1654,7 @@ else {
                     output += `--------------------\n`;
                 });
                 
-                output += `\n💰 Sisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
+                output += `\nSisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
                 
                 await bot.sendMessage(chatId, output);
                 
@@ -1627,8 +1663,32 @@ else {
                 try {
                     if (loadingMsg) await bot.deleteMessage(msg.chat.id, loadingMsg.message_id);
                 } catch {}
-                await bot.sendMessage(msg.chat.id, `❌ Gagal mengambil data. Saldo Anda tidak terpotong.`);
-                // JANGAN KURANGI SALDO KARENA ERROR
+                await bot.sendMessage(msg.chat.id, `Gagal mengambil data. Saldo Anda tidak terpotong.`);
+            }
+        });
+
+        // ================== COMMAND DEBUG CEK SALDO ==================
+        bot.onText(/\/ceksaldo/, async (msg) => {
+            try {
+                if (msg.chat.type !== 'private') return;
+                if (!isAdmin(msg.from.id)) return;
+                
+                const targetId = msg.text.split(' ')[1] || msg.from.id;
+                const userId = parseInt(targetId);
+                
+                const memoryCredits = getUserCredits(userId);
+                const dbCredits = await getCreditsFromDB(userId);
+                
+                const message = 
+                    `CEK SALDO USER: ${userId}\n\n` +
+                    `Memory: Rp ${memoryCredits.toLocaleString()}\n` +
+                    `Database: Rp ${dbCredits.toLocaleString()}\n\n` +
+                    `Status: ${memoryCredits === dbCredits ? 'Sinkron' : 'Tidak sinkron'}`;
+                
+                await bot.sendMessage(msg.chat.id, message);
+                
+            } catch (error) {
+                console.log('Error /ceksaldo:', error.message);
             }
         });
 
@@ -1648,48 +1708,40 @@ else {
                 const data = cb.data;
                 const messageId = msg.message_id;
 
-                // ================== KEMBALI KE MENU ==================
                 if (data === 'kembali_ke_menu') {
                     await editToMainMenu(chatId, messageId, userId);
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
 
-                // ================== MENU LANGGANAN ==================
                 if (data === 'langganan_menu') {
                     await editToLanggananMenu(chatId, messageId, userId);
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
 
-                // ================== MENU TOPUP ==================
                 if (data === 'topup_menu') {
                     await editToTopupMenu(chatId, messageId, userId);
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
 
-                // ================== BATALKAN TOPUP ==================
                 if (data.startsWith('cancel_topup_')) {
                     const orderId = data.replace('cancel_topup_', '');
                     
-                    // Hapus dari database
                     if (db.pending_topups && db.pending_topups[orderId]) {
                         delete db.pending_topups[orderId];
                         await saveDB();
                     }
                     
-                    // Hapus pesan QRIS
                     try {
                         await bot.deleteMessage(chatId, messageId);
                     } catch (e) {}
                     
-                    // Kirim notifikasi pembatalan
                     await bot.answerCallbackQuery(cb.id, { text: 'Pembayaran dibatalkan' });
                     return;
                 }
 
-                // ================== TOPUP ==================
                 if (data.startsWith('topup_')) {
                     await bot.answerCallbackQuery(cb.id, { text: 'Memproses topup...' });
                     
@@ -1777,7 +1829,6 @@ else {
                     return;
                 }
 
-                // ================== LANGGANAN ==================
                 if (data.startsWith('langganan_')) {
                     await bot.answerCallbackQuery(cb.id, { text: 'Memproses langganan...' });
                     
@@ -1884,6 +1935,8 @@ else {
 
         // ================== FUNGSI EDIT MESSAGE ==================
         async function editToMainMenu(chatId, messageId, userId) {
+            await loadDB();
+            
             const status = getUserStatus(userId);
             const credits = getUserCredits(userId);
             
@@ -1940,6 +1993,7 @@ else {
         }
 
         async function editToTopupMenu(chatId, messageId, userId) {
+            await loadDB();
             const credits = getUserCredits(userId);
             
             const message = 
@@ -1979,6 +2033,7 @@ else {
         }
 
         async function editToLanggananMenu(chatId, messageId, userId) {
+            await loadDB();
             const credits = getUserCredits(userId);
             
             if (await isPremium(userId)) {
@@ -2170,11 +2225,15 @@ else {
             try {
                 await loadDB();
                 await loadSpamData();
-                console.log('Database reloaded from Postgres');
+                
+                const userId = 7903152218;
+                const credits = getUserCredits(userId);
+                console.log(`Auto-reload: User ${userId} credits = ${credits}`);
+                
             } catch (error) {
-                console.log('Error reloading database:', error.message);
+                console.log('Error reload:', error.message);
             }
-        }, 5000);
+        }, 2000);
 
         // ================== ADMIN COMMANDS ==================
         bot.onText(/\/offinfo/, async (msg) => { 
