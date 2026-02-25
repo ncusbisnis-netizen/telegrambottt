@@ -1690,7 +1690,7 @@ else {
             }
         });
 
-        // ================== AUTO CHECK PAYMENT (CRON JOB - TANPA NOTIF) ==================
+        // ================== AUTO CHECK PAYMENT (CRON JOB) ==================
         cron.schedule('* * * * *', async () => {
             try {
                 console.log('🔍 Cron job berjalan (backup mode)');
@@ -1782,6 +1782,43 @@ else {
             }
         });
 
+        // ================== REAL-TIME PREMIUM CHECK DENGAN NOTIF ==================
+        setInterval(async () => {
+            try {
+                const now = moment().tz('Asia/Jakarta').unix();
+                let expiredCount = 0;
+                
+                for (const [userId, premiumData] of Object.entries(db.premium || {})) {
+                    if (premiumData.expired_at <= now) {
+                        // Kirim notifikasi sederhana ke user sebelum dihapus
+                        try {
+                            await bot.sendMessage(userId, 
+                                `PREMIUM EXPIRED\n\n` +
+                                `Masa aktif premium Anda telah habis.\n` +
+                                `Ketik /langganan untuk memperpanjang.`
+                            );
+                            console.log(`📨 Notifikasi expired terkirim ke user ${userId}`);
+                        } catch (notifError) {
+                            // User mungkin sudah block bot, lewati saja
+                            console.log(`⚠️ Gagal kirim notif ke ${userId}:`, notifError.message);
+                        }
+                        
+                        // Hapus premium user
+                        delete db.premium[userId];
+                        expiredCount++;
+                        console.log(`🗑️ Premium user ${userId} expired dan dihapus`);
+                    }
+                }
+                
+                if (expiredCount > 0) {
+                    await saveDB();
+                    console.log(`✅ ${expiredCount} user premium expired telah dihapus`);
+                }
+            } catch (error) {
+                console.log('❌ Error real-time premium check:', error.message);
+            }
+        }, 1000); // CEK SETIAP DETIK
+
         // ================== RELOAD DATABASE PERIODIK ==================
         setInterval(async () => {
             try {
@@ -1791,7 +1828,7 @@ else {
             } catch (error) {
                 console.log('❌ Error reloading database:', error.message);
             }
-        }, 5000); // reload setiap 5 detik
+        }, 5000);
 
         // ================== ADMIN COMMANDS ==================
         bot.onText(/\/offinfo/, async (msg) => { 
