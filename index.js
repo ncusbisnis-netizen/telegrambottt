@@ -875,8 +875,8 @@ if (!IS_WORKER) {
             await bot.sendMessage(userId,
                 `TOP UP BERHASIL\n\n` +
                 `Nominal: Rp ${amount.toLocaleString()}\n` +
-                `Saldo bertambah: ${amount} credits\n` +
-                `Saldo sekarang: ${getUserCredits(userId)} credits`
+                `Saldo bertambah: Rp ${amount.toLocaleString()}\n` +
+                `Saldo sekarang: Rp ${getUserCredits(userId).toLocaleString()}`
             );
         } catch (e) {}
     }
@@ -1006,7 +1006,7 @@ else {
                 
                 let message = `SELAMAT DATANG DI BOT\n\n`;
                 message += `Status Akun: ${status.type}\n`;
-                message += `Saldo: ${credits} credits\n\n`;
+                message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
                 
                 if (status.type === 'FREE') {
                     message += `Sisa Limit: ${status.used}/${status.limit}\n\n`;
@@ -1021,9 +1021,7 @@ else {
                 message += `DAFTAR PERINTAH:\n`;
                 message += `/info ID SERVER - Info dasar\n`;
                 message += `/cek ID SERVER - Info detail\n`;
-                message += `/find NICKNAME - Cari akun (5000 credits)\n`;
-                message += `/topup - Isi saldo\n`;
-                message += `/langganan - Beli premium\n\n`;
+                message += `/find NICKNAME - Cari akun (Rp 5.000)\n\n`;
                 
                 if (isAdmin(userId)) {
                     message += `ADMIN:\n`;
@@ -1040,89 +1038,19 @@ else {
                     message += `/addtopup ID JUMLAH - Tambah saldo user\n`;
                 }
                 
-                await bot.sendMessage(msg.chat.id, message);
+                // Toolkit di menu utama
+                const replyMarkup = {
+                    inline_keyboard: [
+                        [
+                            { text: 'TOP UP', callback_data: 'topup_menu' },
+                            { text: 'LANGGANAN', callback_data: 'langganan_menu' }
+                        ]
+                    ]
+                };
+                
+                await bot.sendMessage(msg.chat.id, message, { reply_markup: replyMarkup });
             } catch (error) {
                 console.log('Error /start:', error.message);
-            }
-        });
-
-        // ================== COMMAND /topup ==================
-        bot.onText(/\/topup/, async (msg) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                const userId = msg.from.id;
-                const credits = getUserCredits(userId);
-                
-                await bot.sendMessage(msg.chat.id,
-                    `TOP UP SALDO\n\n` +
-                    `Saldo Anda: ${credits} credits\n\n` +
-                    `Pilih nominal:`,
-                    {
-                        reply_markup: {
-                            inline_keyboard: [
-                                [
-                                    { text: 'Rp 5.000', callback_data: 'topup_5000' },
-                                    { text: 'Rp 10.000', callback_data: 'topup_10000' }
-                                ],
-                                [
-                                    { text: 'Rp 25.000', callback_data: 'topup_25000' },
-                                    { text: 'Rp 50.000', callback_data: 'topup_50000' }
-                                ],
-                                [
-                                    { text: 'Rp 100.000', callback_data: 'topup_100000' },
-                                    { text: 'Rp 200.000', callback_data: 'topup_200000' }
-                                ],
-                                [
-                                    { text: 'Rp 500.000', callback_data: 'topup_500000' },
-                                    { text: 'Rp 1.000.000', callback_data: 'topup_1000000' }
-                                ],
-                                [
-                                    { text: 'BATAL', callback_data: 'topup_batal' }
-                                ]
-                            ]
-                        }
-                    }
-                );
-            } catch (error) {
-                console.log('Error /topup:', error.message);
-            }
-        });
-
-        // ================== COMMAND /langganan ==================
-        bot.onText(/\/langganan/, async (msg) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                const userId = msg.from.id;
-                const credits = getUserCredits(userId);
-                
-                if (await isPremium(userId)) {
-                    const expired = moment.unix(db.premium[userId].expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss');
-                    await bot.sendMessage(msg.chat.id, 
-                        `ANDA SUDAH PREMIUM\n\nBerlaku sampai: ${expired} WIB`
-                    );
-                    return;
-                }
-                
-                await bot.sendMessage(msg.chat.id,
-                    `PAKET PREMIUM\n\n` +
-                    `Saldo Anda: ${credits} credits\n\n` +
-                    `Pilih paket (bayar dengan saldo):`,
-                    {
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{ text: '1 HARI - 10.000 credits', callback_data: 'langganan_1' }],
-                                [{ text: '3 HARI - 25.000 credits', callback_data: 'langganan_3' }],
-                                [{ text: '7 HARI - 45.000 credits', callback_data: 'langganan_7' }],
-                                [{ text: '30 HARI - 100.000 credits', callback_data: 'langganan_30' }],
-                                [{ text: 'BATAL', callback_data: 'langganan_batal' }]
-                            ]
-                        }
-                    }
-                );
-            } catch (error) {
-                console.log('Error /langganan:', error.message);
             }
         });
 
@@ -1198,7 +1126,7 @@ else {
                     await bot.sendMessage(chatId, 
                         `BATAS PENGGUNAAN HABIS\n\n` +
                         `Anda telah menggunakan 10/10 limit gratis.\n` +
-                        `Ketik /langganan untuk akses PREMIUM.`,
+                        `Silakan berlangganan premium:`,
                         {
                             reply_markup: {
                                 inline_keyboard: [
@@ -1317,7 +1245,7 @@ else {
                     await bot.sendMessage(chatId, 
                         `BATAS PENGGUNAAN HABIS\n\n` +
                         `Anda telah menggunakan 10/10 limit gratis.\n` +
-                        `Ketik /langganan untuk akses PREMIUM.`,
+                        `Silakan berlangganan premium:`,
                         {
                             reply_markup: {
                                 inline_keyboard: [
@@ -1420,7 +1348,7 @@ else {
                         `FIND PLAYER\n\n` +
                         `Format: /find NICKNAME\n` +
                         `Contoh: /find RRQ Jule\n\n` +
-                        `Biaya: 5000 credits`
+                        `Biaya: Rp 5.000`
                     );
                     return;
                 }
@@ -1458,9 +1386,9 @@ else {
                 if (credits < 5000 && !isAdmin(userId)) {
                     await bot.sendMessage(chatId,
                         `SALDO TIDAK CUKUP\n\n` +
-                        `Saldo Anda: ${credits} credits\n` +
-                        `Biaya /find: 5000 credits\n` +
-                        `Kekurangan: ${5000 - credits} credits\n\n` +
+                        `Saldo Anda: Rp ${credits.toLocaleString()}\n` +
+                        `Biaya /find: Rp 5.000\n` +
+                        `Kekurangan: Rp ${(5000 - credits).toLocaleString()}\n\n` +
                         `Silakan isi saldo terlebih dahulu:`,
                         {
                             reply_markup: {
@@ -1509,7 +1437,7 @@ else {
                     output += `--------------------\n`;
                 });
                 
-                output += `\nSisa saldo: ${getUserCredits(userId)} credits`;
+                output += `\nSisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
                 
                 await bot.sendMessage(chatId, output);
                 
@@ -1541,6 +1469,17 @@ else {
                     await bot.deleteMessage(chatId, msg.message_id);
                 } catch (e) {}
 
+                // ================== KEMBALI KE MENU ==================
+                if (data === 'kembali_ke_menu') {
+                    const fakeMsg = {
+                        chat: { id: chatId, type: 'private' },
+                        from: { id: userId }
+                    };
+                    await bot.emit('text', fakeMsg, '/start');
+                    await bot.answerCallbackQuery(cb.id);
+                    return;
+                }
+
                 // ================== MENU LANGGANAN ==================
                 if (data === 'langganan_menu') {
                     await showLanggananMenu(chatId, userId);
@@ -1550,12 +1489,6 @@ else {
                 // ================== MENU TOPUP ==================
                 if (data === 'topup_menu') {
                     await showTopupMenu(chatId, userId);
-                    return;
-                }
-
-                if (data === 'langganan_batal' || data === 'topup_batal') {
-                    await bot.answerCallbackQuery(cb.id, { text: 'Dibatalkan' });
-                    await bot.sendMessage(chatId, 'Dibatalkan.');
                     return;
                 }
 
@@ -1595,10 +1528,15 @@ else {
                             caption: 
                                 `TOP UP SALDO\n\n` +
                                 `Nominal: Rp ${amount.toLocaleString()}\n` +
-                                `Saldo: ${amount} credits\n\n` +
+                                `Saldo: Rp ${amount.toLocaleString()}\n\n` +
                                 `Order ID: ${payment.orderId}\n` +
                                 `Berlaku sampai: ${payment.expiredAt} WIB\n\n` +
-                                `Scan QR code di atas untuk membayar.`
+                                `Scan QR code di atas untuk membayar.`,
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: 'KEMBALI', callback_data: 'kembali_ke_menu' }]
+                                ]
+                            }
                         });
                         
                         if (db.pending_topups && db.pending_topups[payment.orderId]) {
@@ -1613,9 +1551,16 @@ else {
                         await bot.sendMessage(chatId,
                             `TOP UP SALDO\n\n` +
                             `Nominal: Rp ${amount.toLocaleString()}\n` +
-                            `Saldo: ${amount} credits\n\n` +
+                            `Saldo: Rp ${amount.toLocaleString()}\n\n` +
                             `QR Code:\n${payment.qrString}\n\n` +
-                            `Order ID: ${payment.orderId}`
+                            `Order ID: ${payment.orderId}`,
+                            {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: 'KEMBALI', callback_data: 'kembali_ke_menu' }]
+                                    ]
+                                }
+                            }
                         );
                     }
                     
@@ -1648,9 +1593,9 @@ else {
                     if (credits < selected.price && !isAdmin(userId)) {
                         await bot.sendMessage(chatId,
                             `SALDO TIDAK CUKUP\n\n` +
-                            `Paket: ${selected.name} - ${selected.price} credits\n` +
-                            `Saldo Anda: ${credits} credits\n` +
-                            `Kekurangan: ${selected.price - credits} credits\n\n` +
+                            `Paket: ${selected.name} - Rp ${selected.price.toLocaleString()}\n` +
+                            `Saldo Anda: Rp ${credits.toLocaleString()}\n` +
+                            `Kekurangan: Rp ${(selected.price - credits).toLocaleString()}\n\n` +
                             `Silakan isi saldo terlebih dahulu:`,
                             {
                                 reply_markup: {
@@ -1678,9 +1623,16 @@ else {
                     await bot.sendMessage(chatId,
                         `LANGGANAN BERHASIL\n\n` +
                         `Paket: ${selected.name}\n` +
-                        `Harga: ${selected.price} credits\n` +
-                        `Sisa saldo: ${getUserCredits(userId)} credits\n\n` +
-                        `Premium sampai: ${moment.unix(expiredAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB`
+                        `Harga: Rp ${selected.price.toLocaleString()}\n` +
+                        `Sisa saldo: Rp ${getUserCredits(userId).toLocaleString()}\n\n` +
+                        `Premium sampai: ${moment.unix(expiredAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB`,
+                        {
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: 'KEMBALI', callback_data: 'kembali_ke_menu' }]
+                                ]
+                            }
+                        }
                     );
                     
                     return;
@@ -1702,7 +1654,7 @@ else {
             
             await bot.sendMessage(chatId,
                 `TOP UP SALDO\n\n` +
-                `Saldo Anda: ${credits} credits\n\n` +
+                `Saldo Anda: Rp ${credits.toLocaleString()}\n\n` +
                 `Pilih nominal:`,
                 {
                     reply_markup: {
@@ -1724,7 +1676,7 @@ else {
                                 { text: 'Rp 1.000.000', callback_data: 'topup_1000000' }
                             ],
                             [
-                                { text: 'BATAL', callback_data: 'topup_batal' }
+                                { text: 'KEMBALI', callback_data: 'kembali_ke_menu' }
                             ]
                         ]
                     }
@@ -1742,7 +1694,7 @@ else {
                     {
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: 'BATAL', callback_data: 'langganan_batal' }]
+                                [{ text: 'KEMBALI', callback_data: 'kembali_ke_menu' }]
                             ]
                         }
                     }
@@ -1752,16 +1704,16 @@ else {
             
             await bot.sendMessage(chatId,
                 `PAKET PREMIUM\n\n` +
-                `Saldo Anda: ${credits} credits\n\n` +
+                `Saldo Anda: Rp ${credits.toLocaleString()}\n\n` +
                 `Pilih paket (bayar dengan saldo):`,
                 {
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: '1 HARI - 10.000 credits', callback_data: 'langganan_1' }],
-                            [{ text: '3 HARI - 25.000 credits', callback_data: 'langganan_3' }],
-                            [{ text: '7 HARI - 45.000 credits', callback_data: 'langganan_7' }],
-                            [{ text: '30 HARI - 100.000 credits', callback_data: 'langganan_30' }],
-                            [{ text: 'BATAL', callback_data: 'langganan_batal' }]
+                            [{ text: '1 HARI - Rp 10.000', callback_data: 'langganan_1' }],
+                            [{ text: '3 HARI - Rp 25.000', callback_data: 'langganan_3' }],
+                            [{ text: '7 HARI - Rp 45.000', callback_data: 'langganan_7' }],
+                            [{ text: '30 HARI - Rp 100.000', callback_data: 'langganan_30' }],
+                            [{ text: 'KEMBALI', callback_data: 'kembali_ke_menu' }]
                         ]
                     }
                 }
@@ -1872,7 +1824,7 @@ else {
                             await bot.sendMessage(userId, 
                                 `PREMIUM EXPIRED\n\n` +
                                 `Masa aktif premium Anda telah habis.\n` +
-                                `Ketik /langganan untuk memperpanjang.`,
+                                `Silakan berlangganan kembali:`,
                                 {
                                     reply_markup: {
                                         inline_keyboard: [
@@ -2039,7 +1991,7 @@ else {
                     }
                     
                     let message = `RIWAYAT TOPUP USER ${targetId}\n\n`;
-                    message += `Saldo saat ini: ${user.credits || 0} credits\n\n`;
+                    message += `Saldo saat ini: Rp ${(user.credits || 0).toLocaleString()}\n\n`;
                     
                     user.topup_history.forEach((item, i) => {
                         const date = moment(item.date).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm');
@@ -2062,7 +2014,7 @@ else {
                             const totalTopup = u.topup_history.reduce((sum, item) => sum + item.amount, 0);
                             message += `${i+1}. ${id}\n`;
                             message += `   Total topup: Rp ${totalTopup.toLocaleString()} (${u.topup_history.length}x)\n`;
-                            message += `   Saldo: ${u.credits || 0} credits\n\n`;
+                            message += `   Saldo: Rp ${(u.credits || 0).toLocaleString()}\n\n`;
                         });
                     }
                     
@@ -2190,15 +2142,15 @@ else {
                 await bot.sendMessage(msg.chat.id, 
                     `TOPUP MANUAL BERHASIL\n\n` +
                     `User: ${targetId}\n` +
-                    `Jumlah: ${amount} credits\n` +
-                    `Saldo sekarang: ${newBalance} credits`
+                    `Jumlah: Rp ${amount.toLocaleString()}\n` +
+                    `Saldo sekarang: Rp ${newBalance.toLocaleString()}`
                 );
                 
                 try {
                     await bot.sendMessage(targetId, 
                         `SALDO DITAMBAH ADMIN\n\n` +
-                        `Saldo Anda bertambah ${amount} credits.\n` +
-                        `Saldo sekarang: ${newBalance} credits`
+                        `Saldo Anda bertambah Rp ${amount.toLocaleString()}.\n` +
+                        `Saldo sekarang: Rp ${newBalance.toLocaleString()}`
                     );
                 } catch (e) {}
                 
