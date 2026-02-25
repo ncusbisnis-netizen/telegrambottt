@@ -1022,7 +1022,7 @@ else {
                 message += `DAFTAR PERINTAH:\n`;
                 message += `/info ID SERVER - Info platform\n`;
                 message += `/cek ID SERVER - Full info\n`;
-                message += `/find NICKNAME - Cek ID via nickname\n\n`;
+                message += `/find NICKNAME - Cek ID via nickname Rp 5.000\n\n`;
                 
                 if (isAdmin(userId)) {
                     message += `ADMIN:\n`;
@@ -1507,26 +1507,6 @@ else {
                     return;
                 }
 
-                // ================== BATALKAN LANGGANAN ==================
-                if (data.startsWith('cancel_langganan_')) {
-                    const orderId = data.replace('cancel_langganan_', '');
-                    
-                    // Hapus dari database
-                    if (db.pending_payments && db.pending_payments[orderId]) {
-                        delete db.pending_payments[orderId];
-                        await saveDB();
-                    }
-                    
-                    // Hapus pesan QRIS
-                    try {
-                        await bot.deleteMessage(chatId, messageId);
-                    } catch (e) {}
-                    
-                    // Kirim notifikasi pembatalan
-                    await bot.answerCallbackQuery(cb.id, { text: 'Pembayaran dibatalkan' });
-                    return;
-                }
-
                 // ================== TOPUP ==================
                 if (data.startsWith('topup_')) {
                     await bot.answerCallbackQuery(cb.id, { text: 'Memproses topup...' });
@@ -1616,12 +1596,10 @@ else {
                 }
 
                 // ================== LANGGANAN ==================
-                if (data.startsWith('langganan_') && !data.includes('qris')) {
+                if (data.startsWith('langganan_')) {
                     await bot.answerCallbackQuery(cb.id, { text: 'Memproses langganan...' });
                     
                     const pilihan = data.replace('langganan_', '');
-                    
-                    if (pilihan === 'menu') return;
                     
                     const paket = {
                         '1': { days: 1, price: 10000, name: '1 Hari' },
@@ -1708,101 +1686,6 @@ else {
                             }
                         }
                     );
-                    
-                    return;
-                }
-
-                // ================== LANGGANAN VIA QRIS ==================
-                if (data.startsWith('langganan_qris_')) {
-                    await bot.answerCallbackQuery(cb.id, { text: 'Memproses langganan via QRIS...' });
-                    
-                    const pilihan = data.replace('langganan_qris_', '');
-                    
-                    const paket = {
-                        '1': { days: 1, price: 10000, name: '1 Hari' },
-                        '3': { days: 3, price: 25000, name: '3 Hari' },
-                        '7': { days: 7, price: 45000, name: '7 Hari' },
-                        '30': { days: 30, price: 100000, name: '30 Hari' }
-                    };
-                    
-                    const selected = paket[pilihan];
-                    if (!selected) {
-                        await bot.editMessageText('Pilihan tidak valid.', {
-                            chat_id: chatId,
-                            message_id: messageId
-                        });
-                        return;
-                    }
-                    
-                    await bot.editMessageText('Membuat pembayaran QRIS...', {
-                        chat_id: chatId,
-                        message_id: messageId
-                    });
-                    
-                    const payment = await createPakasirPremium(selected.price, selected.name, userId);
-                    
-                    if (!payment.success) {
-                        await bot.editMessageText(`Gagal: ${payment.error}`, {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'KEMBALI', callback_data: 'langganan_menu' }]
-                                ]
-                            }
-                        });
-                        return;
-                    }
-                    
-                    try {
-                        const qrBuffer = await QRCode.toBuffer(payment.qrString, { 
-                            errorCorrectionLevel: 'L', 
-                            margin: 1, 
-                            width: 256 
-                        });
-                        
-                        await bot.deleteMessage(chatId, messageId);
-                        
-                        const sentMessage = await bot.sendPhoto(chatId, qrBuffer, {
-                            caption: 
-                                `LANGGANAN PREMIUM VIA QRIS\n\n` +
-                                `Paket: ${selected.name}\n` +
-                                `Harga: Rp ${selected.price.toLocaleString()}\n\n` +
-                                `Order ID: ${payment.orderId}\n` +
-                                `Berlaku sampai: ${payment.expiredAt} WIB\n\n` +
-                                `Scan QR code di atas untuk membayar.`,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'BATALKAN', callback_data: `cancel_langganan_${payment.orderId}` }]
-                                ]
-                            }
-                        });
-                        
-                        if (db.pending_payments && db.pending_payments[payment.orderId]) {
-                            db.pending_payments[payment.orderId].messageId = sentMessage.message_id;
-                            db.pending_payments[payment.orderId].chatId = chatId;
-                            await saveDB();
-                        }
-                        
-                    } catch (qrError) {
-                        console.log('Error kirim QR:', qrError.message);
-                        await bot.editMessageText(
-                            `LANGGANAN PREMIUM VIA QRIS\n\n` +
-                            `Paket: ${selected.name}\n` +
-                            `Harga: Rp ${selected.price.toLocaleString()}\n\n` +
-                            `QR Code:\n${payment.qrString}\n\n` +
-                            `Order ID: ${payment.orderId}`,
-                            {
-                                chat_id: chatId,
-                                message_id: messageId,
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: 'BATALKAN', callback_data: `cancel_langganan_${payment.orderId}` }]
-                                    ]
-                                }
-                            }
-                        );
-                    }
                     
                     return;
                 }
@@ -1937,11 +1820,10 @@ else {
                 `LANGGANAN PREMIUM\n\n` +
                 `Paket Unlimited untuk akses /info /cek tanpa batas\n\n` +
                 `Saldo Anda: Rp ${credits.toLocaleString()}\n\n` +
-                `Pilih metode pembayaran dan paket:`;
+                `Pilih paket (bayar dengan saldo):`;
             
             const replyMarkup = {
                 inline_keyboard: [
-                    [{ text: '💰 BAYAR DENGAN SALDO', callback_data: 'ignore' }],
                     [
                         { text: '1 HARI - Rp 10.000', callback_data: 'langganan_1' }
                     ],
@@ -1954,20 +1836,9 @@ else {
                     [
                         { text: '30 HARI - Rp 100.000', callback_data: 'langganan_30' }
                     ],
-                    [{ text: '📱 BAYAR DENGAN QRIS', callback_data: 'ignore' }],
                     [
-                        { text: '1 HARI - Rp 10.000 (QRIS)', callback_data: 'langganan_qris_1' }
-                    ],
-                    [
-                        { text: '3 HARI - Rp 25.000 (QRIS)', callback_data: 'langganan_qris_3' }
-                    ],
-                    [
-                        { text: '7 HARI - Rp 45.000 (QRIS)', callback_data: 'langganan_qris_7' }
-                    ],
-                    [
-                        { text: '30 HARI - Rp 100.000 (QRIS)', callback_data: 'langganan_qris_30' }
-                    ],
-                    [{ text: 'KEMBALI KE MENU', callback_data: 'kembali_ke_menu' }]
+                        { text: 'KEMBALI KE MENU', callback_data: 'kembali_ke_menu' }
+                    ]
                 ]
             };
             
