@@ -314,9 +314,17 @@ function formatLocations(locations, maxItems = 5) {
 function getUserCredits(userId) {
     try {
         if (!db.users[userId]) {
-            db.users[userId] = { username: '', success: 0, credits: 0, topup_history: [] };
+            db.users[userId] = { 
+                username: '', 
+                success: 0, 
+                credits: 0, 
+                topup_history: [] 
+            };
         }
-        return db.users[userId].credits || 0;
+        if (typeof db.users[userId].credits !== 'number') {
+            db.users[userId].credits = 0;
+        }
+        return db.users[userId].credits;
     } catch (error) {
         return 0;
     }
@@ -325,13 +333,24 @@ function getUserCredits(userId) {
 async function addCredits(userId, amount, orderId = null) {
     try {
         if (!db.users[userId]) {
-            db.users[userId] = { username: '', success: 0, credits: 0, topup_history: [] };
+            db.users[userId] = { 
+                username: '', 
+                success: 0, 
+                credits: 0, 
+                topup_history: [] 
+            };
         }
-        db.users[userId].credits = (db.users[userId].credits || 0) + amount;
+        
+        if (typeof db.users[userId].credits !== 'number') {
+            db.users[userId].credits = 0;
+        }
+        
+        db.users[userId].credits += amount;
         
         if (!db.users[userId].topup_history) {
             db.users[userId].topup_history = [];
         }
+        
         db.users[userId].topup_history.push({
             amount: amount,
             order_id: orderId,
@@ -674,7 +693,7 @@ async function getMLBBData(userId, serverId, type = 'bind') {
     }
 }
 
-// ================== FUNGSI UNTUK /find ==================
+// ================== FUNGSI UNTUK /find via Nickname ==================
 async function findPlayerByName(name) {
     try {
         console.log(`Mencari player dengan nama: ${name}`);
@@ -701,6 +720,41 @@ async function findPlayerByName(name) {
         }
     } catch (error) {
         console.log(`Error findPlayerByName:`, error.message);
+        if (error.response) {
+            console.log('Detail error:', error.response.data);
+            console.log('Status code:', error.response.status);
+        }
+        return null;
+    }
+}
+
+// ================== FUNGSI GET DATA BY ROLE_ID ==================
+async function getPlayerByRoleId(roleId) {
+    try {
+        console.log(`Mencari player dengan role_id: ${roleId}`);
+        
+        const response = await axios.post("https://checkton.online/backend/info", {
+            role_id: String(roleId),
+            type: "find"
+        }, {
+            headers: { 
+                "Content-Type": "application/json", 
+                "x-api-key": API_KEY_CHECKTON 
+            },
+            timeout: 25000
+        });
+        
+        console.log(`Response status: ${response.status}`);
+        
+        if (response.data && response.data.status === 0) {
+            console.log(`Ditemukan data player`);
+            return response.data.data;
+        } else {
+            console.log(`Response:`, response.data);
+            return null;
+        }
+    } catch (error) {
+        console.log(`Error getPlayerByRoleId:`, error.message);
         if (error.response) {
             console.log('Detail error:', error.response.data);
             console.log('Status code:', error.response.status);
@@ -1022,7 +1076,8 @@ else {
                 message += `DAFTAR PERINTAH:\n`;
                 message += `/info ID SERVER - Info platform\n`;
                 message += `/cek ID SERVER - Full info\n`;
-                message += `/find NICKNAME - Cek ID via nickname Rp 5.000\n\n`;
+                message += `/find NICKNAME - Cari via nickname\n`;
+                message += `/find ID - Cari via role ID\n\n`;
                 
                 if (isAdmin(userId)) {
                     message += `ADMIN:\n`;
@@ -1338,7 +1393,7 @@ else {
             }
         });
 
-        // ================== COMMAND /find ==================
+        // ================== COMMAND /find (Nickname & Role ID) ==================
         bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1346,15 +1401,21 @@ else {
                 if (!match || !match[1]) {
                     await bot.sendMessage(msg.chat.id,
                         `FIND PLAYER\n\n` +
-                        `Format: /find NICKNAME\n` +
-                        `Contoh: /find RRQ Jule\n\n` +
-                        `Biaya: Rp 5.000`
+                        `Cari akun MLBB berdasarkan:\n` +
+                        `1. NICKNAME - Cari via nickname\n` +
+                        `2. ROLE ID - Cek detail via ID user\n\n` +
+                        `Format:\n` +
+                        `• Via Nickname: /find NICKNAME\n` +
+                        `  Contoh: /find RRQ Jule\n\n` +
+                        `• Via Role ID: /find ID\n` +
+                        `  Contoh: /find 643461181\n\n` +
+                        `Biaya: Rp 5.000 (untuk kedua metode)`
                     );
                     return;
                 }
                 
                 const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username;
-                const searchName = match[1].trim();
+                const input = match[1].trim();
                 
                 if (isBanned(userId) && !isAdmin(userId)) return;
                 
@@ -1382,6 +1443,16 @@ else {
                     return;
                 }
                 
+                // PASTIKAN USER OBJECT ADA
+                if (!db.users[userId]) {
+                    db.users[userId] = { 
+                        username: username || '', 
+                        success: 0, 
+                        credits: 0, 
+                        topup_history: [] 
+                    };
+                }
+                
                 const credits = getUserCredits(userId);
                 if (credits < 5000 && !isAdmin(userId)) {
                     await bot.sendMessage(chatId,
@@ -1406,32 +1477,84 @@ else {
                 
                 const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
                 
-                const results = await findPlayerByName(searchName);
+                let results = null;
+                let isRoleIdSearch = false;
+                
+                // CEK APAKAH INPUT ANGKA (ROLE ID) ATAU TEXT (NICKNAME)
+                if (/^\d+$/.test(input)) {
+                    // INPUT ADALAH ANGKA - SEARCH VIA ROLE ID
+                    isRoleIdSearch = true;
+                    console.log(`Mencari dengan role_id: ${input}`);
+                    const playerData = await getPlayerByRoleId(input);
+                    if (playerData) {
+                        results = [playerData]; // BUNGKUS DALAM ARRAY AGAR FORMAT SAMA
+                    }
+                } else {
+                    // INPUT ADALAH TEXT - SEARCH VIA NICKNAME
+                    console.log(`Mencari dengan nickname: ${input}`);
+                    results = await findPlayerByName(input);
+                }
                 
                 await bot.deleteMessage(chatId, loadingMsg.message_id);
                 
                 if (!results || results.length === 0) {
-                    await bot.sendMessage(chatId, `Tidak ada akun ditemukan dengan nama "${searchName}"`);
+                    if (isRoleIdSearch) {
+                        await bot.sendMessage(chatId, `Tidak ada akun ditemukan dengan Role ID "${input}"`);
+                    } else {
+                        await bot.sendMessage(chatId, `Tidak ada akun ditemukan dengan nama "${input}"`);
+                    }
                     return;
                 }
                 
+                // KURANGI SALDO HANYA JIKA BUKAN ADMIN
                 if (!isAdmin(userId)) {
+                    // PASTIKAN credits ADA sebelum dikurangi
+                    if (typeof db.users[userId].credits !== 'number') {
+                        db.users[userId].credits = 0;
+                    }
                     db.users[userId].credits -= 5000;
                     await saveDB();
                 }
                 
-                let output = `HASIL PENCARIAN: ${searchName}\n\n`;
+                let output = isRoleIdSearch 
+                    ? `HASIL PENCARIAN ROLE ID: ${input}\n\n`
+                    : `HASIL PENCARIAN NICKNAME: ${input}\n\n`;
+                
                 output += `Ditemukan ${results.length} akun:\n\n`;
                 
                 results.forEach((item, index) => {
-                    output += `[${index + 1}] ${item.name}\n`;
-                    output += `ID: ${item.role_id} | Server: ${item.zone_id}\n`;
-                    output += `Level: ${item.level}\n`;
-                    output += `Last Login: ${item.last_login}\n`;
+                    output += `[${index + 1}] ${item.name || item.nickname || 'Unknown'}\n`;
+                    output += `ID: ${item.role_id} | Server: ${item.zone_id || item.server || '-'}\n`;
+                    output += `Level: ${item.level || '-'}\n`;
                     
-                    const locations = formatLocations(item.locations_logged, 5);
-                    if (locations) {
-                        output += `Lokasi: ${locations}\n`;
+                    if (item.last_login) {
+                        output += `Last Login: ${item.last_login}\n`;
+                    }
+                    
+                    if (item.locations_logged && Array.isArray(item.locations_logged)) {
+                        const locations = formatLocations(item.locations_logged, 5);
+                        if (locations) {
+                            output += `Lokasi: ${locations}\n`;
+                        }
+                    }
+                    
+                    // TAMBAHKAN INFORMASI TAMBAHAN UNTUK SEARCH VIA ROLE ID
+                    if (isRoleIdSearch) {
+                        if (item.achievement_points) {
+                            output += `Achievement Points: ${item.achievement_points.toLocaleString()}\n`;
+                        }
+                        if (item.skin_count) {
+                            output += `Total Skin: ${item.skin_count}\n`;
+                        }
+                        if (item.total_match_played) {
+                            output += `Total Match: ${item.total_match_played.toLocaleString()}\n`;
+                        }
+                        if (item.overall_win_rate) {
+                            output += `Win Rate: ${item.overall_win_rate}\n`;
+                        }
+                        if (item.current_tier) {
+                            output += `Rank: ${item.current_tier}\n`;
+                        }
                     }
                     
                     output += `--------------------\n`;
@@ -1444,7 +1567,7 @@ else {
             } catch (error) {
                 console.log('Error /find:', error.message);
                 try {
-                    await bot.deleteMessage(msg.chat.id, loadingMsg?.message_id);
+                    if (loadingMsg) await bot.deleteMessage(msg.chat.id, loadingMsg.message_id);
                 } catch {}
                 await bot.sendMessage(msg.chat.id, `Gagal mengambil data.`);
             }
@@ -1723,7 +1846,8 @@ else {
             message += `DAFTAR PERINTAH:\n`;
             message += `/info ID SERVER - Info platform\n`;
             message += `/cek ID SERVER - Full info\n`;
-            message += `/find NICKNAME - Cek ID via nickname Rp 5.000\n\n`;
+            message += `/find NICKNAME - Cari via nickname\n`;
+            message += `/find ID - Cari via role ID\n\n`;
             
             if (isAdmin(userId)) {
                 message += `ADMIN:\n`;
