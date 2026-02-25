@@ -1021,8 +1021,8 @@ else {
                 
                 message += `DAFTAR PERINTAH:\n`;
                 message += `/info ID SERVER - Info platform\n`;
-                message += `/cek ID SERVER - Info detail\n`;
-                message += `/find NICKNAME - Cek ID (Rp 5.000)\n\n`;
+                message += `/cek ID SERVER - Full info\n`;
+                message += `/find NICKNAME - Cek ID via nickname Rp 5.000\n\n`;
                 
                 if (isAdmin(userId)) {
                     message += `ADMIN:\n`;
@@ -1465,10 +1465,13 @@ else {
                 const chatId = msg.chat.id;
                 const userId = cb.from.id;
                 const data = cb.data;
+                
+                try {
+                    await bot.deleteMessage(chatId, msg.message_id);
+                } catch (e) {}
 
                 // ================== KEMBALI KE MENU ==================
                 if (data === 'kembali_ke_menu') {
-                    // JANGAN HAPUS PESAN, LANGSUNG PANGGIL /start
                     const fakeMsg = {
                         chat: { id: chatId, type: 'private' },
                         from: { id: userId }
@@ -1477,11 +1480,6 @@ else {
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
-
-                // HAPUS PESAN UNTUK CALLBACK LAINNYA (TOPUP, LANGGANAN, DLL)
-                try {
-                    await bot.deleteMessage(chatId, msg.message_id);
-                } catch (e) {}
 
                 // ================== MENU LANGGANAN ==================
                 if (data === 'langganan_menu') {
@@ -1656,7 +1654,7 @@ else {
             const credits = getUserCredits(userId);
             
             await bot.sendMessage(chatId,
-                `TOP UP SALDO UNTUK KEPERLUAN ANDA\n\n` +
+                `TOP UP SALDO UNTUK KEBUTUHAN ANDA\n\n` +
                 `Saldo Anda: Rp ${credits.toLocaleString()}\n\n` +
                 `Pilih nominal:`,
                 {
@@ -1706,9 +1704,9 @@ else {
             }
             
             await bot.sendMessage(chatId,
-                `Paket unlimited khusus akses fitur /info /cek\n\n` +
+                `Paket Unlimited untuk akses /info /cek tanpa batas\n\n` +
                 `Saldo Anda: Rp ${credits.toLocaleString()}\n\n` +
-                `Pilih paket:`,
+                `Pilih paket (bayar dengan saldo):`,
                 {
                     reply_markup: {
                         inline_keyboard: [
