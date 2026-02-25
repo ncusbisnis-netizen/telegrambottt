@@ -9,12 +9,12 @@ const { Pool } = require('pg');
 
 // ================== GLOBAL ERROR HANDLER ==================
 process.on('uncaughtException', (error) => {
-    console.log('❌ ERROR GLOBAL:', error.message);
+    console.log('ERROR GLOBAL:', error.message);
     console.log(error.stack);
 });
 
 process.on('unhandledRejection', (reason) => {
-    console.log('❌ UNHANDLED REJECTION:', reason);
+    console.log('UNHANDLED REJECTION:', reason);
 });
 
 // ================== CEK JENIS PROSES ==================
@@ -342,7 +342,7 @@ async function addCredits(userId, amount, orderId = null) {
         await saveDB();
         return db.users[userId].credits;
     } catch (error) {
-        console.log('❌ Error addCredits:', error.message);
+        console.log('Error addCredits:', error.message);
         return getUserCredits(userId);
     }
 }
@@ -368,7 +368,7 @@ async function activatePremium(userId, days, duration, paymentMethod = 'saldo') 
         
         return expiredAt;
     } catch (error) {
-        console.log('❌ Error activatePremium:', error.message);
+        console.log('Error activatePremium:', error.message);
         return null;
     }
 }
@@ -398,9 +398,9 @@ async function initDB() {
                 updated_at TIMESTAMP DEFAULT NOW()
             )
         `);
-        console.log('✅ Tabel bot_data siap');
+        console.log('Tabel bot_data siap');
     } catch (error) {
-        console.log('❌ Gagal init database:', error.message);
+        console.log('Gagal init database:', error.message);
     }
 }
 
@@ -409,12 +409,12 @@ async function loadDB() {
         const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['database']);
         if (res.rows.length > 0) {
             db = res.rows[0].value;
-            console.log('✅ Load database dari Postgres');
+            console.log('Load database dari Postgres');
         } else {
-            console.log('📁 Database kosong, pakai default');
+            console.log('Database kosong, pakai default');
         }
     } catch (error) {
-        console.log('❌ Gagal load database:', error.message);
+        console.log('Gagal load database:', error.message);
     }
 }
 
@@ -428,7 +428,7 @@ async function saveDB() {
             ['database', db]
         );
     } catch (error) {
-        console.log('❌ Gagal save database:', error.message);
+        console.log('Gagal save database:', error.message);
         try {
             fs.writeFileSync('database.json', JSON.stringify(db, null, 2));
         } catch (e) {}
@@ -440,10 +440,10 @@ async function loadSpamData() {
         const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['spam']);
         if (res.rows.length > 0) {
             spamData = res.rows[0].value;
-            console.log('✅ Load spam data dari Postgres');
+            console.log('Load spam data dari Postgres');
         }
     } catch (error) {
-        console.log('❌ Gagal load spam:', error.message);
+        console.log('Gagal load spam:', error.message);
     }
 }
 
@@ -457,7 +457,7 @@ async function saveSpamData() {
             ['spam', spamData]
         );
     } catch (error) {
-        console.log('❌ Gagal save spam:', error.message);
+        console.log('Gagal save spam:', error.message);
         try {
             fs.writeFileSync('spam.json', JSON.stringify(spamData, null, 2));
         } catch (e) {}
@@ -590,9 +590,8 @@ async function getMLBBData(userId, serverId, type = 'bind') {
     };
     
     try {
-        console.log(`📡 Mencoba ambil data ${type} untuk ${userId} server ${serverId}`);
+        console.log(`Mencoba ambil data ${type} untuk ${userId} server ${serverId}`);
         
-        // AMBIL DATA DASAR DARI GOPAY (UNTUK SEMUA TYPE)
         try {
             const goPayResponse = await axios.post("https://gopay.co.id/games/v1/order/user-account", {
                 code: "MOBILE_LEGENDS",
@@ -612,19 +611,14 @@ async function getMLBBData(userId, serverId, type = 'bind') {
             
             if (goPayResponse.data?.data) {
                 const g = goPayResponse.data.data;
-                
-                // GANTI + JADI SPASI
                 result.username = g.username ? g.username.replace(/\+/g, ' ') : "Tidak ditemukan";
                 result.region = getCountryName(g.countryOrigin);
-                
-                console.log(`✅ GoPay sukses: ${result.username}, region: ${result.region}`);
+                console.log(`GoPay sukses: ${result.username}, region: ${result.region}`);
             }
         } catch (goPayError) {
-            console.log(`⚠️ GoPay error:`, goPayError.message);
-            // TETAP LANJUT, CHECKTON MASIH BISA JADI BACKUP
+            console.log(`GoPay error:`, goPayError.message);
         }
         
-        // AMBIL DATA DARI CHECKTON
         const checktonResponse = await axios.post("https://checkton.online/backend/info", {
             role_id: String(userId),
             zone_id: String(serverId),
@@ -637,12 +631,11 @@ async function getMLBBData(userId, serverId, type = 'bind') {
             timeout: 25000
         });
         
-        console.log(`✅ Checkton response status: ${checktonResponse.status}`);
+        console.log(`Checkton response status: ${checktonResponse.status}`);
         
         if (checktonResponse.data?.data) {
             const c = checktonResponse.data.data;
             
-            // JIKA GOPAY GAGAL, PAKAI DATA DARI CHECKTON
             if (!result.username) {
                 result.username = c.nickname || "Tidak ditemukan";
                 result.region = getCountryName(c.country);
@@ -664,17 +657,16 @@ async function getMLBBData(userId, serverId, type = 'bind') {
                 result.detailed = c;
             }
             
-            console.log(`✅ Checkton data berhasil diambil`);
+            console.log(`Checkton data berhasil diambil`);
         }
         
         return result;
         
     } catch (error) {
-        console.log(`❌ Error getMLBBData (${type}):`, error.message);
+        console.log(`Error getMLBBData (${type}):`, error.message);
         
-        // KALAU CHECKTON ERROR, TAPI GOPAY SUDAH DAPAT, TETAP KEMBALIKAN DATA GOPAY
         if (result.username) {
-            console.log(`⚠️ Menggunakan data GoPay saja (Checkton error)`);
+            console.log(`Menggunakan data GoPay saja (Checkton error)`);
             return result;
         }
         
@@ -685,7 +677,7 @@ async function getMLBBData(userId, serverId, type = 'bind') {
 // ================== FUNGSI UNTUK /find ==================
 async function findPlayerByName(name) {
     try {
-        console.log(`📡 Mencari player dengan nama: ${name}`);
+        console.log(`Mencari player dengan nama: ${name}`);
         
         const response = await axios.post("https://checkton.online/backend/info", {
             name: name,
@@ -698,20 +690,20 @@ async function findPlayerByName(name) {
             timeout: 25000
         });
         
-        console.log(`✅ Response status: ${response.status}`);
+        console.log(`Response status: ${response.status}`);
         
         if (response.data && response.data.status === 0) {
-            console.log(`✅ Ditemukan ${response.data.data?.length || 0} hasil`);
+            console.log(`Ditemukan ${response.data.data?.length || 0} hasil`);
             return response.data.data;
         } else {
-            console.log(`⚠️ Response:`, response.data);
+            console.log(`Response:`, response.data);
             return null;
         }
     } catch (error) {
-        console.log(`❌ Error findPlayerByName:`, error.message);
+        console.log(`Error findPlayerByName:`, error.message);
         if (error.response) {
-            console.log('📋 Detail error:', error.response.data);
-            console.log('📋 Status code:', error.response.status);
+            console.log('Detail error:', error.response.data);
+            console.log('Status code:', error.response.status);
         }
         return null;
     }
@@ -721,7 +713,7 @@ async function findPlayerByName(name) {
 async function createPakasirTopup(amount, userId) {
     try {
         const orderId = `TOPUP-${userId}-${Date.now()}`;
-        console.log(`🔄 Membuat topup: ${orderId}, amount: ${amount}, user: ${userId}`);
+        console.log(`Membuat topup: ${orderId}, amount: ${amount}, user: ${userId}`);
         
         const response = await axios.post(
             `${process.env.PAKASIR_BASE_URL || 'https://app.pakasir.com/api'}/transactioncreate/qris`,
@@ -751,7 +743,7 @@ async function createPakasirTopup(amount, userId) {
             
             await saveDB();
             
-            console.log(`✅ Topup pending saved: ${orderId} untuk user ${userId}`);
+            console.log(`Topup pending saved: ${orderId} untuk user ${userId}`);
             
             return {
                 success: true,
@@ -763,7 +755,7 @@ async function createPakasirTopup(amount, userId) {
         }
         return { success: false, error: 'Invalid response' };
     } catch (error) {
-        console.log('❌ Error createPakasirTopup:', error.message);
+        console.log('Error createPakasirTopup:', error.message);
         return { success: false, error: error.message };
     }
 }
@@ -829,7 +821,7 @@ if (!IS_WORKER) {
         setImmediate(async () => {
             try {
                 const body = req.body;
-                console.log('🔔 WEBHOOK PAKASIR:', JSON.stringify(body));
+                console.log('WEBHOOK PAKASIR:', JSON.stringify(body));
                 
                 const { order_id, status, amount } = body;
                 
@@ -839,7 +831,7 @@ if (!IS_WORKER) {
                 await loadSpamData();
                 
                 if (status === 'completed' || status === 'paid') {
-                    console.log(`✅ Pembayaran sukses: ${order_id}`);
+                    console.log(`Pembayaran sukses: ${order_id}`);
                     
                     if (order_id.startsWith('TOPUP-')) {
                         const topupData = db.pending_topups?.[order_id];
@@ -854,7 +846,7 @@ if (!IS_WORKER) {
                     }
                 }
             } catch (error) {
-                console.log('❌ Error proses webhook:', error.message);
+                console.log('Error proses webhook:', error.message);
             }
         });
     });
@@ -946,11 +938,11 @@ if (!IS_WORKER) {
         }
     });
 
-    app.listen(PORT, () => console.log(`🌐 Web server running on port ${PORT}`));
+    app.listen(PORT, () => console.log(`Web server running on port ${PORT}`));
 } 
 // ================== BOT TELEGRAM (WORKER) ==================
 else {
-    console.log('🤖 Bot worker started');
+    console.log('Bot worker started');
     
     try {
         const bot = new TelegramBot(BOT_TOKEN, { 
@@ -962,7 +954,7 @@ else {
         });
 
         bot.on('polling_error', (error) => {
-            console.log('⚠️ Polling error:', error.message);
+            console.log('Polling error:', error.message);
         });
 
         async function checkJoin(userId) {
@@ -996,7 +988,7 @@ else {
                 if (chatType !== 'private') return;
                 if (isAdmin(userId)) return;
                 
-                const publicCommands = ['/start', '/langganan', '/topup', '/status', '/offinfo', '/oninfo', '/ranking', '/listpremium', '/listbanned', '/listtopup', '/addban', '/unban', '/addpremium', '/deletepremium', '/addtopup'];
+                const publicCommands = ['/start', '/offinfo', '/oninfo', '/ranking', '/listpremium', '/listbanned', '/listtopup', '/addban', '/unban', '/addpremium', '/deletepremium', '/addtopup'];
                 if (publicCommands.includes(text.split(' ')[0])) return;
             } catch (error) {
                 console.log('Middleware error:', error.message);
@@ -1020,11 +1012,16 @@ else {
                     message += `Sisa Limit: ${status.used}/${status.limit}\n\n`;
                 }
                 
+                if (status.type === 'PREMIUM') {
+                    const premium = db.premium[userId];
+                    const expired = moment.unix(premium.expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss');
+                    message += `Premium sampai: ${expired} WIB\n\n`;
+                }
+                
                 message += `DAFTAR PERINTAH:\n`;
                 message += `/info ID SERVER - Info dasar\n`;
                 message += `/cek ID SERVER - Info detail\n`;
                 message += `/find NICKNAME - Cari akun (5000 credits)\n`;
-                message += `/status - Cek status & saldo\n`;
                 message += `/topup - Isi saldo\n`;
                 message += `/langganan - Beli premium\n\n`;
                 
@@ -1045,50 +1042,7 @@ else {
                 
                 await bot.sendMessage(msg.chat.id, message);
             } catch (error) {
-                console.log('❌ Error /start:', error.message);
-            }
-        });
-
-        // ================== COMMAND /status ==================
-        bot.onText(/\/status/, async (msg) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                const userId = msg.from.id;
-                const credits = getUserCredits(userId);
-                const status = getUserStatus(userId);
-                
-                if (isBanned(userId) && !isAdmin(userId)) {
-                    await bot.sendMessage(msg.chat.id,
-                        `STATUS AKUN\n\n` +
-                        `Status: BLOKIR\n\n` +
-                        `Alasan: ${spamData[userId]?.banReason || 'Tidak diketahui'}`
-                    );
-                    return;
-                }
-                
-                let message = `STATUS AKUN\n\n`;
-                message += `User ID: ${userId}\n`;
-                message += `Tipe: ${status.type}\n`;
-                message += `Saldo: ${credits} credits\n\n`;
-                
-                if (status.type === 'FREE') {
-                    message += `Sisa Limit: ${status.used}/${status.limit}\n`;
-                }
-                
-                if (status.type === 'PREMIUM') {
-                    const premium = db.premium[userId];
-                    const expired = moment.unix(premium.expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss');
-                    message += `Premium sampai: ${expired} WIB\n`;
-                }
-                
-                message += `\nBiaya:\n`;
-                message += `/info /cek: 1 limit (10x gratis)\n`;
-                message += `/find: 5000 credits\n`;
-                
-                await bot.sendMessage(msg.chat.id, message);
-            } catch (error) {
-                console.log('❌ Error /status:', error.message);
+                console.log('Error /start:', error.message);
             }
         });
 
@@ -1131,7 +1085,7 @@ else {
                     }
                 );
             } catch (error) {
-                console.log('❌ Error /topup:', error.message);
+                console.log('Error /topup:', error.message);
             }
         });
 
@@ -1162,13 +1116,13 @@ else {
                                 [{ text: '3 HARI - 25.000 credits', callback_data: 'langganan_3' }],
                                 [{ text: '7 HARI - 45.000 credits', callback_data: 'langganan_7' }],
                                 [{ text: '30 HARI - 100.000 credits', callback_data: 'langganan_30' }],
-                                [{ text: 'BATAL', callback_data: 'batal_bayar' }]
+                                [{ text: 'BATAL', callback_data: 'langganan_batal' }]
                             ]
                         }
                     }
                 );
             } catch (error) {
-                console.log('❌ Error /langganan:', error.message);
+                console.log('Error /langganan:', error.message);
             }
         });
 
@@ -1243,7 +1197,15 @@ else {
                 if (isFreeUser && remaining <= 0) {
                     await bot.sendMessage(chatId, 
                         `BATAS PENGGUNAAN HABIS\n\n` +
-                        `Gunakan /langganan untuk premium`
+                        `Anda telah menggunakan 10/10 limit gratis.\n` +
+                        `Ketik /langganan untuk akses PREMIUM.`,
+                        {
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: 'LANGGANAN', callback_data: 'langganan_menu' }]
+                                ]
+                            }
+                        }
                     );
                     return;
                 }
@@ -1289,7 +1251,7 @@ else {
                     await saveDB();
                 }
             } catch (error) {
-                console.log('❌ Error /info:', error.message);
+                console.log('Error /info:', error.message);
             }
         });
 
@@ -1352,7 +1314,18 @@ else {
                 const remaining = isFreeUser ? getRemainingLimit(userId) : 'Unlimited';
                 
                 if (isFreeUser && remaining <= 0) {
-                    await bot.sendMessage(chatId, `BATAS PENGGUNAAN HABIS\n\nGunakan /langganan.`);
+                    await bot.sendMessage(chatId, 
+                        `BATAS PENGGUNAAN HABIS\n\n` +
+                        `Anda telah menggunakan 10/10 limit gratis.\n` +
+                        `Ketik /langganan untuk akses PREMIUM.`,
+                        {
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: 'LANGGANAN', callback_data: 'langganan_menu' }]
+                                ]
+                            }
+                        }
+                    );
                     return;
                 }
                 
@@ -1433,7 +1406,7 @@ else {
                     await saveDB();
                 }
             } catch (error) {
-                console.log('❌ Error /cek:', error.message);
+                console.log('Error /cek:', error.message);
             }
         });
 
@@ -1486,8 +1459,16 @@ else {
                     await bot.sendMessage(chatId,
                         `SALDO TIDAK CUKUP\n\n` +
                         `Saldo Anda: ${credits} credits\n` +
-                        `Biaya: 5000 credits\n\n` +
-                        `Silakan /topup terlebih dahulu.`
+                        `Biaya /find: 5000 credits\n` +
+                        `Kekurangan: ${5000 - credits} credits\n\n` +
+                        `Silakan isi saldo terlebih dahulu:`,
+                        {
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: 'TOP UP', callback_data: 'topup_menu' }]
+                                ]
+                            }
+                        }
                     );
                     return;
                 }
@@ -1495,14 +1476,14 @@ else {
                 const banned = await recordInfoActivity(userId);
                 if (banned) return;
                 
-                const loadingMsg = await bot.sendMessage(chatId, '🔍 Mencari data...');
+                const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
                 
                 const results = await findPlayerByName(searchName);
                 
                 await bot.deleteMessage(chatId, loadingMsg.message_id);
                 
                 if (!results || results.length === 0) {
-                    await bot.sendMessage(chatId, `❌ Tidak ada akun ditemukan dengan nama "${searchName}"`);
+                    await bot.sendMessage(chatId, `Tidak ada akun ditemukan dengan nama "${searchName}"`);
                     return;
                 }
                 
@@ -1511,7 +1492,7 @@ else {
                     await saveDB();
                 }
                 
-                let output = `🔍 HASIL PENCARIAN: ${searchName}\n\n`;
+                let output = `HASIL PENCARIAN: ${searchName}\n\n`;
                 output += `Ditemukan ${results.length} akun:\n\n`;
                 
                 results.forEach((item, index) => {
@@ -1528,23 +1509,23 @@ else {
                     output += `--------------------\n`;
                 });
                 
-                output += `\n💰 Sisa saldo: ${getUserCredits(userId)} credits`;
+                output += `\nSisa saldo: ${getUserCredits(userId)} credits`;
                 
                 await bot.sendMessage(chatId, output);
                 
             } catch (error) {
-                console.log('❌ Error /find:', error.message);
+                console.log('Error /find:', error.message);
                 try {
                     await bot.deleteMessage(msg.chat.id, loadingMsg?.message_id);
                 } catch {}
-                await bot.sendMessage(msg.chat.id, `❌ Gagal mengambil data.`);
+                await bot.sendMessage(msg.chat.id, `Gagal mengambil data.`);
             }
         });
 
         // ================== CALLBACK QUERY HANDLER ==================
         bot.on('callback_query', async (cb) => {
             try {
-                console.log('📞 Callback diterima:', cb.data);
+                console.log('Callback diterima:', cb.data);
                 
                 const msg = cb.message;
                 if (!msg || msg.chat.type !== 'private') {
@@ -1560,12 +1541,25 @@ else {
                     await bot.deleteMessage(chatId, msg.message_id);
                 } catch (e) {}
 
-                if (data === 'batal_bayar' || data === 'topup_batal') {
+                // ================== MENU LANGGANAN ==================
+                if (data === 'langganan_menu') {
+                    await showLanggananMenu(chatId, userId);
+                    return;
+                }
+
+                // ================== MENU TOPUP ==================
+                if (data === 'topup_menu') {
+                    await showTopupMenu(chatId, userId);
+                    return;
+                }
+
+                if (data === 'langganan_batal' || data === 'topup_batal') {
                     await bot.answerCallbackQuery(cb.id, { text: 'Dibatalkan' });
                     await bot.sendMessage(chatId, 'Dibatalkan.');
                     return;
                 }
 
+                // ================== TOPUP ==================
                 if (data.startsWith('topup_')) {
                     await bot.answerCallbackQuery(cb.id, { text: 'Memproses topup...' });
                     
@@ -1611,11 +1605,11 @@ else {
                             db.pending_topups[payment.orderId].messageId = sentMessage.message_id;
                             db.pending_topups[payment.orderId].chatId = chatId;
                             await saveDB();
-                            console.log(`✅ Message ID tersimpan untuk ${payment.orderId}`);
+                            console.log(`Message ID tersimpan untuk ${payment.orderId}`);
                         }
                         
                     } catch (qrError) {
-                        console.log('❌ Error kirim QR:', qrError.message);
+                        console.log('Error kirim QR:', qrError.message);
                         await bot.sendMessage(chatId,
                             `TOP UP SALDO\n\n` +
                             `Nominal: Rp ${amount.toLocaleString()}\n` +
@@ -1628,10 +1622,14 @@ else {
                     return;
                 }
 
+                // ================== LANGGANAN ==================
                 if (data.startsWith('langganan_')) {
                     await bot.answerCallbackQuery(cb.id, { text: 'Memproses langganan...' });
                     
                     const pilihan = data.replace('langganan_', '');
+                    
+                    if (pilihan === 'menu') return;
+                    
                     const paket = {
                         '1': { days: 1, price: 10000, name: '1 Hari' },
                         '3': { days: 3, price: 25000, name: '3 Hari' },
@@ -1650,9 +1648,17 @@ else {
                     if (credits < selected.price && !isAdmin(userId)) {
                         await bot.sendMessage(chatId,
                             `SALDO TIDAK CUKUP\n\n` +
+                            `Paket: ${selected.name} - ${selected.price} credits\n` +
                             `Saldo Anda: ${credits} credits\n` +
-                            `Harga paket: ${selected.price} credits\n\n` +
-                            `Silakan /topup terlebih dahulu.`
+                            `Kekurangan: ${selected.price - credits} credits\n\n` +
+                            `Silakan isi saldo terlebih dahulu:`,
+                            {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: 'TOP UP', callback_data: 'topup_menu' }]
+                                    ]
+                                }
+                            }
                         );
                         return;
                     }
@@ -1683,27 +1689,99 @@ else {
                 await bot.answerCallbackQuery(cb.id, { text: 'Perintah tidak dikenal' });
                 
             } catch (error) {
-                console.log('❌ Error callback:', error.message);
+                console.log('Error callback:', error.message);
                 try {
                     await bot.answerCallbackQuery(cb.id, { text: 'Terjadi kesalahan' });
                 } catch (e) {}
             }
         });
 
+        // ================== FUNGSI MENU ==================
+        async function showTopupMenu(chatId, userId) {
+            const credits = getUserCredits(userId);
+            
+            await bot.sendMessage(chatId,
+                `TOP UP SALDO\n\n` +
+                `Saldo Anda: ${credits} credits\n\n` +
+                `Pilih nominal:`,
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                { text: 'Rp 5.000', callback_data: 'topup_5000' },
+                                { text: 'Rp 10.000', callback_data: 'topup_10000' }
+                            ],
+                            [
+                                { text: 'Rp 25.000', callback_data: 'topup_25000' },
+                                { text: 'Rp 50.000', callback_data: 'topup_50000' }
+                            ],
+                            [
+                                { text: 'Rp 100.000', callback_data: 'topup_100000' },
+                                { text: 'Rp 200.000', callback_data: 'topup_200000' }
+                            ],
+                            [
+                                { text: 'Rp 500.000', callback_data: 'topup_500000' },
+                                { text: 'Rp 1.000.000', callback_data: 'topup_1000000' }
+                            ],
+                            [
+                                { text: 'BATAL', callback_data: 'topup_batal' }
+                            ]
+                        ]
+                    }
+                }
+            );
+        }
+
+        async function showLanggananMenu(chatId, userId) {
+            const credits = getUserCredits(userId);
+            
+            if (await isPremium(userId)) {
+                const expired = moment.unix(db.premium[userId].expired_at).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss');
+                await bot.sendMessage(chatId, 
+                    `ANDA SUDAH PREMIUM\n\nBerlaku sampai: ${expired} WIB`,
+                    {
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: 'BATAL', callback_data: 'langganan_batal' }]
+                            ]
+                        }
+                    }
+                );
+                return;
+            }
+            
+            await bot.sendMessage(chatId,
+                `PAKET PREMIUM\n\n` +
+                `Saldo Anda: ${credits} credits\n\n` +
+                `Pilih paket (bayar dengan saldo):`,
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: '1 HARI - 10.000 credits', callback_data: 'langganan_1' }],
+                            [{ text: '3 HARI - 25.000 credits', callback_data: 'langganan_3' }],
+                            [{ text: '7 HARI - 45.000 credits', callback_data: 'langganan_7' }],
+                            [{ text: '30 HARI - 100.000 credits', callback_data: 'langganan_30' }],
+                            [{ text: 'BATAL', callback_data: 'langganan_batal' }]
+                        ]
+                    }
+                }
+            );
+        }
+
         // ================== AUTO CHECK PAYMENT (CRON JOB) ==================
         cron.schedule('* * * * *', async () => {
             try {
-                console.log('🔍 Cron job berjalan (backup mode)');
+                console.log('Cron job berjalan (backup mode)');
                 
                 for (const [orderId, data] of Object.entries(db.pending_topups || {})) {
                     if (data.status === 'pending') {
                         const status = await checkPakasirTransaction(orderId, data.amount);
                         
                         if (status === 'completed' || status === 'paid') {
-                            console.log(`✅ Cron job: Topup sukses ${orderId}`);
+                            console.log(`Cron job: Topup sukses ${orderId}`);
                             
                             if (data.processed) {
-                                console.log(`⏭️ Order ${orderId} sudah diproses, lewati`);
+                                console.log(`Order ${orderId} sudah diproses, lewati`);
                                 continue;
                             }
                             
@@ -1721,7 +1799,7 @@ else {
                                 try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
                             }
                             
-                            console.log(`⏭️ Lewati notifikasi (webhook lebih cepat)`);
+                            console.log(`Lewati notifikasi (webhook lebih cepat)`);
                         }
                     }
                 }
@@ -1750,10 +1828,10 @@ else {
                         const status = await checkPakasirTransaction(orderId, data.amount);
                         
                         if (status === 'completed' || status === 'paid') {
-                            console.log(`✅ Cron job: Premium sukses ${orderId}`);
+                            console.log(`Cron job: Premium sukses ${orderId}`);
                             
                             if (data.processed) {
-                                console.log(`⏭️ Order ${orderId} sudah diproses, lewati`);
+                                console.log(`Order ${orderId} sudah diproses, lewati`);
                                 continue;
                             }
                             
@@ -1773,12 +1851,12 @@ else {
                                 try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
                             }
 
-                            console.log(`⏭️ Lewati notifikasi (webhook lebih cepat)`);
+                            console.log(`Lewati notifikasi (webhook lebih cepat)`);
                         }
                     }
                 }
             } catch (error) {
-                console.log('❌ Error cron:', error.message);
+                console.log('Error cron:', error.message);
             }
         });
 
@@ -1790,43 +1868,47 @@ else {
                 
                 for (const [userId, premiumData] of Object.entries(db.premium || {})) {
                     if (premiumData.expired_at <= now) {
-                        // Kirim notifikasi sederhana ke user sebelum dihapus
                         try {
                             await bot.sendMessage(userId, 
                                 `PREMIUM EXPIRED\n\n` +
                                 `Masa aktif premium Anda telah habis.\n` +
-                                `Ketik /langganan untuk memperpanjang.`
+                                `Ketik /langganan untuk memperpanjang.`,
+                                {
+                                    reply_markup: {
+                                        inline_keyboard: [
+                                            [{ text: 'LANGGANAN', callback_data: 'langganan_menu' }]
+                                        ]
+                                    }
+                                }
                             );
-                            console.log(`📨 Notifikasi expired terkirim ke user ${userId}`);
+                            console.log(`Notifikasi expired terkirim ke user ${userId}`);
                         } catch (notifError) {
-                            // User mungkin sudah block bot, lewati saja
-                            console.log(`⚠️ Gagal kirim notif ke ${userId}:`, notifError.message);
+                            console.log(`Gagal kirim notif ke ${userId}:`, notifError.message);
                         }
                         
-                        // Hapus premium user
                         delete db.premium[userId];
                         expiredCount++;
-                        console.log(`🗑️ Premium user ${userId} expired dan dihapus`);
+                        console.log(`Premium user ${userId} expired dan dihapus`);
                     }
                 }
                 
                 if (expiredCount > 0) {
                     await saveDB();
-                    console.log(`✅ ${expiredCount} user premium expired telah dihapus`);
+                    console.log(`${expiredCount} user premium expired telah dihapus`);
                 }
             } catch (error) {
-                console.log('❌ Error real-time premium check:', error.message);
+                console.log('Error real-time premium check:', error.message);
             }
-        }, 1000); // CEK SETIAP DETIK
+        }, 1000);
 
         // ================== RELOAD DATABASE PERIODIK ==================
         setInterval(async () => {
             try {
                 await loadDB();
                 await loadSpamData();
-                console.log('🔄 Database reloaded from Postgres');
+                console.log('Database reloaded from Postgres');
             } catch (error) {
-                console.log('❌ Error reloading database:', error.message);
+                console.log('Error reloading database:', error.message);
             }
         }, 5000);
 
@@ -2106,7 +2188,7 @@ else {
                 const newBalance = await addCredits(targetId, amount, null);
                 
                 await bot.sendMessage(msg.chat.id, 
-                    `✅ TOPUP MANUAL BERHASIL\n\n` +
+                    `TOPUP MANUAL BERHASIL\n\n` +
                     `User: ${targetId}\n` +
                     `Jumlah: ${amount} credits\n` +
                     `Saldo sekarang: ${newBalance} credits`
@@ -2114,7 +2196,7 @@ else {
                 
                 try {
                     await bot.sendMessage(targetId, 
-                        `💰 SALDO DITAMBAH ADMIN\n\n` +
+                        `SALDO DITAMBAH ADMIN\n\n` +
                         `Saldo Anda bertambah ${amount} credits.\n` +
                         `Saldo sekarang: ${newBalance} credits`
                     );
@@ -2125,9 +2207,9 @@ else {
             }
         });
 
-        console.log('✅ Bot started, Admin IDs:', ADMIN_IDS);
+        console.log('Bot started, Admin IDs:', ADMIN_IDS);
         
     } catch (error) {
-        console.log('❌ FATAL ERROR:', error.message);
+        console.log('FATAL ERROR:', error.message);
     }
 }
