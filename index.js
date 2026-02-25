@@ -647,7 +647,7 @@ async function getMLBBData(userId, serverId, type = 'bind') {
                 "Content-Type": "application/json", 
                 "x-api-key": API_KEY_CHECKTON 
             },
-            timeout: 25000
+            timeout: 45000 // PERPANJANG JADI 45 DETIK
         });
         
         console.log(`Checkton response status: ${checktonResponse.status}`);
@@ -683,6 +683,9 @@ async function getMLBBData(userId, serverId, type = 'bind') {
         
     } catch (error) {
         console.log(`Error getMLBBData (${type}):`, error.message);
+        if (error.code === 'ECONNABORTED') {
+            console.log('Timeout - koneksi terlalu lama');
+        }
         
         if (result.username) {
             console.log(`Menggunakan data GoPay saja (Checkton error)`);
@@ -706,23 +709,44 @@ async function findPlayerByName(name) {
                 "Content-Type": "application/json", 
                 "x-api-key": API_KEY_CHECKTON 
             },
-            timeout: 25000
+            timeout: 45000 // PERPANJANG JADI 45 DETIK
         });
         
         console.log(`Response status: ${response.status}`);
+        console.log(`Response data:`, JSON.stringify(response.data, null, 2));
         
-        if (response.data && response.data.status === 0) {
-            console.log(`Ditemukan ${response.data.data?.length || 0} hasil`);
-            return response.data.data;
-        } else {
-            console.log(`Response:`, response.data);
-            return null;
+        // CEK BERBAGAI KEMUNGKINAN RESPONSE
+        if (response.data) {
+            // KALAU STATUS 0 DAN ADA DATA
+            if (response.data.status === 0 && response.data.data) {
+                console.log(`Ditemukan ${response.data.data?.length || 0} hasil`);
+                return response.data.data;
+            }
+            
+            // KALAU LANGSUNG DATA ARRAY
+            if (Array.isArray(response.data)) {
+                console.log(`Ditemukan ${response.data.length} data`);
+                return response.data;
+            }
+            
+            // KALAU SINGLE OBJECT
+            if (response.data.role_id) {
+                console.log(`Ditemukan single data`);
+                return [response.data];
+            }
         }
+        
+        console.log(`Response tidak sesuai format:`, response.data);
+        return null;
+        
     } catch (error) {
         console.log(`Error findPlayerByName:`, error.message);
+        if (error.code === 'ECONNABORTED') {
+            console.log('Timeout - koneksi terlalu lama');
+        }
         if (error.response) {
-            console.log('Detail error:', error.response.data);
             console.log('Status code:', error.response.status);
+            console.log('Response data:', error.response.data);
         }
         return null;
     }
@@ -741,23 +765,44 @@ async function getPlayerByRoleId(roleId) {
                 "Content-Type": "application/json", 
                 "x-api-key": API_KEY_CHECKTON 
             },
-            timeout: 25000
+            timeout: 45000 // PERPANJANG JADI 45 DETIK
         });
         
         console.log(`Response status: ${response.status}`);
+        console.log(`Response data:`, JSON.stringify(response.data, null, 2));
         
-        if (response.data && response.data.status === 0) {
-            console.log(`Ditemukan data player`);
-            return response.data.data;
-        } else {
-            console.log(`Response:`, response.data);
-            return null;
+        // CEK BERBAGAI KEMUNGKINAN RESPONSE
+        if (response.data) {
+            // KALAU STATUS 0 DAN ADA DATA
+            if (response.data.status === 0 && response.data.data) {
+                console.log(`Ditemukan data player`);
+                return response.data.data;
+            }
+            
+            // KALAU LANGSUNG DATA ARRAY
+            if (Array.isArray(response.data)) {
+                console.log(`Ditemukan ${response.data.length} data`);
+                return response.data;
+            }
+            
+            // KALAU SINGLE OBJECT
+            if (response.data.role_id) {
+                console.log(`Ditemukan single data`);
+                return [response.data];
+            }
         }
+        
+        console.log(`Response tidak sesuai format:`, response.data);
+        return null;
+        
     } catch (error) {
         console.log(`Error getPlayerByRoleId:`, error.message);
+        if (error.code === 'ECONNABORTED') {
+            console.log('Timeout - koneksi terlalu lama');
+        }
         if (error.response) {
-            console.log('Detail error:', error.response.data);
             console.log('Status code:', error.response.status);
+            console.log('Response data:', error.response.data);
         }
         return null;
     }
@@ -1393,7 +1438,7 @@ else {
             }
         });
 
-        // ================== COMMAND /find (Nickname & Role ID) ==================
+        // ================== COMMAND /find (Nickname & Role ID) - DIPERBAIKI ==================
         bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1409,7 +1454,8 @@ else {
                         `  Contoh: /find RRQ Jule\n\n` +
                         `• Via Role ID: /find ID\n` +
                         `  Contoh: /find 643461181\n\n` +
-                        `Biaya: Rp 5.000 (untuk kedua metode)`
+                        `Biaya: Rp 5.000 (untuk kedua metode)\n` +
+                        `Waktu pencarian: ±30 detik`
                     );
                     return;
                 }
@@ -1475,38 +1521,50 @@ else {
                 const banned = await recordInfoActivity(userId);
                 if (banned) return;
                 
-                const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
+                const loadingMsg = await bot.sendMessage(chatId, '🔍 Mencari data... (maksimal 45 detik)');
                 
                 let results = null;
                 let isRoleIdSearch = false;
+                let searchSuccess = false;
                 
-                // CEK APAKAH INPUT ANGKA (ROLE ID) ATAU TEXT (NICKNAME)
-                if (/^\d+$/.test(input)) {
-                    // INPUT ADALAH ANGKA - SEARCH VIA ROLE ID
-                    isRoleIdSearch = true;
-                    console.log(`Mencari dengan role_id: ${input}`);
-                    const playerData = await getPlayerByRoleId(input);
-                    if (playerData) {
-                        results = [playerData]; // BUNGKUS DALAM ARRAY AGAR FORMAT SAMA
+                try {
+                    // CEK APAKAH INPUT ANGKA (ROLE ID) ATAU TEXT (NICKNAME)
+                    if (/^\d+$/.test(input)) {
+                        // INPUT ADALAH ANGKA - SEARCH VIA ROLE ID
+                        isRoleIdSearch = true;
+                        console.log(`Mencari dengan role_id: ${input}`);
+                        const playerData = await getPlayerByRoleId(input);
+                        if (playerData && playerData.length > 0) {
+                            results = playerData;
+                            searchSuccess = true;
+                        }
+                    } else {
+                        // INPUT ADALAH TEXT - SEARCH VIA NICKNAME
+                        console.log(`Mencari dengan nickname: ${input}`);
+                        results = await findPlayerByName(input);
+                        if (results && results.length > 0) {
+                            searchSuccess = true;
+                        }
                     }
-                } else {
-                    // INPUT ADALAH TEXT - SEARCH VIA NICKNAME
-                    console.log(`Mencari dengan nickname: ${input}`);
-                    results = await findPlayerByName(input);
+                } catch (searchError) {
+                    console.log('Error saat mencari:', searchError.message);
+                    searchSuccess = false;
                 }
                 
                 await bot.deleteMessage(chatId, loadingMsg.message_id);
                 
-                if (!results || results.length === 0) {
+                // CEK APAKAH DATA DITEMUKAN
+                if (!searchSuccess || !results || results.length === 0) {
                     if (isRoleIdSearch) {
-                        await bot.sendMessage(chatId, `Tidak ada akun ditemukan dengan Role ID "${input}"`);
+                        await bot.sendMessage(chatId, `❌ Tidak ada akun ditemukan dengan Role ID "${input}"`);
                     } else {
-                        await bot.sendMessage(chatId, `Tidak ada akun ditemukan dengan nama "${input}"`);
+                        await bot.sendMessage(chatId, `❌ Tidak ada akun ditemukan dengan nama "${input}"`);
                     }
+                    // JANGAN KURANGI SALDO KARENA DATA TIDAK DITEMUKAN
                     return;
                 }
                 
-                // KURANGI SALDO HANYA JIKA BUKAN ADMIN
+                // KURANGI SALDO HANYA JIKA BUKAN ADMIN DAN DATA DITEMUKAN
                 if (!isAdmin(userId)) {
                     // PASTIKAN credits ADA sebelum dikurangi
                     if (typeof db.users[userId].credits !== 'number') {
@@ -1517,8 +1575,8 @@ else {
                 }
                 
                 let output = isRoleIdSearch 
-                    ? `HASIL PENCARIAN ROLE ID: ${input}\n\n`
-                    : `HASIL PENCARIAN NICKNAME: ${input}\n\n`;
+                    ? `✅ HASIL PENCARIAN ROLE ID: ${input}\n\n`
+                    : `✅ HASIL PENCARIAN NICKNAME: ${input}\n\n`;
                 
                 output += `Ditemukan ${results.length} akun:\n\n`;
                 
@@ -1560,7 +1618,7 @@ else {
                     output += `--------------------\n`;
                 });
                 
-                output += `\nSisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
+                output += `\n💰 Sisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
                 
                 await bot.sendMessage(chatId, output);
                 
@@ -1569,7 +1627,8 @@ else {
                 try {
                     if (loadingMsg) await bot.deleteMessage(msg.chat.id, loadingMsg.message_id);
                 } catch {}
-                await bot.sendMessage(msg.chat.id, `Gagal mengambil data.`);
+                await bot.sendMessage(msg.chat.id, `❌ Gagal mengambil data. Saldo Anda tidak terpotong.`);
+                // JANGAN KURANGI SALDO KARENA ERROR
             }
         });
 
