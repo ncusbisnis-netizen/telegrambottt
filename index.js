@@ -6,7 +6,7 @@ const moment = require('moment-timezone');
 const cron = require('node-cron');
 const QRCode = require('qrcode');
 const { Pool } = require('pg');
-const Redis = require('ioredis');
+const redis = require('redis');
 
 // ================== GLOBAL ERROR HANDLER ==================
 process.on('uncaughtException', (error) => {
@@ -108,30 +108,26 @@ const pool = new Pool({
     ssl: { rejectUnauthorized: false }
 });
 
-// ================== REDIS CLIENT ==================
-let redis;
+// ================== REDIS CLIENT (KONEKSI KE RELAY) ==================
+let redisClient = null;
 if (REDIS_URL) {
     try {
-        redis = new Redis(REDIS_URL, {
-            maxRetriesPerRequest: 3,
-            retryStrategy: (times) => {
-                if (times > 3) {
-                    console.log('Redis connection failed after 3 retries');
-                    return null;
-                }
-                return Math.min(times * 100, 3000);
-            }
-        });
+        redisClient = redis.createClient({ url: REDIS_URL });
         
-        redis.on('connect', () => console.log('Redis connected'));
-        redis.on('error', (err) => console.log('Redis error:', err.message));
+        redisClient.on('error', (err) => console.log('Redis Client Error:', err.message));
+        redisClient.on('connect', () => console.log('Redis connected for relay communication'));
+        redisClient.on('reconnecting', () => console.log('Redis reconnecting...'));
+        
+        redisClient.connect().catch(err => {
+            console.log('Redis connection failed:', err.message);
+            redisClient = null;
+        });
     } catch (error) {
         console.log('Redis init error:', error.message);
-        redis = null;
+        redisClient = null;
     }
 } else {
-    console.log('REDIS_URL not set, running without Redis');
-    redis = null;
+    console.log('REDIS_URL not set, running without Redis relay');
 }
 
 async function initDB() {
@@ -414,6 +410,53 @@ async function checkPakasirTransaction(orderId, amount) {
     }
 }
 
+// ================== FUNGSI UNTUK RELAY /info ==================
+async function getInfoFromRelay(userId, serverId) {
+    try {
+        if (!redisClient) {
+            console.log('Redis client tidak tersedia');
+            return null;
+        }
+        
+        const requestId = `info:${userId}:${serverId}:${Date.now()}`;
+        const channel = 'mlbb_requests';
+        
+        console.log(`Mengirim request ke relay: ${requestId}`);
+        
+        // Kirim request ke Redis
+        await redisClient.publish(channel, JSON.stringify({
+            id: requestId,
+            userId: userId,
+            serverId: serverId,
+            timestamp: Date.now()
+        }));
+        
+        // Tunggu response (timeout 30 detik)
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                redisClient.unsubscribe();
+                resolve(null);
+            }, 30000);
+            
+            redisClient.subscribe('mlbb_responses', (message) => {
+                try {
+                    const data = JSON.parse(message);
+                    if (data.id === requestId) {
+                        clearTimeout(timeout);
+                        redisClient.unsubscribe();
+                        resolve(data.data);
+                    }
+                } catch (e) {
+                    console.log('Error parse response:', e.message);
+                }
+            });
+        });
+    } catch (error) {
+        console.log('Error getInfoFromRelay:', error.message);
+        return null;
+    }
+}
+
 // ================== EXPRESS SERVER (WEB) ==================
 if (!IS_WORKER) {
     const app = express();
@@ -552,7 +595,7 @@ else {
                 message += `User ID: ${userId}\n`;
                 message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
                 message += `DAFTAR PERINTAH:\n`;
-                message += `/info - Informasi cara penggunaan\n`;
+                message += `/info ID SERVER - Info akun (GRATIS via relay)\n`;
                 message += `/find NICKNAME - Cari akun via nickname Rp 5.000\n`;
                 message += `/cek ID SERVER - Cek detail akun Rp 5.000\n\n`;
                 
@@ -582,21 +625,109 @@ else {
             }
         });
 
-        // ================== COMMAND /info ==================
-        bot.onText(/\/info/, async (msg) => {
+        // ================== COMMAND /info (via relay) ==================
+        bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
                 
-                const message = 
-                    `INFORMASI PENGGUNAAN\n\n` +
-                    `Format: /info ID_USER ID_SERVER\n` +
-                    `Contoh: /info 643461181 8554\n\n` +
-                    `Fitur ini GRATIS dan hanya menampilkan panduan penggunaan.`;
+                if (!match || !match[1]) {
+                    await bot.sendMessage(msg.chat.id,
+                        `INFORMASI AKUN VIA RELAY\n\n` +
+                        `Format: /info ID_USER ID_SERVER\n` +
+                        `Contoh: /info 643461181 8554\n\n` +
+                        `Fitur GRATIS menggunakan relay Python`
+                    );
+                    return;
+                }
                 
-                await bot.sendMessage(msg.chat.id, message);
+                const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username;
+                const args = match[1].trim().split(/\s+/);
                 
+                if (args.length < 2) {
+                    await bot.sendMessage(chatId, `Format: /info ID_USER ID_SERVER`);
+                    return;
+                }
+                
+                const targetId = args[0];
+                const serverId = args[1];
+                
+                if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
+                    await bot.sendMessage(chatId, 'ID dan Server harus angka.');
+                    return;
+                }
+                
+                if (isBanned(userId) && !isAdmin(userId)) return;
+                
+                if (!username && !isAdmin(userId)) {
+                    await bot.sendMessage(chatId, `USERNAME DIPERLUKAN\n\nCara membuat username:\n1. Buka Settings\n2. Pilih Username\n3. Buat username baru\n4. Simpan`);
+                    return;
+                }
+                
+                if (!db.feature.info && !isAdmin(userId)) {
+                    await bot.sendMessage(chatId, `FITUR SEDANG NONAKTIF`);
+                    return;
+                }
+                
+                const joined = await checkJoin(userId);
+                const missing = [];
+                if (!joined.channel) missing.push(CHANNEL);
+                if (!joined.group) missing.push(GROUP);
+
+                if (missing.length > 0 && !isAdmin(userId)) {
+                    const buttons = missing.map(ch => [{
+                        text: `Bergabung ke ${ch.replace('@', '')}`,
+                        url: `https://t.me/${ch.replace('@', '')}`
+                    }]);
+                    await bot.sendMessage(chatId, `AKSES TERBATAS\n\nAnda perlu bergabung dengan:\n` + missing.map(ch => `• ${ch}`).join('\n'), { reply_markup: { inline_keyboard: buttons } });
+                    return;
+                }
+                
+                const banned = await recordInfoActivity(userId);
+                if (banned) return;
+                
+                const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data via relay...');
+                
+                // Ambil data dari relay Python via Redis
+                const data = await getInfoFromRelay(targetId, serverId);
+                
+                await bot.deleteMessage(chatId, loadingMsg.message_id);
+                
+                if (!data) {
+                    await bot.sendMessage(chatId, `GAGAL MENGAMBIL DATA DARI RELAY\n\nPastikan relay Python aktif.`);
+                    return;
+                }
+
+                // Format output dari relay
+                let output = `INFORMASI AKUN (RELAY)\n\n`;
+                output += `ID: ${targetId}\n`;
+                output += `Server: ${serverId}\n`;
+                
+                if (data.nickname) output += `Nickname: ${data.nickname}\n`;
+                if (data.level) output += `Level: ${data.level}\n`;
+                if (data.region) output += `Region: ${data.region}\n`;
+                if (data.ttl) output += `Tanggal Pembuatan: ${data.ttl}\n\n`;
+                
+                if (data.bindAccounts && data.bindAccounts.length > 0) {
+                    output += `BIND INFO:\n`;
+                    data.bindAccounts.forEach(b => output += `• ${b.platform}: ${b.details || 'empty'}\n`);
+                    output += `\n`;
+                }
+                
+                if (data.devices) {
+                    output += `Device Login:\n`;
+                    output += `• Android: ${data.devices.android || 0} perangkat\n`;
+                    output += `• iOS: ${data.devices.ios || 0} perangkat\n`;
+                }
+
+                await bot.sendMessage(chatId, output, {
+                    reply_markup: { 
+                        inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
+                    }
+                });
+
             } catch (error) {
                 console.log('Error /info:', error.message);
+                await bot.sendMessage(msg.chat.id, `Terjadi kesalahan: ${error.message}`);
             }
         });
 
@@ -1031,7 +1162,7 @@ else {
             message += `User ID: ${userId}\n`;
             message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
             message += `DAFTAR PERINTAH:\n`;
-            message += `/info - Informasi cara penggunaan\n`;
+            message += `/info ID SERVER - Info akun (GRATIS via relay)\n`;
             message += `/find NICKNAME - Cari akun via nickname Rp 5.000\n`;
             message += `/cek ID SERVER - Cek detail akun Rp 5.000\n\n`;
             
