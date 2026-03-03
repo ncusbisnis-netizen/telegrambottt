@@ -270,7 +270,7 @@ async function addBan(userId, reason = 'Ban manual oleh admin') {
     }
 }
 
-// ================== CEK JOIN CHANNEL/GROUP (DENGAN ERROR HANDLING) ==================
+// ================== CEK JOIN CHANNEL/GROUP ==================
 async function checkJoin(bot, userId) {
     try {
         // Jika channel/group tidak dikonfigurasi, anggap sudah join
@@ -282,29 +282,35 @@ async function checkJoin(bot, userId) {
         let isChannelMember = false, isGroupMember = false;
         
         // Cek Channel
-        try {
-            const channelCheck = await bot.getChatMember(CHANNEL, userId);
-            isChannelMember = ['member', 'administrator', 'creator'].includes(channelCheck.status);
-        } catch (channelError) {
-            console.log(`Channel ${CHANNEL} error:`, channelError.message);
-            // Anggap tidak join jika error
-            isChannelMember = false;
+        if (CHANNEL) {
+            try {
+                const channelCheck = await bot.getChatMember(CHANNEL, userId);
+                isChannelMember = ['member', 'administrator', 'creator'].includes(channelCheck.status);
+            } catch (channelError) {
+                console.log(`Channel ${CHANNEL} error:`, channelError.message);
+                isChannelMember = false; // WAJIB JOIN, jadi false jika error
+            }
+        } else {
+            isChannelMember = true;
         }
         
         // Cek Group
-        try {
-            const groupCheck = await bot.getChatMember(GROUP, userId);
-            isGroupMember = ['member', 'administrator', 'creator'].includes(groupCheck.status);
-        } catch (groupError) {
-            console.log(`Group ${GROUP} error:`, groupError.message);
-            // Anggap tidak join jika error
-            isGroupMember = false;
+        if (GROUP) {
+            try {
+                const groupCheck = await bot.getChatMember(GROUP, userId);
+                isGroupMember = ['member', 'administrator', 'creator'].includes(groupCheck.status);
+            } catch (groupError) {
+                console.log(`Group ${GROUP} error:`, groupError.message);
+                isGroupMember = false; // WAJIB JOIN, jadi false jika error
+            }
+        } else {
+            isGroupMember = true;
         }
         
         return { channel: isChannelMember, group: isGroupMember };
     } catch (error) {
         console.log('checkJoin error:', error.message);
-        return { channel: false, group: false };
+        return { channel: false, group: false }; // WAJIB JOIN, tolak akses
     }
 }
 
@@ -313,11 +319,13 @@ async function getMLBBData(userId, serverId, type = 'lookup') {
     try {
         console.log(`Mengambil data ${type} untuk ${userId} server ${serverId} dari Checkton`);
         
-        const response = await axios.post("https://checkton.online/backend/info", {
-            role_id: String(userId),
-            zone_id: String(serverId),
+        const payload = {
+            role_id: String(userId).trim(),
+            zone_id: String(serverId).trim(),
             type: type
-        }, {
+        };
+        
+        const response = await axios.post("https://checkton.online/backend/info", payload, {
             headers: { 
                 "Content-Type": "application/json"
             },
@@ -339,7 +347,7 @@ async function getMLBBData(userId, serverId, type = 'lookup') {
         }
         if (error.response) {
             console.log('Response status:', error.response.status);
-            console.log('Response data:', error.response.data);
+            console.log('Response data:', JSON.stringify(error.response.data));
         }
         return null;
     }
@@ -350,10 +358,12 @@ async function findPlayerByName(name) {
     try {
         console.log(`Mencari player dengan nama: ${name}`);
         
-        const response = await axios.post("https://checkton.online/backend/info", {
-            name: name,
+        const payload = {
+            name: String(name).trim(),
             type: "find"
-        }, {
+        };
+        
+        const response = await axios.post("https://checkton.online/backend/info", payload, {
             headers: { 
                 "Content-Type": "application/json"
             },
@@ -381,7 +391,7 @@ async function findPlayerByName(name) {
         }
         if (error.response) {
             console.log('Response status:', error.response.status);
-            console.log('Response data:', error.response.data);
+            console.log('Response data:', JSON.stringify(error.response.data));
         }
         return null;
     }
@@ -391,10 +401,12 @@ async function getPlayerByRoleId(roleId) {
     try {
         console.log(`Mencari player dengan role_id: ${roleId}`);
         
-        const response = await axios.post("https://checkton.online/backend/info", {
-            role_id: String(roleId),
+        const payload = {
+            role_id: String(roleId).trim(),
             type: "find"
-        }, {
+        };
+        
+        const response = await axios.post("https://checkton.online/backend/info", payload, {
             headers: { 
                 "Content-Type": "application/json"
             },
@@ -422,7 +434,7 @@ async function getPlayerByRoleId(roleId) {
         }
         if (error.response) {
             console.log('Response status:', error.response.status);
-            console.log('Response data:', error.response.data);
+            console.log('Response data:', JSON.stringify(error.response.data));
         }
         return null;
     }
@@ -552,12 +564,10 @@ if (IS_WORKER) {
     console.log('Bot worker started');
     
     try {
-        // CEK KONFIGURASI DULU
         if (!BOT_TOKEN) {
             throw new Error('BOT_TOKEN tidak ditemukan!');
         }
 
-        // DEFINISIKAN BOT
         const bot = new TelegramBot(BOT_TOKEN, { 
             polling: { 
                 interval: 300, 
@@ -566,7 +576,6 @@ if (IS_WORKER) {
             } 
         });
 
-        // HANDLE POLLING ERROR
         bot.on('polling_error', (error) => {
             console.log('Polling error:', error.message);
         });
@@ -580,7 +589,7 @@ if (IS_WORKER) {
                 if (chatType !== 'private') return;
                 if (isAdmin(userId)) return;
                 
-                const publicCommands = ['/start', '/info', '/cek', '/find', '/offinfo', '/oninfo', '/ranking', '/listbanned', '/listtopup', '/addban', '/unban', '/addtopup', '/pesan', '/lihatpesan'];
+                const publicCommands = ['/start', '/info', '/cek', '/find', '/offinfo', '/oninfo', '/ranking', '/listbanned', '/listtopup', '/addban', '/unban', '/addtopup', '/pesan'];
                 if (publicCommands.includes(text.split(' ')[0])) return;
             } catch (error) {
                 console.log('Middleware error:', error.message);
@@ -598,20 +607,9 @@ if (IS_WORKER) {
                 const userId = msg.from.id;
                 const credits = getUserCredits(userId);
                 
-                // Cek join dengan aman
-                const joined = await checkJoin(bot, userId);
-                
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `User ID: ${userId}\n`;
                 message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
-                
-                if (!joined.channel || !joined.group) {
-                    message += `ANDA BELUM BERGABUNG\n\n`;
-                    message += `Untuk menggunakan bot, Anda harus bergabung dengan:\n`;
-                    if (!joined.channel) message += `• Channel: ${CHANNEL}\n`;
-                    if (!joined.group) message += `• Group: ${GROUP}\n\n`;
-                }
-                
                 message += `DAFTAR PERINTAH:\n`;
                 message += `/info ID SERVER - Info platform (GRATIS)\n`;
                 message += `/cek ID SERVER - Full info (Rp 5.000)\n`;
@@ -629,7 +627,6 @@ if (IS_WORKER) {
                     message += `/unban ID - Buka blokir\n`;
                     message += `/addtopup ID JUMLAH - Tambah saldo user\n`;
                     message += `/pesan TEKS - Kirim pengumuman ke semua user\n`;
-                    message += `/lihatpesan - Lihat semua user\n`;
                 }
                 
                 const replyMarkup = {
@@ -647,7 +644,7 @@ if (IS_WORKER) {
             }
         });
 
-        // ================== COMMAND /info (via RELAY) ==================
+        // ================== COMMAND /info (WAJIB JOIN, TOLAK KERAS JIKA BELUM) ==================
         bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -669,23 +666,32 @@ if (IS_WORKER) {
                     return;
                 }
                 
-                // Cek join dengan aman
+                // CEK APAKAH FITUR INFO SEDANG AKTIF
+                if (!db.feature?.info && !isAdmin(userId)) {
+                    await bot.sendMessage(chatId, 'Fitur info sedang dinonaktifkan oleh admin.');
+                    return;
+                }
+                
+                // CEK JOIN DENGAN TOLAK KERAS JIKA BELUM JOIN
                 const joined = await checkJoin(bot, userId);
                 
                 if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-                    let message = `AKSES TERBATAS\n\nAnda perlu bergabung dengan:\n`;
+                    let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
                     if (!joined.channel) message += `• ${CHANNEL}\n`;
                     if (!joined.group) message += `• ${GROUP}\n\n`;
+                    message += `Bergabunglah terlebih dahulu untuk menggunakan bot ini.`;
                     
                     const buttons = [];
                     if (!joined.channel) {
-                        buttons.push([{ text: `Bergabung ke ${CHANNEL.replace('@', '')}`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
+                        buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
                     }
                     if (!joined.group) {
-                        buttons.push([{ text: `Bergabung ke ${GROUP.replace('@', '')}`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
+                        buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
                     }
                     
-                    await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
+                    await bot.sendMessage(chatId, message, { 
+                        reply_markup: { inline_keyboard: buttons } 
+                    });
                     return;
                 }
                 
@@ -709,7 +715,7 @@ if (IS_WORKER) {
                     return;
                 }
                 
-                // KIRIM KE RELAY TANPA LOADING MESSAGE
+                // KIRIM KE RELAY
                 const sent = await sendRequestToRelay(chatId, targetId, serverId);
                 
                 if (!sent) {
@@ -734,7 +740,7 @@ if (IS_WORKER) {
             }
         });
 
-        // ================== COMMAND /cek (Rp 5.000) ==================
+        // ================== COMMAND /cek ==================
         bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -756,20 +762,20 @@ if (IS_WORKER) {
                     return;
                 }
                 
-                // Cek join dengan aman
+                // CEK JOIN (TETAP DICEK UNTUK KEAMANAN)
                 const joined = await checkJoin(bot, userId);
                 
                 if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-                    let message = `AKSES TERBATAS\n\nAnda perlu bergabung dengan:\n`;
+                    let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
                     if (!joined.channel) message += `• ${CHANNEL}\n`;
                     if (!joined.group) message += `• ${GROUP}\n\n`;
                     
                     const buttons = [];
                     if (!joined.channel) {
-                        buttons.push([{ text: `Bergabung ke ${CHANNEL.replace('@', '')}`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
+                        buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
                     }
                     if (!joined.group) {
-                        buttons.push([{ text: `Bergabung ke ${GROUP.replace('@', '')}`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
+                        buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
                     }
                     
                     await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
@@ -934,20 +940,20 @@ if (IS_WORKER) {
                     return;
                 }
                 
-                // Cek join dengan aman
+                // CEK JOIN
                 const joined = await checkJoin(bot, userId);
                 
                 if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-                    let message = `AKSES TERBATAS\n\nAnda perlu bergabung dengan:\n`;
+                    let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
                     if (!joined.channel) message += `• ${CHANNEL}\n`;
                     if (!joined.group) message += `• ${GROUP}\n\n`;
                     
                     const buttons = [];
                     if (!joined.channel) {
-                        buttons.push([{ text: `Bergabung ke ${CHANNEL.replace('@', '')}`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
+                        buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
                     }
                     if (!joined.group) {
-                        buttons.push([{ text: `Bergabung ke ${GROUP.replace('@', '')}`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
+                        buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
                     }
                     
                     await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
@@ -1053,7 +1059,7 @@ if (IS_WORKER) {
             }
         });
 
-        // ================== COMMAND /ranking (TOP 10 USER) ==================
+        // ================== COMMAND /ranking ==================
         bot.onText(/\/ranking/, async (msg) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1143,26 +1149,44 @@ if (IS_WORKER) {
         bot.onText(/\/offinfo/, async (msg) => { 
             try {
                 if (msg.chat.type !== 'private') return;
-                if (isAdmin(msg.from.id)) { 
-                    db.feature.info = false; 
-                    await saveDB(); 
-                    bot.sendMessage(msg.chat.id, 'Fitur info dinonaktifkan.'); 
-                } 
+                const userId = msg.from.id;
+                
+                if (!isAdmin(userId)) {
+                    await bot.sendMessage(msg.chat.id, 'Anda tidak memiliki akses.');
+                    return;
+                }
+                
+                if (!db.feature) db.feature = {};
+                db.feature.info = false; 
+                await saveDB(); 
+                await bot.sendMessage(msg.chat.id, 'Fitur info dinonaktifkan.'); 
+                console.log(`Fitur info dinonaktifkan oleh admin ${userId}`);
+                
             } catch (error) {
                 console.log('Error /offinfo:', error.message);
+                await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan.');
             }
         });
 
         bot.onText(/\/oninfo/, async (msg) => { 
             try {
                 if (msg.chat.type !== 'private') return;
-                if (isAdmin(msg.from.id)) { 
-                    db.feature.info = true; 
-                    await saveDB(); 
-                    bot.sendMessage(msg.chat.id, 'Fitur info diaktifkan.'); 
-                } 
+                const userId = msg.from.id;
+                
+                if (!isAdmin(userId)) {
+                    await bot.sendMessage(msg.chat.id, 'Anda tidak memiliki akses.');
+                    return;
+                }
+                
+                if (!db.feature) db.feature = {};
+                db.feature.info = true; 
+                await saveDB(); 
+                await bot.sendMessage(msg.chat.id, 'Fitur info diaktifkan.'); 
+                console.log(`Fitur info diaktifkan oleh admin ${userId}`);
+                
             } catch (error) {
                 console.log('Error /oninfo:', error.message);
+                await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan.');
             }
         });
 
@@ -1333,40 +1357,6 @@ if (IS_WORKER) {
                 
             } catch (error) {
                 console.log('Error /pesan:', error.message);
-            }
-        });
-
-        // ================== COMMAND /lihatpesan ==================
-        bot.onText(/\/lihatpesan/, async (msg) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                if (!isAdmin(msg.from.id)) return;
-                
-                const userList = Object.entries(db.users || {});
-                
-                if (userList.length === 0) {
-                    await bot.sendMessage(msg.chat.id, 'Belum ada user.');
-                    return;
-                }
-                
-                let message = `DAFTAR USER\n\n`;
-                userList.slice(0, 20).forEach(([userId, data]) => {
-                    const date = data.created_at ? moment(data.created_at).tz('Asia/Jakarta').format('DD/MM/YYYY') : 'N/A';
-                    message += `${data.username || 'tanpa username'}\n`;
-                    message += `ID: ${userId}\n`;
-                    message += `Saldo: Rp ${(data.credits || 0).toLocaleString()}\n`;
-                    message += `/info: ${data.success || 0}x\n`;
-                    message += `Join: ${date}\n\n`;
-                });
-                
-                if (userList.length > 20) {
-                    message += `... dan ${userList.length - 20} user lainnya.`;
-                }
-                
-                await bot.sendMessage(msg.chat.id, message);
-                
-            } catch (error) {
-                console.log('Error /lihatpesan:', error.message);
             }
         });
 
@@ -1595,7 +1585,6 @@ if (IS_WORKER) {
                     message += `/unban ID - Buka blokir\n`;
                     message += `/addtopup ID JUMLAH - Tambah saldo\n`;
                     message += `/pesan TEKS - Kirim pengumuman\n`;
-                    message += `/lihatpesan - Lihat semua user\n`;
                 }
                 
                 const replyMarkup = {
