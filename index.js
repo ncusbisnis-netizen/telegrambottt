@@ -508,80 +508,12 @@ async function sendRequestToRelay(chatId, userId, serverId) {
     }
 }
 
-// ================== EXPRESS SERVER (WEB) ==================
-if (!IS_WORKER) {
-    const app = express();
-    const PORT = process.env.PORT || 3000;
-    app.use(express.json());
-
-    app.get('/', (req, res) => res.send('MLBB API Server is running'));
-
-    app.post('/webhook/pakasir', (req, res) => {
-        res.status(200).json({ status: 'ok' });
-        
-        setImmediate(async () => {
-            try {
-                const body = req.body;
-                console.log('WEBHOOK PAKASIR:', JSON.stringify(body));
-                
-                const { order_id, status, amount } = body;
-                
-                if (!order_id || !status) return;
-                
-                await loadDB();
-                
-                if (status === 'completed' || status === 'paid') {
-                    console.log(`Pembayaran sukses: ${order_id}`);
-                    
-                    const topupData = db.pending_topups?.[order_id];
-                    if (topupData && !topupData.processed) {
-                        await processTopupSuccess(order_id, amount);
-                    }
-                }
-            } catch (error) {
-                console.log('Error proses webhook:', error.message);
-            }
-        });
-    });
-
-    async function processTopupSuccess(orderId, amount) {
-        const data = db.pending_topups?.[orderId];
-        if (!data) return;
-        
-        const userId = data.userId;
-        await addCredits(userId, amount, orderId);
-        
-        db.pending_topups[orderId].status = 'paid';
-        db.pending_topups[orderId].notified = true;
-        db.pending_topups[orderId].processed = true;
-        await saveDB();
-        
-        if (data.messageId && data.chatId) {
-            try {
-                const bot = new TelegramBot(BOT_TOKEN);
-                await bot.deleteMessage(data.chatId, data.messageId);
-            } catch (e) {}
-        }
-        
-        try {
-            const bot = new TelegramBot(BOT_TOKEN);
-            await bot.sendMessage(userId,
-                `TOP UP BERHASIL\n\n` +
-                `Nominal: Rp ${amount.toLocaleString()}\n` +
-                `Saldo bertambah: Rp ${amount.toLocaleString()}\n` +
-                `Saldo sekarang: Rp ${getUserCredits(userId).toLocaleString()}`
-            );
-        } catch (e) {}
-    }
-
-    app.listen(PORT, () => console.log(`Web server running on port ${PORT}`));
-} 
-
-// ================== BOT TELEGRAM (WORKER) ==================
-else {
+// ================== BOT TELEGRAM ==================
+if (IS_WORKER) {
     console.log('Bot worker started');
     
     try {
+        // DEFINISIKAN BOT
         const bot = new TelegramBot(BOT_TOKEN, { 
             polling: { 
                 interval: 300, 
@@ -624,7 +556,7 @@ else {
                 message += `User ID: ${userId}\n`;
                 message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
                 message += `DAFTAR PERINTAH:\n`;
-                message += `/info ID SERVER - Info platform (GRATIS via relay)\n`;
+                message += `/info ID SERVER - Info platform (GRATIS)\n`;
                 message += `/cek ID SERVER - Full info (Rp 5.000)\n`;
                 message += `/find NICKNAME - Cari via nickname (Rp 5.000)\n`;
                 message += `/find ID - Cari via role ID (Rp 5.000)\n\n`;
@@ -665,7 +597,7 @@ else {
                         `INFORMASI PENGGUNAAN\n\n` +
                         `Format: /info ID_USER ID_SERVER\n` +
                         `Contoh: /info 643461181 8554\n\n` +
-                        `Info ini GRATIS via relay.`
+                        `Info ini GRATIS.`
                     );
                     return;
                 }
@@ -711,22 +643,15 @@ else {
                 const banned = await recordInfoActivity(userId);
                 if (banned) return;
                 
-                const loadingMsg = await bot.sendMessage(chatId, 'Mengirim request ke relay...');
-                
+                // KIRIM KE RELAY TANPA LOADING MESSAGE
                 const sent = await sendRequestToRelay(chatId, targetId, serverId);
                 
                 if (!sent) {
-                    await bot.editMessageText('Gagal terhubung ke relay. Coba lagi nanti.', {
-                        chat_id: chatId,
-                        message_id: loadingMsg.message_id
-                    });
+                    await bot.sendMessage(chatId, 'Gagal terhubung ke relay. Coba lagi nanti.');
                     return;
                 }
                 
-                await bot.editMessageText('Request terkirim ke relay. Hasil akan segera muncul.', {
-                    chat_id: chatId,
-                    message_id: loadingMsg.message_id
-                });
+                // TIDAK ADA PESAN "Request terkirim..."
                 
                 if (!db.users[userId]) {
                     db.users[userId] = { username: msg.from.username || '', success: 0, credits: 0, topup_history: [] };
@@ -1039,7 +964,7 @@ else {
                 .sort((a, b) => b[1].success - a[1].success)
                 .slice(0, 10);
             
-            let message = 'PERINGKAT PENGGUNA (TOP 10)\n\n';
+            let message = `PERINGKAT PENGGUNA (TOP 10)\n\n`;
             
             if (sortedUsers.length === 0) {
                 message += 'Belum ada data penggunaan.';
@@ -1084,7 +1009,7 @@ else {
                 await bot.sendMessage(msg.chat.id, message);
                 
             } else {
-                let message = 'DAFTAR USER DENGAN SALDO > 0\n\n';
+                let message = `DAFTAR USER DENGAN SALDO > 0\n\n`;
                 
                 const usersWithBalance = Object.entries(db.users || {})
                     .filter(([_, u]) => (u.credits || 0) > 0)
@@ -1131,7 +1056,7 @@ else {
             if (msg.chat.type !== 'private') return;
             if (!isAdmin(msg.from.id)) return;
             
-            let message = 'DAFTAR USER BANNED\n\n';
+            let message = `DAFTAR USER BANNED\n\n`;
             const bannedList = Object.entries(spamData).filter(([_, d]) => d.banned);
             
             if (bannedList.length === 0) {
@@ -1244,7 +1169,7 @@ else {
             }
         });
 
-        // ================== COMMAND /pesan UNTUK ADMIN (KIRIM PENGUMUMAN) ==================
+        // ================== COMMAND /pesan UNTUK ADMIN ==================
         bot.onText(/\/pesan (.+)/, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1306,7 +1231,7 @@ else {
                     return;
                 }
                 
-                let message = 'DAFTAR USER\n\n';
+                let message = `DAFTAR USER\n\n`;
                 userList.slice(0, 20).forEach(([userId, data]) => {
                     const date = data.created_at ? moment(data.created_at).tz('Asia/Jakarta').format('DD/MM/YYYY') : 'N/A';
                     message += `${data.username || 'tanpa username'}\n`;
