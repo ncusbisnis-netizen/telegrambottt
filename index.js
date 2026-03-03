@@ -3,17 +3,14 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const fs = require('fs');
 const moment = require('moment-timezone');
-const cron = require('node-cron');
 const QRCode = require('qrcode');
 const { Pool } = require('pg');
 const redis = require('redis');
 
 // ================== OPTIMASI MEMORY ==================
-// Batasi memory usage
 const v8 = require('v8');
-v8.setFlagsFromString('--max-old-space-size=256'); // 256MB
+v8.setFlagsFromString('--max-old-space-size=256');
 
-// Garbage collection lebih agresif (jika diaktifkan)
 if (global.gc) {
     setInterval(() => {
         try {
@@ -22,7 +19,7 @@ if (global.gc) {
         } catch (e) {
             console.log('GC error:', e.message);
         }
-    }, 60000); // Tiap 1 menit
+    }, 60000);
 }
 
 // ================== GLOBAL ERROR HANDLER ==================
@@ -61,10 +58,14 @@ let spamData = {};
 let tempAnnouncement = null;
 let userProcessing = {};
 
+// Cache timestamp untuk last reload
+let lastReloadTime = 0;
+const RELOAD_INTERVAL = 24 * 60 * 60 * 1000; // 24 jam dalam milidetik
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    max: 5, // Batasi koneksi pool
+    max: 10, // Naikkan sedikit untuk webhook
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
 });
@@ -84,12 +85,21 @@ async function initDB() {
     }
 }
 
-async function loadDB() {
+async function loadDB(force = false) {
     try {
+        const now = Date.now();
+        
+        // Hanya reload jika dipaksa atau sudah 24 jam
+        if (!force && now - lastReloadTime < RELOAD_INTERVAL) {
+            console.log(`Skip reload, last reload: ${Math.round((now - lastReloadTime)/3600000)} jam yang lalu`);
+            return;
+        }
+        
         console.log('Loading database dari Postgres...');
         const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['database']);
         if (res.rows.length > 0) {
             db = res.rows[0].value;
+            lastReloadTime = now;
             console.log(`Load database sukses. Total users: ${Object.keys(db.users || {}).length}`);
         } else {
             console.log('Database kosong, pakai default');
@@ -108,7 +118,7 @@ async function loadDB() {
 
 async function saveDB() {
     try {
-        console.log('Menyimpan database ke Postgres...');
+        // Simpan ke Postgres (tanpa mengubah lastReloadTime)
         await pool.query(
             `INSERT INTO bot_data (key, value, updated_at) 
              VALUES ($1, $2, NOW())
@@ -157,12 +167,13 @@ async function saveSpamData() {
     }
 }
 
+// Inisialisasi awal
 initDB().then(async () => {
-    await loadDB();
+    await loadDB(true); // Force load pertama kali
     await loadSpamData();
 });
 
-// ================== REDIS CLIENT (KONEKSI KE RELAY) ==================
+// ================== REDIS CLIENT ==================
 let redisClient = null;
 if (REDIS_URL) {
     try {
@@ -533,6 +544,7 @@ async function createPakasirTopup(amount, userId) {
                 processed: false
             };
             
+            // Simpan segera ke database agar webhook bisa lihat
             await saveDB();
             
             return {
@@ -587,100 +599,88 @@ app.get('/', (req, res) => {
     res.send('Bot is running');
 });
 
-// Webhook endpoint untuk Pakasir
+// ================== WEBHOOK HANDLER PRIORITAS TINGGI ==================
+// Webhook untuk Pakasir - PRIORITAS TINGGI, REAL TIME
 app.post('/webhook/pakasir', async (req, res) => {
+    const startTime = Date.now();
+    
     try {
-        console.log('Webhook received from Pakasir:', JSON.stringify(req.body, null, 2));
+        console.log('WEBHOOK PAKASIR:', JSON.stringify(req.body));
         
-        const { 
-            order_id, 
-            status, 
-            amount,
-            payment_method,
-            transaction_id
-        } = req.body;
+        const { order_id, status, amount, transaction_id } = req.body;
         
         if (!order_id) {
-            console.log('Webhook error: No order_id');
-            return res.status(400).json({ 
-                status: 'error', 
-                message: 'order_id required' 
-            });
+            return res.status(200).json({ status: 'ok', message: 'no order_id' });
         }
         
-        console.log(`Processing webhook for order: ${order_id}, status: ${status}`);
+        console.log(`PROSES WEBHOOK: ${order_id} | STATUS: ${status}`);
         
-        // Cek apakah order_id ada di pending_topups
+        // CEK DI PENDING TOPUPS (LANGSUNG PAKAI db CACHE)
         if (!db.pending_topups || !db.pending_topups[order_id]) {
-            console.log(`Order ${order_id} not found in pending_topups`);
+            console.log(`ORDER TIDAK DITEMUKAN DI CACHE: ${order_id}`);
             
-            // Cek apakah ini order lama yang sudah diproses
-            try {
-                const checkRes = await pool.query(
-                    'SELECT value FROM bot_data WHERE key = $1',
-                    ['database']
-                );
-                if (checkRes.rows.length > 0) {
-                    const oldDb = checkRes.rows[0].value;
-                    if (oldDb.pending_topups?.[order_id]?.processed) {
-                        console.log(`Order ${order_id} already processed`);
-                        return res.status(200).json({ 
-                            status: 'ok', 
-                            message: 'already processed' 
-                        });
-                    }
-                }
-            } catch (dbError) {
-                console.log('Error checking old DB:', dbError.message);
+            // Coba load ulang database sekali (force)
+            await loadDB(true);
+            
+            // Cek lagi setelah reload
+            if (!db.pending_topups || !db.pending_topups[order_id]) {
+                console.log(`ORDER TIDAK DITEMUKAN SETELAH RELOAD: ${order_id}`);
+                return res.status(200).json({ status: 'ok', message: 'order not found' });
             }
-            
-            return res.status(200).json({ 
-                status: 'ok', 
-                message: 'order not found but accepted' 
-            });
         }
         
         const pendingData = db.pending_topups[order_id];
         
-        // Cek apakah sudah diproses sebelumnya
+        // CEK SUDAH DIPROSES
         if (pendingData.processed) {
-            console.log(`Order ${order_id} already processed, skipping`);
-            return res.status(200).json({ 
-                status: 'ok', 
-                message: 'already processed' 
-            });
+            console.log(`ORDER SUDAH DIPROSES: ${order_id}`);
+            return res.status(200).json({ status: 'ok', message: 'already processed' });
         }
         
-        // Jika status sukses
+        // PROSES BERDASARKAN STATUS
         if (status === 'completed' || status === 'paid' || status === 'success' || status === 'settlement') {
-            console.log(`Payment SUCCESS for order ${order_id}`);
+            console.log(`PAYMENT SUCCESS: ${order_id} | USER: ${pendingData.userId} | AMOUNT: ${pendingData.amount}`);
             
             const userId = pendingData.userId;
             const amount = pendingData.amount;
             
-            // Tambah saldo user
-            const newBalance = await addCredits(userId, amount, order_id);
+            // 1. UPDATE SALDO USER (DI CACHE)
+            if (!db.users[userId]) {
+                db.users[userId] = { username: '', success: 0, credits: 0, topup_history: [] };
+            }
             
-            // Update status pending_topups
+            const oldBalance = db.users[userId].credits || 0;
+            db.users[userId].credits = oldBalance + amount;
+            
+            // 2. TAMBAH HISTORY
+            if (!db.users[userId].topup_history) {
+                db.users[userId].topup_history = [];
+            }
+            
+            db.users[userId].topup_history.push({
+                amount: amount,
+                order_id: order_id,
+                date: new Date().toISOString(),
+                method: 'qris'
+            });
+            
+            // 3. UPDATE STATUS PENDING
             db.pending_topups[order_id].status = 'paid';
             db.pending_topups[order_id].processed = true;
             db.pending_topups[order_id].paid_at = Date.now();
             db.pending_topups[order_id].transaction_id = transaction_id || null;
-            await saveDB();
             
-            console.log(`Saldo added to user ${userId}: +${amount}, new balance: ${newBalance}`);
-            
-            // Hapus pesan QR jika ada (menggunakan bot)
+            // 4. HAPUS QR CODE (LANGSUNG)
             if (pendingData.messageId && pendingData.chatId && bot) {
                 try {
                     await bot.deleteMessage(pendingData.chatId, pendingData.messageId);
-                    console.log(`QR message deleted for order ${order_id}`);
+                    console.log(`QR DELETED: ${order_id}`);
                 } catch (deleteError) {
-                    console.log('Failed to delete message:', deleteError.message);
+                    console.log('GAGAL HAPUS QR:', deleteError.message);
                 }
             }
             
-            // Kirim notifikasi ke user
+            // 5. KIRIM NOTIFIKASI KE USER (LANGSUNG)
             if (bot) {
                 try {
                     await bot.sendMessage(userId, 
@@ -690,25 +690,33 @@ app.post('/webhook/pakasir', async (req, res) => {
                         `Order ID: ${order_id}\n` +
                         `Jumlah: Rp ${amount.toLocaleString()}\n` +
                         `Status: BERHASIL\n\n` +
-                        `Saldo Anda sekarang: Rp ${newBalance.toLocaleString()}\n\n` +
+                        `Saldo Anda sekarang: Rp ${db.users[userId].credits.toLocaleString()}\n\n` +
                         `Silakan gunakan bot untuk melakukan pengecekan.`
                     );
-                    console.log(`Notification sent to user ${userId}`);
+                    console.log(`NOTIFIKASI TERKIRIM KE USER: ${userId}`);
                 } catch (notifError) {
-                    console.log('Failed to send notification:', notifError.message);
+                    console.log('GAGAL KIRIM NOTIFIKASI:', notifError.message);
                 }
             }
             
+            // 6. SIMPAN KE DATABASE (BACKGROUND - TIDAK MENGHALANGI RESPONSE)
+            saveDB().then(() => {
+                console.log(`DATABASE TERSIMPAN UNTUK ORDER: ${order_id}`);
+            }).catch(err => {
+                console.log('GAGAL SIMPAN DATABASE:', err.message);
+            });
+            
+            console.log(`SALDO USER ${userId}: ${oldBalance} -> ${db.users[userId].credits} (selesai dalam ${Date.now() - startTime}ms)`);
+            
         } else if (status === 'failed' || status === 'expired' || status === 'cancel') {
-            console.log(`Payment FAILED/EXPIRED for order ${order_id}`);
+            console.log(`PAYMENT FAILED: ${order_id}`);
             
             // Update status
             db.pending_topups[order_id].status = 'failed';
             db.pending_topups[order_id].processed = true;
             db.pending_topups[order_id].failed_at = Date.now();
-            await saveDB();
             
-            // Kirim notifikasi gagal ke user
+            // Kirim notifikasi gagal
             if (bot) {
                 try {
                     await bot.sendMessage(pendingData.userId, 
@@ -717,29 +725,28 @@ app.post('/webhook/pakasir', async (req, res) => {
                         `Detail Transaksi:\n` +
                         `Order ID: ${order_id}\n` +
                         `Jumlah: Rp ${amount.toLocaleString()}\n` +
-                        `Status: ${status.toUpperCase()}\n\n` +
+                        `Status: GAGAL\n\n` +
                         `Silakan lakukan top up ulang jika masih membutuhkan.`
                     );
                 } catch (notifError) {
-                    console.log('Failed to send failure notification:', notifError.message);
+                    console.log('GAGAL KIRIM NOTIFIKASI GAGAL:', notifError.message);
                 }
             }
+            
+            // Simpan ke database
+            saveDB().catch(err => {
+                console.log('GAGAL SIMPAN STATUS FAILED:', err.message);
+            });
         }
         
-        // Selalu return 200 OK ke Pakasir
-        res.status(200).json({ 
-            status: 'ok', 
-            message: 'webhook processed' 
-        });
+        // RESPON CEPAT KE PAKASIR
+        res.status(200).json({ status: 'ok', message: 'processed' });
         
     } catch (error) {
-        console.log('Webhook error:', error.message);
+        console.log('WEBHOOK ERROR:', error.message);
         console.log(error.stack);
-        // Tetap return 200 agar Pakasir tidak mengirim ulang terus
-        res.status(200).json({ 
-            status: 'ok', 
-            message: 'webhook received but error' 
-        });
+        // TETAP RETURN 200 AGAR PAKASIR TIDAK MENGIRIM ULANG
+        res.status(200).json({ status: 'ok', message: 'error but accepted' });
     }
 });
 
@@ -800,7 +807,7 @@ if (IS_WORKER) {
             try {
                 if (msg.chat.type !== 'private') return;
                 
-                await loadDB();
+                // JANGAN RELOAD DB SETIAP START - GUNAKAN CACHE
                 
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
@@ -1711,6 +1718,7 @@ if (IS_WORKER) {
                         if (db.pending_topups && db.pending_topups[payment.orderId]) {
                             db.pending_topups[payment.orderId].messageId = sentMessage.message_id;
                             db.pending_topups[payment.orderId].chatId = chatId;
+                            // Simpan segera agar webhook bisa lihat messageId
                             await saveDB();
                         }
                         
@@ -1810,7 +1818,7 @@ if (IS_WORKER) {
         // ================== FUNGSI EDIT MESSAGE ==================
         async function editToMainMenu(bot, chatId, messageId, userId) {
             try {
-                await loadDB();
+                // JANGAN RELOAD DB - GUNAKAN CACHE
                 
                 const credits = getUserCredits(userId);
                 
@@ -1851,7 +1859,7 @@ if (IS_WORKER) {
 
         async function editToTopupMenu(bot, chatId, messageId, userId) {
             try {
-                await loadDB();
+                // JANGAN RELOAD DB - GUNAKAN CACHE
                 const credits = getUserCredits(userId);
                 
                 const message = 
@@ -1893,16 +1901,16 @@ if (IS_WORKER) {
             }
         }
 
-        // ================== RELOAD DATABASE PERIODIK (1 MENIT) ==================
+        // ================== RELOAD DATABASE 24 JAM ==================
         setInterval(async () => {
             try {
-                await loadDB();
+                await loadDB(true); // Force reload setiap 24 jam
                 await loadSpamData();
-                console.log('Database reloaded from Postgres (1 menit)');
+                console.log('Database reloaded from Postgres (24 jam)');
             } catch (error) {
                 console.log('Error reloading database:', error.message);
             }
-        }, 60000); // 60.000 ms = 1 menit
+        }, 24 * 60 * 60 * 1000); // 24 jam
 
         console.log('Bot started, Admin IDs:', ADMIN_IDS);
         
