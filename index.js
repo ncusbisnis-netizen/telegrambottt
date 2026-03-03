@@ -7,7 +7,6 @@ const QRCode = require('qrcode');
 const { Pool } = require('pg');
 const redis = require('redis');
 
-// ================== OPTIMASI MEMORY ==================
 const v8 = require('v8');
 v8.setFlagsFromString('--max-old-space-size=256');
 
@@ -22,7 +21,6 @@ if (global.gc) {
     }, 60000);
 }
 
-// ================== GLOBAL ERROR HANDLER ==================
 process.on('uncaughtException', (error) => {
     console.log('ERROR GLOBAL:', error.message);
     console.log(error.stack);
@@ -32,10 +30,8 @@ process.on('unhandledRejection', (reason) => {
     console.log('UNHANDLED REJECTION:', reason);
 });
 
-// ================== CEK JENIS PROSES ==================
 const IS_WORKER = process.env.DYNO && process.env.DYNO.includes('worker');
 
-// ================== KONFIGURASI ==================
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const CHANNEL = process.env.CHANNEL;
 const GROUP = process.env.GROUP;
@@ -47,7 +43,6 @@ const ADMIN_IDS = process.env.ADMIN_IDS
     ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim())) 
     : [];
 
-// ================== DATABASE POSTGRES ==================
 let db = { 
     users: {}, 
     total_success: 0, 
@@ -83,10 +78,13 @@ async function initDB() {
 async function loadDB() {
     try {
         console.log('Loading database dari Postgres...');
+        const start = Date.now();
+        
         const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['database']);
         if (res.rows.length > 0) {
             db = res.rows[0].value;
-            console.log(`Load database sukses. Total users: ${Object.keys(db.users || {}).length}`);
+            const duration = Date.now() - start;
+            console.log(`Load database sukses. Total users: ${Object.keys(db.users || {}).length} (${duration}ms)`);
         } else {
             console.log('Database kosong, pakai default');
         }
@@ -157,7 +155,15 @@ initDB().then(async () => {
     await loadSpamData();
 });
 
-// ================== REDIS CLIENT ==================
+setInterval(async () => {
+    try {
+        await loadDB();
+        await loadSpamData();
+    } catch (error) {
+        console.log('Error auto reload:', error.message);
+    }
+}, 3000);
+
 let redisClient = null;
 if (REDIS_URL) {
     try {
@@ -189,7 +195,6 @@ if (REDIS_URL) {
     console.log('REDIS_URL not set, running without Redis');
 }
 
-// ================== FUNGSI UTILITY ==================
 function isAdmin(userId) { 
     return ADMIN_IDS.includes(userId); 
 }
@@ -267,7 +272,6 @@ function formatRupiah(amount) {
     }
 }
 
-// ================== ANTI-SPAM ==================
 function isBanned(userId) { 
     return spamData[userId]?.banned === true; 
 }
@@ -321,7 +325,6 @@ async function addBan(userId, reason = 'Ban manual oleh admin') {
     }
 }
 
-// ================== CEK JOIN CHANNEL/GROUP ==================
 async function checkJoin(bot, userId) {
     try {
         if (!CHANNEL || !GROUP) {
@@ -362,7 +365,6 @@ async function checkJoin(bot, userId) {
     }
 }
 
-// ================== FUNGSI GET DATA DARI CHECKTON ==================
 async function getMLBBData(userId, serverId, type = 'lookup') {
     try {
         console.log(`Mengambil data ${type} untuk ${userId} server ${serverId} dari Checkton`);
@@ -402,7 +404,6 @@ async function getMLBBData(userId, serverId, type = 'lookup') {
     }
 }
 
-// ================== FUNGSI FIND PLAYER ==================
 async function findPlayerByName(name) {
     try {
         console.log(`Mencari player dengan nama: ${name}`);
@@ -491,7 +492,6 @@ async function getPlayerByRoleId(roleId) {
     }
 }
 
-// ================== FUNGSI FORMAT OUTPUT ==================
 function formatLocations(locations, maxItems = 5) {
     try {
         if (!locations || !Array.isArray(locations) || locations.length === 0) {
@@ -509,11 +509,24 @@ function formatLocations(locations, maxItems = 5) {
     }
 }
 
-// ================== PAKASIR API UNTUK TOPUP ==================
-async function createPakasirTopup(amount, userId) {
+async function createPakasirTopup(amount, userId, username = '') {
     try {
         const orderId = `TOPUP-${userId}-${Date.now()}`;
         console.log(`Membuat topup: ${orderId}, amount: ${amount}, user: ${userId}`);
+        
+        if (!db.users[userId]) {
+            db.users[userId] = { 
+                username: username, 
+                success: 0, 
+                credits: 0, 
+                topup_history: [] 
+            };
+            console.log(`USER BARU DIBUAT SAAT TOPUP: ${userId} (${username})`);
+            await saveDB();
+        } else if (username && db.users[userId].username !== username) {
+            db.users[userId].username = username;
+            await saveDB();
+        }
         
         const response = await axios.post(
             `${process.env.PAKASIR_BASE_URL || 'https://app.pakasir.com/api'}/transactioncreate/qris`,
@@ -561,7 +574,6 @@ async function createPakasirTopup(amount, userId) {
     }
 }
 
-// ================== FUNGSI UNTUK RELAY (REDIS) ==================
 async function sendRequestToRelay(chatId, userId, serverId) {
     try {
         if (!redisClient || !redisClient.isReady) {
@@ -589,7 +601,6 @@ async function sendRequestToRelay(chatId, userId, serverId) {
     }
 }
 
-// ================== FUNGSI TELEGRAM API LANGSUNG UNTUK WEBHOOK ==================
 async function telegramRequest(method, params) {
     try {
         const url = `https://api.telegram.org/bot${BOT_TOKEN}/${method}`;
@@ -622,16 +633,13 @@ async function sendMessage(chatId, text, parseMode = 'HTML') {
     });
 }
 
-// ================== SETUP EXPRESS UNTUK WEBHOOK ==================
 const app = express();
 app.use(express.json());
 
-// Health check endpoint
 app.get('/', (req, res) => {
     res.send('Bot is running');
 });
 
-// ================== WEBHOOK HANDLER PRIORITAS TINGGI ==================
 app.post('/webhook/pakasir', async (req, res) => {
     const startTime = Date.now();
     
@@ -646,7 +654,6 @@ app.post('/webhook/pakasir', async (req, res) => {
         
         console.log(`PROSES WEBHOOK: ${order_id} | STATUS: ${status}`);
         
-        // CEK DI PENDING TOPUPS
         if (!db.pending_topups || !db.pending_topups[order_id]) {
             console.log(`ORDER TIDAK DITEMUKAN DI CACHE: ${order_id}`);
             
@@ -673,10 +680,8 @@ app.post('/webhook/pakasir', async (req, res) => {
             const chatId = pendingData.chatId;
             const messageId = pendingData.messageId;
             
-            // TAMBAH SALDO
             await addCredits(userId, amount, order_id);
             
-            // UPDATE STATUS PENDING
             db.pending_topups[order_id].status = 'paid';
             db.pending_topups[order_id].processed = true;
             db.pending_topups[order_id].paid_at = Date.now();
@@ -684,44 +689,42 @@ app.post('/webhook/pakasir', async (req, res) => {
             
             await saveDB();
             
-            // HAPUS QR CODE - PAKAI TELEGRAM API LANGSUNG
             if (chatId && messageId) {
                 try {
                     const result = await deleteMessage(chatId, messageId);
                     if (result && result.ok) {
-                        console.log(`✅ QR DELETED: ${order_id} di chat ${chatId}`);
+                        console.log(`QR DELETED: ${order_id} di chat ${chatId}`);
                     } else {
-                        console.log(`❌ GAGAL HAPUS QR: ${result?.description || 'unknown error'}`);
+                        console.log(`GAGAL HAPUS QR: ${result?.description || 'unknown error'}`);
                     }
                 } catch (deleteError) {
-                    console.log('❌ GAGAL HAPUS QR:', deleteError.message);
+                    console.log('GAGAL HAPUS QR:', deleteError.message);
                 }
             } else {
-                console.log(`⚠️ TIDAK BISA HAPUS QR - chatId: ${chatId}, messageId: ${messageId}`);
+                console.log(`TIDAK BISA HAPUS QR - chatId: ${chatId}, messageId: ${messageId}`);
             }
             
-            // KIRIM NOTIFIKASI KE USER - PAKAI TELEGRAM API LANGSUNG
             try {
                 const newBalance = db.users[userId]?.credits || 0;
                 const notifResult = await sendMessage(userId, 
-                    `✅ PEMBAYARAN BERHASIL\n\n` +
+                    `PEMBAYARAN BERHASIL\n\n` +
                     `Terima kasih! Pembayaran Anda telah kami terima.\n\n` +
-                    `📋 *Detail Transaksi:*\n` +
-                    `• Order ID: \`${order_id}\`\n` +
-                    `• Jumlah: Rp ${amount.toLocaleString()}\n` +
-                    `• Status: BERHASIL\n\n` +
-                    `💰 *Saldo Anda sekarang:* Rp ${newBalance.toLocaleString()}\n\n` +
+                    `Detail Transaksi:\n` +
+                    `Order ID: ${order_id}\n` +
+                    `Jumlah: Rp ${amount.toLocaleString()}\n` +
+                    `Status: BERHASIL\n\n` +
+                    `Saldo Anda sekarang: Rp ${newBalance.toLocaleString()}\n\n` +
                     `Silakan gunakan bot untuk melakukan pengecekan.`,
                     'Markdown'
                 );
                 
                 if (notifResult && notifResult.ok) {
-                    console.log(`✅ NOTIFIKASI TERKIRIM KE USER: ${userId}`);
+                    console.log(`NOTIFIKASI TERKIRIM KE USER: ${userId}`);
                 } else {
-                    console.log(`❌ GAGAL KIRIM NOTIFIKASI: ${notifResult?.description || 'unknown error'}`);
+                    console.log(`GAGAL KIRIM NOTIFIKASI: ${notifResult?.description || 'unknown error'}`);
                 }
             } catch (notifError) {
-                console.log('❌ GAGAL KIRIM NOTIFIKASI:', notifError.message);
+                console.log('GAGAL KIRIM NOTIFIKASI:', notifError.message);
             }
             
             console.log(`SALDO USER ${userId}: Rp ${db.users[userId]?.credits || 0} (selesai dalam ${Date.now() - startTime}ms)`);
@@ -735,15 +738,14 @@ app.post('/webhook/pakasir', async (req, res) => {
             
             await saveDB();
             
-            // KIRIM NOTIFIKASI GAGAL
             try {
                 await sendMessage(pendingData.userId, 
-                    `❌ PEMBAYARAN GAGAL\n\n` +
+                    `PEMBAYARAN GAGAL\n\n` +
                     `Maaf, pembayaran Anda gagal atau kadaluarsa.\n\n` +
-                    `📋 *Detail Transaksi:*\n` +
-                    `• Order ID: \`${order_id}\`\n` +
-                    `• Jumlah: Rp ${amount.toLocaleString()}\n` +
-                    `• Status: GAGAL\n\n` +
+                    `Detail Transaksi:\n` +
+                    `Order ID: ${order_id}\n` +
+                    `Jumlah: Rp ${amount.toLocaleString()}\n` +
+                    `Status: GAGAL\n\n` +
                     `Silakan lakukan top up ulang jika masih membutuhkan.`,
                     'Markdown'
                 );
@@ -761,7 +763,6 @@ app.post('/webhook/pakasir', async (req, res) => {
     }
 });
 
-// ================== BOT TELEGRAM ==================
 if (IS_WORKER) {
     console.log('Bot worker started');
     
@@ -782,7 +783,6 @@ if (IS_WORKER) {
             console.log('Polling error:', error.message);
         });
 
-        // ================== MIDDLEWARE ==================
         bot.on('message', async (msg) => {
             try {
                 const chatId = msg.chat.id, userId = msg.from.id, text = msg.text, chatType = msg.chat.type;
@@ -811,7 +811,6 @@ if (IS_WORKER) {
             }
         });
 
-        // ================== COMMAND /start ==================
         bot.onText(/\/start/, async (msg) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -869,7 +868,6 @@ if (IS_WORKER) {
             }
         });
 
-        // ================== COMMAND /info (VIA RELAY) ==================
         bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -972,7 +970,6 @@ if (IS_WORKER) {
             }
         });
 
-        // ================== COMMAND /cek ==================
         bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1157,7 +1154,6 @@ if (IS_WORKER) {
             }
         });
 
-        // ================== COMMAND /find ==================
         bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1314,7 +1310,6 @@ if (IS_WORKER) {
             }
         });
 
-        // ================== COMMAND /listtopup ==================
         bot.onText(/\/listtopup(?:\s+(\d+))?/, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1341,7 +1336,6 @@ if (IS_WORKER) {
                     await bot.sendMessage(msg.chat.id, message);
                     
                 } else {
-                    // PRIORITAS USER YANG PUNYA SALDO
                     let message = `DAFTAR USER DENGAN SALDO > 0\n\n`;
                     
                     const usersWithBalance = Object.entries(db.users || {})
@@ -1370,7 +1364,6 @@ if (IS_WORKER) {
             }
         });
 
-        // ================== COMMAND ADMIN ==================
         bot.onText(/\/offinfo/, async (msg) => { 
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1536,7 +1529,6 @@ if (IS_WORKER) {
             }
         });
 
-        // ================== CALLBACK QUERY HANDLER ==================
         bot.on('callback_query', async (cb) => {
             try {
                 console.log('Callback diterima:', cb.data);
@@ -1599,7 +1591,8 @@ if (IS_WORKER) {
                         message_id: messageId
                     });
                     
-                    const payment = await createPakasirTopup(amount, userId);
+                    const username = cb.from.username || '';
+                    const payment = await createPakasirTopup(amount, userId, username);
                     
                     if (!payment.success) {
                         await bot.editMessageText(`Gagal: ${payment.error}`, {
@@ -1677,7 +1670,6 @@ if (IS_WORKER) {
             }
         });
 
-        // ================== FUNGSI EDIT MESSAGE ==================
         async function editToMainMenu(bot, chatId, messageId, userId) {
             try {
                 const credits = getUserCredits(userId);
@@ -1768,7 +1760,6 @@ if (IS_WORKER) {
     }
 }
 
-// ================== JALANKAN SERVER ==================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
