@@ -8,6 +8,23 @@ const QRCode = require('qrcode');
 const { Pool } = require('pg');
 const redis = require('redis');
 
+// ================== OPTIMASI MEMORY ==================
+// Batasi memory usage
+const v8 = require('v8');
+v8.setFlagsFromString('--max-old-space-size=256'); // 256MB
+
+// Garbage collection lebih agresif (jika diaktifkan)
+if (global.gc) {
+    setInterval(() => {
+        try {
+            global.gc();
+            console.log('Garbage collection done');
+        } catch (e) {
+            console.log('GC error:', e.message);
+        }
+    }, 60000); // Tiap 1 menit
+}
+
 // ================== GLOBAL ERROR HANDLER ==================
 process.on('uncaughtException', (error) => {
     console.log('ERROR GLOBAL:', error.message);
@@ -46,7 +63,10 @@ let userProcessing = {};
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
+    max: 5, // Batasi koneksi pool
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
 });
 
 async function initDB() {
@@ -144,16 +164,34 @@ initDB().then(async () => {
 
 // ================== REDIS CLIENT (KONEKSI KE RELAY) ==================
 let redisClient = null;
-try {
-    redisClient = redis.createClient({ url: REDIS_URL });
-    redisClient.on('error', (err) => console.log('Redis Client Error', err));
-    redisClient.connect().then(() => {
-        console.log('Redis connected for relay communication');
-    }).catch(err => {
-        console.log('Redis connection failed:', err.message);
-    });
-} catch (error) {
-    console.log('Redis init error:', error.message);
+if (REDIS_URL) {
+    try {
+        redisClient = redis.createClient({ 
+            url: REDIS_URL,
+            socket: {
+                reconnectStrategy: function(retries) {
+                    if (retries > 10) {
+                        console.log('Redis max retries reached');
+                        return new Error('Max retries');
+                    }
+                    return Math.min(retries * 100, 3000);
+                }
+            }
+        });
+        
+        redisClient.on('error', (err) => console.log('Redis Client Error', err));
+        redisClient.on('connect', () => console.log('Redis connected for relay communication'));
+        
+        redisClient.connect().catch(err => {
+            console.log('Redis connection failed:', err.message);
+            redisClient = null;
+        });
+    } catch (error) {
+        console.log('Redis init error:', error.message);
+        redisClient = null;
+    }
+} else {
+    console.log('REDIS_URL not set, running without Redis');
 }
 
 // ================== FUNGSI UTILITY ==================
@@ -1709,10 +1747,61 @@ if (IS_WORKER) {
             }
         }
 
+        // ================== AUTO CHECK PAYMENT (CRON JOB) ==================
+        cron.schedule('* * * * *', async () => {
+            try {
+                console.log('Cron job berjalan (backup mode)');
+                
+                for (const [orderId, data] of Object.entries(db.pending_topups || {})) {
+                    if (data.status === 'pending') {
+                        const status = await checkPakasirTransaction(orderId, data.amount);
+                        
+                        if (status === 'completed' || status === 'paid') {
+                            console.log(`Cron job: Topup sukses ${orderId}`);
+                            
+                            if (data.processed) {
+                                console.log(`Order ${orderId} sudah diproses, lewati`);
+                                continue;
+                            }
+                            
+                            const userId = data.userId;
+                            const amount = data.amount;
+                            
+                            await addCredits(userId, amount, orderId);
+                            
+                            db.pending_topups[orderId].status = 'paid';
+                            db.pending_topups[orderId].processed = true;
+                            db.pending_topups[orderId].notified = true;
+                            await saveDB();
+                            
+                            if (data.messageId && data.chatId) {
+                                try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
+                            }
+                            
+                            console.log(`Cron job: Topup sukses diproses untuk user ${userId}`);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log('Error cron:', error.message);
+            }
+        });
+
+        // ================== RELOAD DATABASE PERIODIK (1 MENIT) ==================
+        setInterval(async () => {
+            try {
+                await loadDB();
+                await loadSpamData();
+                console.log('Database reloaded from Postgres (1 menit)');
+            } catch (error) {
+                console.log('Error reloading database:', error.message);
+            }
+        }, 60000); // 60.000 ms = 1 menit
+
         console.log('Bot started, Admin IDs:', ADMIN_IDS);
         
     } catch (error) {
         console.log('FATAL ERROR:', error.message);
         console.log('Bot failed to start. Check your configuration.');
     }
-                        }
+}
