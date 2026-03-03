@@ -55,7 +55,6 @@ let db = {
     pending_topups: {} 
 };
 let spamData = {};
-let tempAnnouncement = null;
 let userProcessing = {};
 
 const pool = new Pool({
@@ -590,6 +589,39 @@ async function sendRequestToRelay(chatId, userId, serverId) {
     }
 }
 
+// ================== FUNGSI TELEGRAM API LANGSUNG UNTUK WEBHOOK ==================
+async function telegramRequest(method, params) {
+    try {
+        const url = `https://api.telegram.org/bot${BOT_TOKEN}/${method}`;
+        const response = await axios.post(url, params, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 5000
+        });
+        return response.data;
+    } catch (error) {
+        console.log(`Telegram API error (${method}):`, error.message);
+        if (error.response) {
+            console.log('Response:', error.response.data);
+        }
+        return null;
+    }
+}
+
+async function deleteMessage(chatId, messageId) {
+    return telegramRequest('deleteMessage', {
+        chat_id: chatId,
+        message_id: messageId
+    });
+}
+
+async function sendMessage(chatId, text, parseMode = 'HTML') {
+    return telegramRequest('sendMessage', {
+        chat_id: chatId,
+        text: text,
+        parse_mode: parseMode
+    });
+}
+
 // ================== SETUP EXPRESS UNTUK WEBHOOK ==================
 const app = express();
 app.use(express.json());
@@ -598,9 +630,6 @@ app.use(express.json());
 app.get('/', (req, res) => {
     res.send('Bot is running');
 });
-
-// Buat bot object GLOBAL agar bisa diakses webhook
-let bot = null;
 
 // ================== WEBHOOK HANDLER PRIORITAS TINGGI ==================
 app.post('/webhook/pakasir', async (req, res) => {
@@ -644,7 +673,7 @@ app.post('/webhook/pakasir', async (req, res) => {
             const chatId = pendingData.chatId;
             const messageId = pendingData.messageId;
             
-            // TAMBAH SALDO - PASTIKAN TERSIMPAN
+            // TAMBAH SALDO
             await addCredits(userId, amount, order_id);
             
             // UPDATE STATUS PENDING
@@ -655,37 +684,44 @@ app.post('/webhook/pakasir', async (req, res) => {
             
             await saveDB();
             
-            // HAPUS QR CODE - PAKAI BOT YANG SAMA
-            if (chatId && messageId && bot) {
+            // HAPUS QR CODE - PAKAI TELEGRAM API LANGSUNG
+            if (chatId && messageId) {
                 try {
-                    await bot.deleteMessage(chatId, messageId);
-                    console.log(`QR DELETED: ${order_id} di chat ${chatId}`);
+                    const result = await deleteMessage(chatId, messageId);
+                    if (result && result.ok) {
+                        console.log(`✅ QR DELETED: ${order_id} di chat ${chatId}`);
+                    } else {
+                        console.log(`❌ GAGAL HAPUS QR: ${result?.description || 'unknown error'}`);
+                    }
                 } catch (deleteError) {
-                    console.log('GAGAL HAPUS QR:', deleteError.message);
+                    console.log('❌ GAGAL HAPUS QR:', deleteError.message);
                 }
             } else {
-                console.log(`TIDAK BISA HAPUS QR - chatId: ${chatId}, messageId: ${messageId}, bot: ${!!bot}`);
+                console.log(`⚠️ TIDAK BISA HAPUS QR - chatId: ${chatId}, messageId: ${messageId}`);
             }
             
-            // KIRIM NOTIFIKASI KE USER
-            if (bot) {
-                try {
-                    const newBalance = db.users[userId]?.credits || 0;
-                    await bot.sendMessage(userId, 
-                        `✅ PEMBAYARAN BERHASIL\n\n` +
-                        `Terima kasih! Pembayaran Anda telah kami terima.\n\n` +
-                        `📋 *Detail Transaksi:*\n` +
-                        `• Order ID: \`${order_id}\`\n` +
-                        `• Jumlah: Rp ${amount.toLocaleString()}\n` +
-                        `• Status: BERHASIL\n\n` +
-                        `💰 *Saldo Anda sekarang:* Rp ${newBalance.toLocaleString()}\n\n` +
-                        `Silakan gunakan bot untuk melakukan pengecekan.`,
-                        { parse_mode: 'Markdown' }
-                    );
-                    console.log(`NOTIFIKASI TERKIRIM KE USER: ${userId}`);
-                } catch (notifError) {
-                    console.log('GAGAL KIRIM NOTIFIKASI:', notifError.message);
+            // KIRIM NOTIFIKASI KE USER - PAKAI TELEGRAM API LANGSUNG
+            try {
+                const newBalance = db.users[userId]?.credits || 0;
+                const notifResult = await sendMessage(userId, 
+                    `✅ PEMBAYARAN BERHASIL\n\n` +
+                    `Terima kasih! Pembayaran Anda telah kami terima.\n\n` +
+                    `📋 *Detail Transaksi:*\n` +
+                    `• Order ID: \`${order_id}\`\n` +
+                    `• Jumlah: Rp ${amount.toLocaleString()}\n` +
+                    `• Status: BERHASIL\n\n` +
+                    `💰 *Saldo Anda sekarang:* Rp ${newBalance.toLocaleString()}\n\n` +
+                    `Silakan gunakan bot untuk melakukan pengecekan.`,
+                    'Markdown'
+                );
+                
+                if (notifResult && notifResult.ok) {
+                    console.log(`✅ NOTIFIKASI TERKIRIM KE USER: ${userId}`);
+                } else {
+                    console.log(`❌ GAGAL KIRIM NOTIFIKASI: ${notifResult?.description || 'unknown error'}`);
                 }
+            } catch (notifError) {
+                console.log('❌ GAGAL KIRIM NOTIFIKASI:', notifError.message);
             }
             
             console.log(`SALDO USER ${userId}: Rp ${db.users[userId]?.credits || 0} (selesai dalam ${Date.now() - startTime}ms)`);
@@ -699,21 +735,20 @@ app.post('/webhook/pakasir', async (req, res) => {
             
             await saveDB();
             
-            if (bot) {
-                try {
-                    await bot.sendMessage(pendingData.userId, 
-                        `❌ PEMBAYARAN GAGAL\n\n` +
-                        `Maaf, pembayaran Anda gagal atau kadaluarsa.\n\n` +
-                        `📋 *Detail Transaksi:*\n` +
-                        `• Order ID: \`${order_id}\`\n` +
-                        `• Jumlah: Rp ${amount.toLocaleString()}\n` +
-                        `• Status: GAGAL\n\n` +
-                        `Silakan lakukan top up ulang jika masih membutuhkan.`,
-                        { parse_mode: 'Markdown' }
-                    );
-                } catch (notifError) {
-                    console.log('GAGAL KIRIM NOTIFIKASI GAGAL:', notifError.message);
-                }
+            // KIRIM NOTIFIKASI GAGAL
+            try {
+                await sendMessage(pendingData.userId, 
+                    `❌ PEMBAYARAN GAGAL\n\n` +
+                    `Maaf, pembayaran Anda gagal atau kadaluarsa.\n\n` +
+                    `📋 *Detail Transaksi:*\n` +
+                    `• Order ID: \`${order_id}\`\n` +
+                    `• Jumlah: Rp ${amount.toLocaleString()}\n` +
+                    `• Status: GAGAL\n\n` +
+                    `Silakan lakukan top up ulang jika masih membutuhkan.`,
+                    'Markdown'
+                );
+            } catch (notifError) {
+                console.log('GAGAL KIRIM NOTIFIKASI GAGAL:', notifError.message);
             }
         }
         
@@ -735,7 +770,7 @@ if (IS_WORKER) {
             throw new Error('BOT_TOKEN tidak ditemukan!');
         }
 
-        bot = new TelegramBot(BOT_TOKEN, { 
+        const bot = new TelegramBot(BOT_TOKEN, { 
             polling: { 
                 interval: 300, 
                 autoStart: true,
@@ -769,7 +804,7 @@ if (IS_WORKER) {
                     return;
                 }
                 
-                const publicCommands = ['/start', '/info', '/cek', '/find', '/offinfo', '/oninfo', '/listbanned', '/listtopup', '/addban', '/unban', '/addtopup', '/pesan'];
+                const publicCommands = ['/start', '/info', '/cek', '/find', '/offinfo', '/oninfo', '/listbanned', '/listtopup', '/addban', '/unban', '/addtopup'];
                 if (publicCommands.includes(text.split(' ')[0])) return;
             } catch (error) {
                 console.log('Middleware error:', error.message);
@@ -817,7 +852,6 @@ if (IS_WORKER) {
                     message += `/addban ID - Blokir user\n`;
                     message += `/unban ID - Buka blokir\n`;
                     message += `/addtopup ID JUMLAH - Tambah saldo user\n`;
-                    message += `/pesan TEKS - Kirim pengumuman\n`;
                 }
                 
                 const replyMarkup = {
@@ -1307,6 +1341,7 @@ if (IS_WORKER) {
                     await bot.sendMessage(msg.chat.id, message);
                     
                 } else {
+                    // PRIORITAS USER YANG PUNYA SALDO
                     let message = `DAFTAR USER DENGAN SALDO > 0\n\n`;
                     
                     const usersWithBalance = Object.entries(db.users || {})
@@ -1316,7 +1351,8 @@ if (IS_WORKER) {
                     if (usersWithBalance.length === 0) {
                         message += 'Tidak ada user dengan saldo.';
                     } else {
-                        message += `Total ${usersWithBalance.length} user\n\n`;
+                        const totalSaldo = usersWithBalance.reduce((sum, [_, u]) => sum + (u.credits || 0), 0);
+                        message += `Total ${usersWithBalance.length} user | Total Saldo: Rp ${totalSaldo.toLocaleString()}\n\n`;
                         
                         usersWithBalance.forEach(([id, u], i) => {
                             const totalTopup = (u.topup_history || []).reduce((sum, item) => sum + (item.amount || 0), 0);
@@ -1500,55 +1536,6 @@ if (IS_WORKER) {
             }
         });
 
-        // ================== COMMAND /pesan ==================
-        bot.onText(/\/pesan (.+)/, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                const adminId = msg.from.id;
-                
-                if (!isAdmin(adminId)) {
-                    await bot.sendMessage(msg.chat.id, 'Fitur ini hanya untuk admin.');
-                    return;
-                }
-                
-                const announcementText = match[1].trim();
-                
-                if (announcementText.length > 1000) {
-                    await bot.sendMessage(msg.chat.id, 'Pesan terlalu panjang! Maksimal 1000 karakter.');
-                    return;
-                }
-                
-                const confirmMsg = await bot.sendMessage(msg.chat.id,
-                    `KONFIRMASI PENGUMUMAN\n\n` +
-                    `Isi pesan:\n` +
-                    `"${announcementText}"\n\n` +
-                    `Akan dikirim ke ${Object.keys(db.users || {}).length} user.\n\n` +
-                    `Yakin ingin mengirim?`,
-                    {
-                        reply_markup: {
-                            inline_keyboard: [
-                                [
-                                    { text: 'KIRIM', callback_data: `confirm_announce_${Date.now()}` },
-                                    { text: 'BATAL', callback_data: 'cancel_announce' }
-                                ]
-                            ]
-                        }
-                    }
-                );
-                
-                tempAnnouncement = {
-                    adminId: adminId,
-                    text: announcementText,
-                    confirmMsgId: confirmMsg.message_id,
-                    timestamp: Date.now()
-                };
-                
-            } catch (error) {
-                console.log('Error /pesan:', error.message);
-            }
-        });
-
         // ================== CALLBACK QUERY HANDLER ==================
         bot.on('callback_query', async (cb) => {
             try {
@@ -1679,67 +1666,6 @@ if (IS_WORKER) {
                     
                     return;
                 }
-
-                if (data === 'cancel_announce') {
-                    await bot.deleteMessage(chatId, messageId);
-                    await bot.answerCallbackQuery(cb.id, { text: 'Pengumuman dibatalkan' });
-                    tempAnnouncement = null;
-                    return;
-                }
-                
-                if (data.startsWith('confirm_announce_')) {
-                    await bot.answerCallbackQuery(cb.id, { text: 'Mengirim pengumuman...' });
-                    
-                    if (!tempAnnouncement) {
-                        await bot.editMessageText('Sesi pengumuman telah kedaluwarsa.', {
-                            chat_id: chatId,
-                            message_id: messageId
-                        });
-                        return;
-                    }
-                    
-                    await bot.editMessageText('Mengirim pengumuman ke semua user...', {
-                        chat_id: chatId,
-                        message_id: messageId
-                    });
-                    
-                    const userIds = Object.keys(db.users || {});
-                    let sentCount = 0;
-                    let failedCount = 0;
-                    
-                    for (const uid of userIds) {
-                        try {
-                            await bot.sendMessage(parseInt(uid),
-                                `PENGUMUMAN PENTING\n\n` +
-                                `${tempAnnouncement.text}\n\n` +
-                                `Pesan ini dikirim otomatis oleh admin.`
-                            );
-                            sentCount++;
-                            
-                            await new Promise(resolve => setTimeout(resolve, 50));
-                            
-                        } catch (error) {
-                            console.log(`Gagal kirim ke user ${uid}:`, error.message);
-                            failedCount++;
-                        }
-                    }
-                    
-                    await bot.editMessageText(
-                        `PENGUMUMAN TERKIRIM\n\n` +
-                        `Isi pesan:\n` +
-                        `"${tempAnnouncement.text}"\n\n` +
-                        `Total user: ${userIds.length}\n` +
-                        `Berhasil: ${sentCount}\n` +
-                        `Gagal: ${failedCount}`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId
-                        }
-                    );
-                    
-                    tempAnnouncement = null;
-                    return;
-                }
                 
                 await bot.answerCallbackQuery(cb.id, { text: 'Perintah tidak dikenal' });
                 
@@ -1766,12 +1692,13 @@ if (IS_WORKER) {
                 
                 if (isAdmin(userId)) {
                     message += `\nADMIN MENU\n`;
-                    message += `/listtopup - Daftar saldo > 0\n`;
+                    message += `/offinfo - Nonaktifkan fitur\n`;
+                    message += `/oninfo - Aktifkan fitur\n`;
                     message += `/listbanned - Daftar banned\n`;
+                    message += `/listtopup - Daftar saldo > 0\n`;
                     message += `/addban ID - Blokir user\n`;
                     message += `/unban ID - Buka blokir\n`;
                     message += `/addtopup ID JUMLAH - Tambah saldo\n`;
-                    message += `/pesan TEKS - Kirim pengumuman\n`;
                 }
                 
                 const replyMarkup = {
