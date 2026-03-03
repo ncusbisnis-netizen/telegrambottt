@@ -19,103 +19,123 @@ app.get('/', (req, res) => {
     });
 });
 
-// Webhook endpoint untuk Pakasir
+// Webhook endpoint untuk Pakasir (HANYA TOPUP)
 app.post('/webhook/pakasir', (req, res) => {
     try {
         const webhookData = req.body;
-        console.log('📩 Webhook received:', JSON.stringify(webhookData, null, 2));
+        console.log('📩 WEBHOOK RECEIVED:', JSON.stringify(webhookData, null, 2));
 
         const { order_id, status, amount } = webhookData;
 
-        // Baca database
-        let db = { pending_payments: {}, pending_topups: {}, premium: {}, users: {} };
+        // CEK DATABASE
+        console.log('📁 Membaca database.json...');
+        let db = { pending_topups: {}, users: {} };
+        
         if (fs.existsSync('database.json')) {
-            db = JSON.parse(fs.readFileSync('database.json', 'utf8'));
+            const fileContent = fs.readFileSync('database.json', 'utf8');
+            db = JSON.parse(fileContent);
+            console.log(`✅ Database loaded. ${Object.keys(db.pending_topups || {}).length} pending topups`);
+        } else {
+            console.log('❌ database.json TIDAK DITEMUKAN!');
+            return res.status(200).json({ status: 'ok' });
         }
 
-        // CEK APAKAH TOPUP ATAU PREMIUM
-        if (order_id && order_id.startsWith('TOPUP-')) {
-            // ===== PROSES TOPUP =====
-            if (db.pending_topups && db.pending_topups[order_id]) {
-                const topup = db.pending_topups[order_id];
-                
-                if (status === 'completed' || status === 'paid' || status === 'success') {
-                    console.log(`✅ TOPUP SUCCESS: ${order_id} untuk user ${topup.userId}`);
-                    
-                    // Update status
-                    db.pending_topups[order_id].status = 'paid';
-                    db.pending_topups[order_id].processed = true;
-                    
-                    // Tambah saldo user
-                    if (!db.users[topup.userId]) {
-                        db.users[topup.userId] = { credits: 0, topup_history: [] };
-                    }
-                    
-                    if (!db.users[topup.userId].topup_history) {
-                        db.users[topup.userId].topup_history = [];
-                    }
-                    
-                    // Tambah saldo
-                    db.users[topup.userId].credits = (db.users[topup.userId].credits || 0) + (amount || topup.amount);
-                    
-                    // Catat history
-                    db.users[topup.userId].topup_history.push({
-                        amount: amount || topup.amount,
-                        order_id: order_id,
-                        date: new Date().toISOString(),
-                        method: 'qris'
-                    });
-                    
-                    console.log(`💰 Saldo user ${topup.userId}: Rp ${db.users[topup.userId].credits}`);
-                    
-                    // Simpan database
-                    fs.writeFileSync('database.json', JSON.stringify(db, null, 2));
-                    console.log(`✅ Database updated for user ${topup.userId}`);
-                }
-            } else {
-                console.log(`⚠️ Order ${order_id} tidak ditemukan di pending_topups`);
-            }
-        } else if (db.pending_payments && db.pending_payments[order_id]) {
-            // ===== PROSES PREMIUM =====
-            const payment = db.pending_payments[order_id];
+        // CEK APAKAH INI TOPUP (HARUS DIAWALI TOPUP-)
+        if (!order_id || !order_id.startsWith('TOPUP-')) {
+            console.log(`⚠️ Bukan transaksi topup (order_id: ${order_id}) - IGNORED`);
+            return res.status(200).json({ status: 'ok' });
+        }
 
-            if (status === 'completed' || status === 'paid' || status === 'success') {
-                db.pending_payments[order_id].status = 'paid';
-                
-                const days = {
-                    '1 Hari': 1,
-                    '3 Hari': 3,
-                    '7 Hari': 7,
-                    '30 Hari': 30
-                }[payment.duration] || 1;
-                
-                const now = moment().tz('Asia/Jakarta').unix();
-                const expiredAt = now + (days * 24 * 60 * 60);
-                
-                if (!db.premium) db.premium = {};
-                db.premium[payment.userId] = {
-                    activated_at: now,
-                    expired_at: expiredAt,
-                    duration: payment.duration,
-                    order_id: order_id
-                };
-                
-                console.log(`✅ PREMIUM activated for user ${payment.userId} (${payment.duration})`);
-                
-                // Simpan database
-                fs.writeFileSync('database.json', JSON.stringify(db, null, 2));
+        console.log(`💰 Transaksi TOPUP: ${order_id}`);
+        
+        // CEK APAKAH ORDER ADA DI PENDING
+        if (!db.pending_topups || !db.pending_topups[order_id]) {
+            console.log(`❌ Order ${order_id} TIDAK DITEMUKAN di pending_topups!`);
+            console.log('📋 Daftar pending_topups:', Object.keys(db.pending_topups || {}));
+            return res.status(200).json({ status: 'ok' });
+        }
+
+        const topup = db.pending_topups[order_id];
+        console.log(`✅ Order ditemukan! User: ${topup.userId}, Amount: ${topup.amount}`);
+        
+        // CEK APAKAH SUDAH DIPROSES
+        if (topup.processed) {
+            console.log(`⚠️ Order ${order_id} sudah diproses sebelumnya`);
+            return res.status(200).json({ status: 'ok' });
+        }
+        
+        // PROSES HANYA JIKA STATUS COMPLETED/PAID/SUCCESS
+        if (status === 'completed' || status === 'paid' || status === 'success') {
+            console.log(`🎉 PEMBAYARAN SUKSES!`);
+            
+            // Update status
+            db.pending_topups[order_id].status = 'paid';
+            db.pending_topups[order_id].processed = true;
+            
+            // PASTIKAN USER ADA
+            const userId = topup.userId;
+            if (!db.users[userId]) {
+                db.users[userId] = { credits: 0, topup_history: [] };
+                console.log(`👤 User ${userId} baru dibuat`);
             }
+            
+            if (!db.users[userId].topup_history) {
+                db.users[userId].topup_history = [];
+            }
+            
+            // SALDO SEBELUM
+            const saldoSebelum = db.users[userId].credits || 0;
+            console.log(`💰 Saldo sebelum: Rp ${saldoSebelum.toLocaleString()}`);
+            
+            // TAMBAH SALDO
+            const jumlah = amount || topup.amount;
+            db.users[userId].credits = saldoSebelum + jumlah;
+            
+            console.log(`➕ Menambah: Rp ${jumlah.toLocaleString()}`);
+            console.log(`💰 Saldo setelah: Rp ${db.users[userId].credits.toLocaleString()}`);
+            
+            // CATAT HISTORY
+            db.users[userId].topup_history.push({
+                amount: jumlah,
+                order_id: order_id,
+                date: new Date().toISOString(),
+                method: 'qris'
+            });
+            
+            // HAPUS DARI PENDING (SUDAH DIPROSES)
+            delete db.pending_topups[order_id];
+            
+            // SIMPAN DATABASE
+            fs.writeFileSync('database.json', JSON.stringify(db, null, 2));
+            console.log(`✅ Database tersimpan!`);
+            
+            // OPSIONAL: KIRIM NOTIF KE USER (JIKA BOT TOKEN TERSEDIA)
+            try {
+                const TelegramBot = require('node-telegram-bot-api');
+                if (process.env.BOT_TOKEN) {
+                    const bot = new TelegramBot(process.env.BOT_TOKEN);
+                    bot.sendMessage(userId,
+                        `✅ TOP UP BERHASIL\n\n` +
+                        `Nominal: Rp ${jumlah.toLocaleString()}\n` +
+                        `Saldo sekarang: Rp ${db.users[userId].credits.toLocaleString()}`
+                    ).catch(e => console.log('Gagal kirim notif:', e.message));
+                }
+            } catch (e) {
+                console.log('Notifikasi tidak dikirim (bot token tidak tersedia)');
+            }
+            
         } else {
-            console.log(`⚠️ Order ${order_id} tidak ditemukan di database`);
+            console.log(`⏳ Status pembayaran: ${status} - BELUM COMPLETED`);
         }
 
         res.status(200).json({ status: 'ok' });
     } catch (error) {
-        console.error('❌ Webhook error:', error);
+        console.error('❌ WEBHOOK ERROR:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
 app.listen(PORT, () => {
     console.log(`🌐 Webhook server running on port ${PORT}`);
+    console.log(`📌 Hanya memproses transaksi TOPUP (order_id dimulai dengan TOPUP-)`);
 });
