@@ -33,257 +33,31 @@ const ADMIN_IDS = process.env.ADMIN_IDS
 
 // ================== REGION MAPPING ==================
 const countryMapping = {
-    'AF': '🇦🇫 Afghanistan',
-  'AX': '🇦🇽 Åland Islands',
-  'AL': '🇦🇱 Albania',
-  'DZ': '🇩🇿 Algeria',
-  'AS': '🇦🇸 American Samoa',
-  'AD': '🇦🇩 Andorra',
-  'AO': '🇦🇴 Angola',
-  'AI': '🇦🇮 Anguilla',
-  'AQ': '🇦🇶 Antarctica',
-  'AG': '🇦🇬 Antigua and Barbuda',
-  'AR': '🇦🇷 Argentina',
-  'AM': '🇦🇲 Armenia',
-  'AW': '🇦🇼 Aruba',
-  'AU': '🇦🇺 Australia',
-  'AT': '🇦🇹 Austria',
-  'AZ': '🇦🇿 Azerbaijan',
-  'BS': '🇧🇸 Bahamas',
-  'BH': '🇧🇭 Bahrain',
-  'BD': '🇧🇩 Bangladesh',
-  'BB': '🇧🇧 Barbados',
-  'BY': '🇧🇾 Belarus',
-  'BE': '🇧🇪 Belgium',
-  'BZ': '🇧🇿 Belize',
-  'BJ': '🇧🇯 Benin',
-  'BM': '🇧🇲 Bermuda',
-  'BT': '🇧🇹 Bhutan',
-  'BO': '🇧🇴 Bolivia, Plurinational State of bolivia',
-  'BA': '🇧🇦 Bosnia and Herzegovina',
-  'BW': '🇧🇼 Botswana',
-  'BV': '🇧🇻 Bouvet Island',
-  'BR': '🇧🇷 Brazil',
-  'IO': '🇮🇴 British Indian Ocean Territory',
-  'BN': '🇧🇳 Brunei Darussalam',
-  'BG': '🇧🇬 Bulgaria',
-  'BF': '🇧🇫 Burkina Faso',
-  'BI': '🇧🇮 Burundi',
-  'KH': '🇰🇭 Cambodia',
-  'CM': '🇨🇲 Cameroon',
-  'CA': '🇨🇦 Canada',
-  'CV': '🇨🇻 Cape Verde',
-  'KY': '🇰🇾 Cayman Islands',
-  'CF': '🇨🇫 Central African Republic',
-  'TD': '🇹🇩 Chad',
-  'CL': '🇨🇱 Chile',
-  'CN': '🇨🇳 China',
-  'CX': '🇨🇽 Christmas Island',
-  'CC': '🇨🇨 Cocos (Keeling) Islands',
-  'CO': '🇨🇴 Colombia',
-  'KM': '🇰🇲 Comoros',
-  'CG': '🇨🇬 Congo',
-  'CD': '🇨🇩 Congo, The Democratic Republic of the Congo',
-  'CK': '🇨🇰 Cook Islands',
-  'CR': '🇨🇷 Costa Rica',
-  'CI': "🇨🇮 Cote d'Ivoire",
-  'HR': '🇭🇷 Croatia',
-  'CU': '🇨🇺 Cuba',
-  'CY': '🇨🇾 Cyprus',
-  'CZ': '🇨🇿 Czech Republic',
-  'DK': '🇩🇰 Denmark',
-  'DJ': '🇩🇯 Djibouti',
-  'DM': '🇩🇲 Dominica',
-  'DO': '🇩🇴 Dominican Republic',
-  'EC': '🇪🇨 Ecuador',
-  'EG': '🇪🇬 Egypt',
-  'SV': '🇸🇻 El Salvador',
-  'GQ': '🇬🇶 Equatorial Guinea',
-  'ER': '🇪🇷 Eritrea',
-  'EE': '🇪🇪 Estonia',
-  'ET': '🇪🇹 Ethiopia',
-  'FK': '🇫🇰 Falkland Islands (Malvinas)',
-  'FO': '🇫🇴 Faroe Islands',
-  'FJ': '🇫🇯 Fiji',
-  'FI': '🇫🇮 Finland',
-  'FR': '🇫🇷 France',
-  'GF': '🇬🇫 French Guiana',
-  'PF': '🇵🇫 French Polynesia',
-  'TF': '🇹🇫 French Southern Territories',
-  'GA': '🇬🇦 Gabon',
-  'GM': '🇬🇲 Gambia',
-  'GE': '🇬🇪 Georgia',
-  'DE': '🇩🇪 Germany',
-  'GH': '🇬🇭 Ghana',
-  'GI': '🇬🇮 Gibraltar',
-  'GR': '🇬🇷 Greece',
-  'GL': '🇬🇱 Greenland',
-  'GD': '🇬🇩 Grenada',
-  'GP': '🇬🇵 Guadeloupe',
-  'GU': '🇬🇺 Guam',
-  'GT': '🇬🇹 Guatemala',
-  'GG': '🇬🇬 Guernsey',
-  'GN': '🇬🇳 Guinea',
-  'GW': '🇬🇼 Guinea-Bissau',
-  'GY': '🇬🇾 Guyana',
-  'HT': '🇭🇹 Haiti',
-  'HM': '🇭🇲 Heard Island and Mcdonald Islands',
-  'VA': '🇻🇦 Holy See (Vatican City State)',
-  'HN': '🇭🇳 Honduras',
-  'HK': '🇭🇰 Hong Kong',
-  'HU': '🇭🇺 Hungary',
-  'IS': '🇮🇸 Iceland',
-  'IN': '🇮🇳 India',
-  'ID': '🇮🇩 Indonesia',
-  'IR': '🇮🇷 Iran, Islamic Republic of Persian Gulf',
-  'IQ': '🇮🇶 Iraq',
-  'IE': '🇮🇪 Ireland',
-  'IM': '🇮🇲 Isle of Man',
-  'IL': '🇮🇱 Israel',
-  'IT': '🇮🇹 Italy',
-  'JM': '🇯🇲 Jamaica',
-  'JP': '🇯🇵 Japan',
-  'JE': '🇯🇪 Jersey',
-  'JO': '🇯🇴 Jordan',
-  'KZ': '🇰🇿 Kazakhstan',
-  'KE': '🇰🇪 Kenya',
-  'KI': '🇰🇮 Kiribati',
-  'KP': "🇰🇵 Korea, Democratic People's Republic of Korea",
-  'KR': '🇰🇷 Korea, Republic of South Korea',
-  'XK': '🇽🇰 Kosovo',
-  'KW': '🇰🇼 Kuwait',
-  'KG': '🇰🇬 Kyrgyzstan',
-  'LA': '🇱🇦 Laos',
-  'LV': '🇱🇻 Latvia',
-  'LB': '🇱🇧 Lebanon',
-  'LS': '🇱🇸 Lesotho',
-  'LR': '🇱🇷 Liberia',
-  'LY': '🇱🇾 Libyan Arab Jamahiriya',
-  'LI': '🇱🇮 Liechtenstein',
-  'LT': '🇱🇹 Lithuania',
-  'LU': '🇱🇺 Luxembourg',
-  'MO': '🇲🇴 Macao',
-  'MK': '🇲🇰 Macedonia',
-  'MG': '🇲🇬 Madagascar',
-  'MW': '🇲🇼 Malawi',
-  'MY': '🇲🇾 Malaysia',
-  'MV': '🇲🇻 Maldives',
-  'ML': '🇲🇱 Mali',
-  'MT': '🇲🇹 Malta',
-  'MH': '🇲🇭 Marshall Islands',
-  'MQ': '🇲🇶 Martinique',
-  'MR': '🇲🇷 Mauritania',
-  'MU': '🇲🇺 Mauritius',
-  'YT': '🇾🇹 Mayotte',
-  'MX': '🇲🇽 Mexico',
-  'FM': '🇫🇲 Micronesia, Federated States of Micronesia',
-  'MD': '🇲🇩 Moldova',
-  'MC': '🇲🇨 Monaco',
-  'MN': '🇲🇳 Mongolia',
-  'ME': '🇲🇪 Montenegro',
-  'MS': '🇲🇸 Montserrat',
-  'MA': '🇲🇦 Morocco',
-  'MZ': '🇲🇿 Mozambique',
-  'MM': '🇲🇲 Myanmar',
-  'NA': '🇳🇦 Namibia',
-  'NR': '🇳🇷 Nauru',
-  'NP': '🇳🇵 Nepal',
-  'NL': '🇳🇱 Netherlands',
-  'AN': 'Netherlands Antilles',
-  'NC': '🇳🇨 New Caledonia',
-  'NZ': '🇳🇿 New Zealand',
-  'NI': '🇳🇮 Nicaragua',
-  'NE': '🇳🇪 Niger',
-  'NG': '🇳🇬 Nigeria',
-  'NU': '🇳🇺 Niue',
-  'NF': '🇳🇫 Norfolk Island',
-  'MP': '🇲🇵 Northern Mariana Islands',
-  'NO': '🇳🇴 Norway',
-  'OM': '🇴🇲 Oman',
-  'PK': '🇵🇰 Pakistan',
-  'PW': '🇵🇼 Palau',
-  'PS': '🇵🇸 Palestinian Territory, Occupied',
-  'PA': '🇵🇦 Panama',
-  'PG': '🇵🇬 Papua New Guinea',
-  'PY': '🇵🇾 Paraguay',
-  'PE': '🇵🇪 Peru',
-  'PH': '🇵🇭 Philippines',
-  'PN': '🇵🇳 Pitcairn',
-  'PL': '🇵🇱 Poland',
-  'PT': '🇵🇹 Portugal',
-  'PR': '🇵🇷 Puerto Rico',
-  'QA': '🇶🇦 Qatar',
-  'RO': '🇷🇴 Romania',
-  'RU': '🇷🇺 Russia',
-  'RW': '🇷🇼 Rwanda',
-  'RE': '🇷🇪 Reunion',
-  'BL': '🇧🇱 Saint Barthelemy',
-  'SH': '🇸🇭 Saint Helena, Ascension and Tristan Da Cunha',
-  'KN': '🇰🇳 Saint Kitts and Nevis',
-  'LC': '🇱🇨 Saint Lucia',
-  'MF': '🇲🇫 Saint Martin',
-  'PM': '🇵🇲 Saint Pierre and Miquelon',
-  'VC': '🇻🇨 Saint Vincent and the Grenadines',
-  'WS': '🇼🇸 Samoa',
-  'SM': '🇸🇲 San Marino',
-  'ST': '🇸🇹 Sao Tome and Principe',
-  'SA': '🇸🇦 Saudi Arabia',
-  'SN': '🇸🇳 Senegal',
-  'RS': '🇷🇸 Serbia',
-  'SC': '🇸🇨 Seychelles',
-  'SL': '🇸🇱 Sierra Leone',
-  'SG': '🇸🇬 Singapore',
-  'SK': '🇸🇰 Slovakia',
-  'SI': '🇸🇮 Slovenia',
-  'SB': '🇸🇧 Solomon Islands',
-  'SO': '🇸🇴 Somalia',
-  'ZA': '🇿🇦 South Africa',
-  'SS': '🇸🇸 South Sudan',
-  'GS': '🇬🇸 South Georgia and the South Sandwich Islands',
-  'ES': '🇪🇸 Spain',
-  'LK': '🇱🇰 Sri Lanka',
-  'SD': '🇸🇩 Sudan',
-  'SR': '🇸🇷 Suriname',
-  'SJ': '🇸🇯 Svalbard and Jan Mayen',
-  'SZ': '🇸🇿 Eswatini',
-  'SE': '🇸🇪 Sweden',
-  'CH': '🇨🇭 Switzerland',
-  'SY': '🇸🇾 Syrian Arab Republic',
-  'TW': '🇹🇼 Taiwan',
-  'TJ': '🇹🇯 Tajikistan',
-  'TZ': '🇹🇿 Tanzania, United Republic of Tanzania',
-  'TH': '🇹🇭 Thailand',
-  'TL': '🇹🇱 Timor-Leste',
-  'TG': '🇹🇬 Togo',
-  'TK': '🇹🇰 Tokelau',
-  'TO': '🇹🇴 Tonga',
-  'TT': '🇹🇹 Trinidad and Tobago',
-  'TN': '🇹🇳 Tunisia',
-  'TR': '🇹🇷 Turkey',
-  'TM': '🇹🇲 Turkmenistan',
-  'TC': '🇹🇨 Turks and Caicos Islands',
-  'TV': '🇹🇻 Tuvalu',
-  'UG': '🇺🇬 Uganda',
-  'UA': '🇺🇦 Ukraine',
-  'AE': '🇦🇪 United Arab Emirates',
-  'GB': '🇬🇧 United Kingdom',
-  'US': '🇺🇸 United States',
-  'UY': '🇺🇾 Uruguay',
-  'UZ': '🇺🇿 Uzbekistan',
-  'VU': '🇻🇺 Vanuatu',
-  'VE': '🇻🇪 Venezuela, Bolivarian Republic of Venezuela',
-  'VN': '🇻🇳 Vietnam',
-  'VG': '🇻🇬 Virgin Islands, British',
-  'VI': '🇻🇮 Virgin Islands, U.S.',
-  'WF': '🇼🇫 Wallis and Futuna',
-  'YE': '🇾🇪 Yemen',
-  'ZM': '🇿🇲 Zambia',
-  'ZW': '🇿🇼 Zimbabwe'
+  'TR': 'Turkey',
+  'TM': 'Turkmenistan',
+  'TC': 'Turks and Caicos Islands',
+  'TV': 'Tuvalu',
+  'UG': 'Uganda',
+  'UA': 'Ukraine',
+  'AE': 'United Arab Emirates',
+  'GB': 'United Kingdom',
+  'US': 'United States',
+  'UY': 'Uruguay',
+  'UZ': 'Uzbekistan',
+  'VU': 'Vanuatu',
+  'VE': 'Venezuela, Bolivarian Republic of Venezuela',
+  'VN': 'Vietnam',
+  'VG': 'Virgin Islands, British',
+  'VI': 'Virgin Islands, U.S.',
+  'WF': 'Wallis and Futuna',
+  'YE': 'Yemen',
+  'ZM': 'Zambia',
+  'ZW': 'Zimbabwe'
 };
 
 function getCountryName(countryCode) {
     const code = (countryCode || 'ID').toUpperCase();
-    return countryMapping[code] || `🌍 ${code}`;
+    return countryMapping[code] || code;
 }
 
 // ================== FUNGSI FORMAT LOKASI ==================
@@ -314,17 +88,9 @@ function formatLocations(locations, maxItems = 5) {
 function getUserCredits(userId) {
     try {
         if (!db.users[userId]) {
-            db.users[userId] = { 
-                username: '', 
-                success: 0, 
-                credits: 0, 
-                topup_history: [] 
-            };
+            db.users[userId] = { username: '', success: 0, credits: 0, topup_history: [] };
         }
-        if (typeof db.users[userId].credits !== 'number') {
-            db.users[userId].credits = 0;
-        }
-        return db.users[userId].credits;
+        return db.users[userId].credits || 0;
     } catch (error) {
         return 0;
     }
@@ -332,31 +98,14 @@ function getUserCredits(userId) {
 
 async function addCredits(userId, amount, orderId = null) {
     try {
-        console.log(`addCredits: user=${userId}, amount=${amount}, orderId=${orderId}`);
-        
         if (!db.users[userId]) {
-            db.users[userId] = { 
-                username: '', 
-                success: 0, 
-                credits: 0, 
-                topup_history: [] 
-            };
+            db.users[userId] = { username: '', success: 0, credits: 0, topup_history: [] };
         }
-        
-        if (typeof db.users[userId].credits !== 'number') {
-            db.users[userId].credits = 0;
-        }
-        
-        const sebelum = db.users[userId].credits;
-        db.users[userId].credits += amount;
-        const sesudah = db.users[userId].credits;
-        
-        console.log(`Saldo: ${sebelum} -> ${sesudah}`);
+        db.users[userId].credits = (db.users[userId].credits || 0) + amount;
         
         if (!db.users[userId].topup_history) {
             db.users[userId].topup_history = [];
         }
-        
         db.users[userId].topup_history.push({
             amount: amount,
             order_id: orderId,
@@ -364,32 +113,11 @@ async function addCredits(userId, amount, orderId = null) {
             method: orderId ? 'qris' : 'admin'
         });
         
-        console.log('Menyimpan ke database...');
         await saveDB();
-        console.log('Database tersimpan');
-        
-        const verifikasi = await getCreditsFromDB(userId);
-        console.log(`Verifikasi dari DB: ${verifikasi}`);
-        
         return db.users[userId].credits;
     } catch (error) {
         console.log('Error addCredits:', error.message);
-        console.log(error.stack);
         return getUserCredits(userId);
-    }
-}
-
-async function getCreditsFromDB(userId) {
-    try {
-        const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['database']);
-        if (res.rows.length > 0) {
-            const dbFromPostgres = res.rows[0].value;
-            return dbFromPostgres.users?.[userId]?.credits || 0;
-        }
-        return 0;
-    } catch (error) {
-        console.log('Error verifikasi DB:', error.message);
-        return 0;
     }
 }
 
@@ -452,54 +180,32 @@ async function initDB() {
 
 async function loadDB() {
     try {
-        console.log('Loading database dari Postgres...');
         const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['database']);
         if (res.rows.length > 0) {
             db = res.rows[0].value;
-            console.log(`Load database sukses. Total users: ${Object.keys(db.users || {}).length}`);
-            
-            const testUser = db.users?.['7903152218'];
-            if (testUser) {
-                console.log(`User 7903152218: credits=${testUser.credits}`);
-            }
+            console.log('Load database dari Postgres');
         } else {
             console.log('Database kosong, pakai default');
         }
     } catch (error) {
         console.log('Gagal load database:', error.message);
-        try {
-            if (fs.existsSync('database.json')) {
-                const data = fs.readFileSync('database.json', 'utf8');
-                db = JSON.parse(data);
-                console.log('Load dari file (fallback)');
-            }
-        } catch (e) {}
     }
 }
 
 async function saveDB() {
     try {
-        console.log('Menyimpan database ke Postgres...');
-        const result = await pool.query(
+        await pool.query(
             `INSERT INTO bot_data (key, value, updated_at) 
              VALUES ($1, $2, NOW())
              ON CONFLICT (key) DO UPDATE 
-             SET value = $2, updated_at = NOW()
-             RETURNING *`,
+             SET value = $2, updated_at = NOW()`,
             ['database', db]
         );
-        console.log('Database tersimpan di Postgres');
-        return true;
     } catch (error) {
         console.log('Gagal save database:', error.message);
-        console.log(error.stack);
         try {
             fs.writeFileSync('database.json', JSON.stringify(db, null, 2));
-            console.log('Database tersimpan di file (fallback)');
-        } catch (e) {
-            console.log('Gagal save file:', e.message);
-        }
-        return false;
+        } catch (e) {}
     }
 }
 
@@ -674,7 +380,7 @@ async function getMLBBData(userId, serverId, type = 'bind') {
                     "X-Timestamp": Date.now(),
                     "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36"
                 },
-                timeout: 45000
+                timeout: 25000
             });
             
             if (goPayResponse.data?.data) {
@@ -696,7 +402,7 @@ async function getMLBBData(userId, serverId, type = 'bind') {
                 "Content-Type": "application/json", 
                 "x-api-key": API_KEY_CHECKTON 
             },
-            timeout: 45000
+            timeout: 25000
         });
         
         console.log(`Checkton response status: ${checktonResponse.status}`);
@@ -732,9 +438,6 @@ async function getMLBBData(userId, serverId, type = 'bind') {
         
     } catch (error) {
         console.log(`Error getMLBBData (${type}):`, error.message);
-        if (error.code === 'ECONNABORTED') {
-            console.log('Timeout - koneksi terlalu lama');
-        }
         
         if (result.username) {
             console.log(`Menggunakan data GoPay saja (Checkton error)`);
@@ -745,7 +448,7 @@ async function getMLBBData(userId, serverId, type = 'bind') {
     }
 }
 
-// ================== FUNGSI UNTUK /find via Nickname ==================
+// ================== FUNGSI UNTUK /find ==================
 async function findPlayerByName(name) {
     try {
         console.log(`Mencari player dengan nama: ${name}`);
@@ -758,92 +461,23 @@ async function findPlayerByName(name) {
                 "Content-Type": "application/json", 
                 "x-api-key": API_KEY_CHECKTON 
             },
-            timeout: 45000
+            timeout: 25000
         });
         
         console.log(`Response status: ${response.status}`);
-        console.log(`Response data:`, JSON.stringify(response.data, null, 2));
         
-        if (response.data) {
-            if (response.data.status === 0 && response.data.data) {
-                console.log(`Ditemukan ${response.data.data?.length || 0} hasil`);
-                return response.data.data;
-            }
-            
-            if (Array.isArray(response.data)) {
-                console.log(`Ditemukan ${response.data.length} data`);
-                return response.data;
-            }
-            
-            if (response.data.role_id) {
-                console.log(`Ditemukan single data`);
-                return [response.data];
-            }
+        if (response.data && response.data.status === 0) {
+            console.log(`Ditemukan ${response.data.data?.length || 0} hasil`);
+            return response.data.data;
+        } else {
+            console.log(`Response:`, response.data);
+            return null;
         }
-        
-        console.log(`Response tidak sesuai format:`, response.data);
-        return null;
-        
     } catch (error) {
         console.log(`Error findPlayerByName:`, error.message);
-        if (error.code === 'ECONNABORTED') {
-            console.log('Timeout - koneksi terlalu lama');
-        }
         if (error.response) {
+            console.log('Detail error:', error.response.data);
             console.log('Status code:', error.response.status);
-            console.log('Response data:', error.response.data);
-        }
-        return null;
-    }
-}
-
-// ================== FUNGSI GET DATA BY ROLE_ID ==================
-async function getPlayerByRoleId(roleId) {
-    try {
-        console.log(`Mencari player dengan role_id: ${roleId}`);
-        
-        const response = await axios.post("https://checkton.online/backend/info", {
-            role_id: String(roleId),
-            type: "find"
-        }, {
-            headers: { 
-                "Content-Type": "application/json", 
-                "x-api-key": API_KEY_CHECKTON 
-            },
-            timeout: 45000
-        });
-        
-        console.log(`Response status: ${response.status}`);
-        console.log(`Response data:`, JSON.stringify(response.data, null, 2));
-        
-        if (response.data) {
-            if (response.data.status === 0 && response.data.data) {
-                console.log(`Ditemukan data player`);
-                return response.data.data;
-            }
-            
-            if (Array.isArray(response.data)) {
-                console.log(`Ditemukan ${response.data.length} data`);
-                return response.data;
-            }
-            
-            if (response.data.role_id) {
-                console.log(`Ditemukan single data`);
-                return [response.data];
-            }
-        }
-        
-        console.log(`Response tidak sesuai format:`, response.data);
-        return null;
-        
-    } catch (error) {
-        console.log(`Error getPlayerByRoleId:`, error.message);
-        if (error.code === 'ECONNABORTED') {
-            console.log('Timeout - koneksi terlalu lama');
-        }
-        if (error.response) {
-            console.log('Status code:', error.response.status);
-            console.log('Response data:', error.response.data);
         }
         return null;
     }
@@ -1140,13 +774,9 @@ else {
             try {
                 if (msg.chat.type !== 'private') return;
                 
-                await loadDB();
-                
                 const userId = msg.from.id;
                 const status = getUserStatus(userId);
                 const credits = getUserCredits(userId);
-                
-                console.log(`/start untuk user ${userId}: credits=${credits}`);
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `User ID: ${userId}\n`;
@@ -1166,8 +796,7 @@ else {
                 message += `DAFTAR PERINTAH:\n`;
                 message += `/info ID SERVER - Info platform\n`;
                 message += `/cek ID SERVER - Full info\n`;
-                message += `/find NICKNAME - Cari via nickname\n`;
-                message += `/find ID - Cari via role ID\n\n`;
+                message += `/find NICKNAME - Cek ID via nickname Rp 5.000\n\n`;
                 
                 if (isAdmin(userId)) {
                     message += `ADMIN:\n`;
@@ -1483,7 +1112,7 @@ else {
             }
         });
 
-        // ================== COMMAND /find (Nickname & Role ID) ==================
+        // ================== COMMAND /find ==================
         bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1491,22 +1120,15 @@ else {
                 if (!match || !match[1]) {
                     await bot.sendMessage(msg.chat.id,
                         `FIND PLAYER\n\n` +
-                        `Cari akun MLBB berdasarkan:\n` +
-                        `1. NICKNAME - Cari via nickname\n` +
-                        `2. ROLE ID - Cek detail via ID user\n\n` +
-                        `Format:\n` +
-                        `• Via Nickname: /find NICKNAME\n` +
-                        `  Contoh: /find RRQ Jule\n\n` +
-                        `• Via Role ID: /find ID\n` +
-                        `  Contoh: /find 643461181\n\n` +
-                        `Biaya: Rp 5.000 (untuk kedua metode)\n` +
-                        `Waktu pencarian: ±45 detik`
+                        `Format: /find NICKNAME\n` +
+                        `Contoh: /find RRQ Jule\n\n` +
+                        `Biaya: Rp 5.000`
                     );
                     return;
                 }
                 
                 const chatId = msg.chat.id, userId = msg.from.id, username = msg.from.username;
-                const input = match[1].trim();
+                const searchName = match[1].trim();
                 
                 if (isBanned(userId) && !isAdmin(userId)) return;
                 
@@ -1534,15 +1156,6 @@ else {
                     return;
                 }
                 
-                if (!db.users[userId]) {
-                    db.users[userId] = { 
-                        username: username || '', 
-                        success: 0, 
-                        credits: 0, 
-                        topup_history: [] 
-                    };
-                }
-                
                 const credits = getUserCredits(userId);
                 if (credits < 5000 && !isAdmin(userId)) {
                     await bot.sendMessage(chatId,
@@ -1565,90 +1178,34 @@ else {
                 const banned = await recordInfoActivity(userId);
                 if (banned) return;
                 
-                const loadingMsg = await bot.sendMessage(chatId, 'Mencari data... (maksimal 45 detik)');
+                const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
                 
-                let results = null;
-                let isRoleIdSearch = false;
-                let searchSuccess = false;
-                
-                try {
-                    if (/^\d+$/.test(input)) {
-                        isRoleIdSearch = true;
-                        console.log(`Mencari dengan role_id: ${input}`);
-                        const playerData = await getPlayerByRoleId(input);
-                        if (playerData && playerData.length > 0) {
-                            results = playerData;
-                            searchSuccess = true;
-                        }
-                    } else {
-                        console.log(`Mencari dengan nickname: ${input}`);
-                        results = await findPlayerByName(input);
-                        if (results && results.length > 0) {
-                            searchSuccess = true;
-                        }
-                    }
-                } catch (searchError) {
-                    console.log('Error saat mencari:', searchError.message);
-                    searchSuccess = false;
-                }
+                const results = await findPlayerByName(searchName);
                 
                 await bot.deleteMessage(chatId, loadingMsg.message_id);
                 
-                if (!searchSuccess || !results || results.length === 0) {
-                    if (isRoleIdSearch) {
-                        await bot.sendMessage(chatId, `Gagal mengambil data. Saldo Anda tidak terpotong.`);
-                    } else {
-                        await bot.sendMessage(chatId, `Gagal mengambil data. Saldo Anda tidak terpotong.`);
-                    }
+                if (!results || results.length === 0) {
+                    await bot.sendMessage(chatId, `Tidak ada akun ditemukan dengan nama "${searchName}"`);
                     return;
                 }
                 
                 if (!isAdmin(userId)) {
-                    if (typeof db.users[userId].credits !== 'number') {
-                        db.users[userId].credits = 0;
-                    }
                     db.users[userId].credits -= 5000;
                     await saveDB();
                 }
                 
-                let output = isRoleIdSearch 
-                    ? `HASIL PENCARIAN ROLE ID: ${input}\n\n`
-                    : `HASIL PENCARIAN NICKNAME: ${input}\n\n`;
-                
+                let output = `HASIL PENCARIAN: ${searchName}\n\n`;
                 output += `Ditemukan ${results.length} akun:\n\n`;
                 
                 results.forEach((item, index) => {
-                    output += `[${index + 1}] ${item.name || item.nickname || 'Unknown'}\n`;
-                    output += `ID: ${item.role_id} | Server: ${item.zone_id || item.server || '-'}\n`;
-                    output += `Level: ${item.level || '-'}\n`;
+                    output += `[${index + 1}] ${item.name}\n`;
+                    output += `ID: ${item.role_id} | Server: ${item.zone_id}\n`;
+                    output += `Level: ${item.level}\n`;
+                    output += `Last Login: ${item.last_login}\n`;
                     
-                    if (item.last_login) {
-                        output += `Last Login: ${item.last_login}\n`;
-                    }
-                    
-                    if (item.locations_logged && Array.isArray(item.locations_logged)) {
-                        const locations = formatLocations(item.locations_logged, 5);
-                        if (locations) {
-                            output += `Lokasi: ${locations}\n`;
-                        }
-                    }
-                    
-                    if (isRoleIdSearch) {
-                        if (item.achievement_points) {
-                            output += `Achievement Points: ${item.achievement_points.toLocaleString()}\n`;
-                        }
-                        if (item.skin_count) {
-                            output += `Total Skin: ${item.skin_count}\n`;
-                        }
-                        if (item.total_match_played) {
-                            output += `Total Match: ${item.total_match_played.toLocaleString()}\n`;
-                        }
-                        if (item.overall_win_rate) {
-                            output += `Win Rate: ${item.overall_win_rate}\n`;
-                        }
-                        if (item.current_tier) {
-                            output += `Rank: ${item.current_tier}\n`;
-                        }
+                    const locations = formatLocations(item.locations_logged, 5);
+                    if (locations) {
+                        output += `Lokasi: ${locations}\n`;
                     }
                     
                     output += `--------------------\n`;
@@ -1661,34 +1218,9 @@ else {
             } catch (error) {
                 console.log('Error /find:', error.message);
                 try {
-                    if (loadingMsg) await bot.deleteMessage(msg.chat.id, loadingMsg.message_id);
+                    await bot.deleteMessage(msg.chat.id, loadingMsg?.message_id);
                 } catch {}
-                await bot.sendMessage(msg.chat.id, `Gagal mengambil data. Saldo Anda tidak terpotong.`);
-            }
-        });
-
-        // ================== COMMAND DEBUG CEK SALDO ==================
-        bot.onText(/\/ceksaldo/, async (msg) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                if (!isAdmin(msg.from.id)) return;
-                
-                const targetId = msg.text.split(' ')[1] || msg.from.id;
-                const userId = parseInt(targetId);
-                
-                const memoryCredits = getUserCredits(userId);
-                const dbCredits = await getCreditsFromDB(userId);
-                
-                const message = 
-                    `CEK SALDO USER: ${userId}\n\n` +
-                    `Memory: Rp ${memoryCredits.toLocaleString()}\n` +
-                    `Database: Rp ${dbCredits.toLocaleString()}\n\n` +
-                    `Status: ${memoryCredits === dbCredits ? 'Sinkron' : 'Tidak sinkron'}`;
-                
-                await bot.sendMessage(msg.chat.id, message);
-                
-            } catch (error) {
-                console.log('Error /ceksaldo:', error.message);
+                await bot.sendMessage(msg.chat.id, `Gagal mengambil data.`);
             }
         });
 
@@ -1708,40 +1240,48 @@ else {
                 const data = cb.data;
                 const messageId = msg.message_id;
 
+                // ================== KEMBALI KE MENU ==================
                 if (data === 'kembali_ke_menu') {
                     await editToMainMenu(chatId, messageId, userId);
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
 
+                // ================== MENU LANGGANAN ==================
                 if (data === 'langganan_menu') {
                     await editToLanggananMenu(chatId, messageId, userId);
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
 
+                // ================== MENU TOPUP ==================
                 if (data === 'topup_menu') {
                     await editToTopupMenu(chatId, messageId, userId);
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
 
+                // ================== BATALKAN TOPUP ==================
                 if (data.startsWith('cancel_topup_')) {
                     const orderId = data.replace('cancel_topup_', '');
                     
+                    // Hapus dari database
                     if (db.pending_topups && db.pending_topups[orderId]) {
                         delete db.pending_topups[orderId];
                         await saveDB();
                     }
                     
+                    // Hapus pesan QRIS
                     try {
                         await bot.deleteMessage(chatId, messageId);
                     } catch (e) {}
                     
+                    // Kirim notifikasi pembatalan
                     await bot.answerCallbackQuery(cb.id, { text: 'Pembayaran dibatalkan' });
                     return;
                 }
 
+                // ================== TOPUP ==================
                 if (data.startsWith('topup_')) {
                     await bot.answerCallbackQuery(cb.id, { text: 'Memproses topup...' });
                     
@@ -1829,6 +1369,7 @@ else {
                     return;
                 }
 
+                // ================== LANGGANAN ==================
                 if (data.startsWith('langganan_')) {
                     await bot.answerCallbackQuery(cb.id, { text: 'Memproses langganan...' });
                     
@@ -1935,8 +1476,6 @@ else {
 
         // ================== FUNGSI EDIT MESSAGE ==================
         async function editToMainMenu(chatId, messageId, userId) {
-            await loadDB();
-            
             const status = getUserStatus(userId);
             const credits = getUserCredits(userId);
             
@@ -1958,8 +1497,7 @@ else {
             message += `DAFTAR PERINTAH:\n`;
             message += `/info ID SERVER - Info platform\n`;
             message += `/cek ID SERVER - Full info\n`;
-            message += `/find NICKNAME - Cari via nickname\n`;
-            message += `/find ID - Cari via role ID\n\n`;
+            message += `/find NICKNAME - Cek ID via nickname Rp 5.000\n\n`;
             
             if (isAdmin(userId)) {
                 message += `ADMIN:\n`;
@@ -1993,7 +1531,6 @@ else {
         }
 
         async function editToTopupMenu(chatId, messageId, userId) {
-            await loadDB();
             const credits = getUserCredits(userId);
             
             const message = 
@@ -2033,7 +1570,6 @@ else {
         }
 
         async function editToLanggananMenu(chatId, messageId, userId) {
-            await loadDB();
             const credits = getUserCredits(userId);
             
             if (await isPremium(userId)) {
@@ -2225,15 +1761,11 @@ else {
             try {
                 await loadDB();
                 await loadSpamData();
-                
-                const userId = 7903152218;
-                const credits = getUserCredits(userId);
-                console.log(`Auto-reload: User ${userId} credits = ${credits}`);
-                
+                console.log('Database reloaded from Postgres');
             } catch (error) {
-                console.log('Error reload:', error.message);
+                console.log('Error reloading database:', error.message);
             }
-        }, 2000);
+        }, 5000);
 
         // ================== ADMIN COMMANDS ==================
         bot.onText(/\/offinfo/, async (msg) => { 
