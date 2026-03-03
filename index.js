@@ -23,15 +23,122 @@ const IS_WORKER = process.env.DYNO && process.env.DYNO.includes('worker');
 
 // ================== KONFIGURASI ==================
 const BOT_TOKEN = process.env.BOT_TOKEN;
+const API_KEY_CHECKTON = process.env.API_KEY_CHECKTON;
 const CHANNEL = process.env.CHANNEL;
 const GROUP = process.env.GROUP;
 const STOK_ADMIN = process.env.STOK_ADMIN;
 const REDIS_URL = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
-const API_KEY_CHECKTON = process.env.API_KEY_CHECKTON || process.env.API_KEY_CHECKTON;
 
 const ADMIN_IDS = process.env.ADMIN_IDS 
     ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim())) 
     : [];
+
+// ================== FUNGSI FORMAT LOKASI ==================
+function formatLocations(locations, maxItems = 5) {
+    try {
+        if (!locations || locations === 'N/A' || locations.length === 0) {
+            return '';
+        }
+        
+        if (!Array.isArray(locations)) {
+            return '';
+        }
+        
+        const limitedLocations = locations.slice(0, maxItems);
+        let result = limitedLocations.join(', ');
+        
+        if (locations.length > maxItems) {
+            result += `, +${locations.length - maxItems} lagi`;
+        }
+        
+        return result;
+    } catch (error) {
+        return '';
+    }
+}
+
+// ================== FUNGSI SALDO ==================
+function getUserCredits(userId) {
+    try {
+        if (!db.users[userId]) {
+            db.users[userId] = { 
+                username: '', 
+                success: 0, 
+                credits: 0, 
+                topup_history: [] 
+            };
+        }
+        if (typeof db.users[userId].credits !== 'number') {
+            db.users[userId].credits = 0;
+        }
+        return db.users[userId].credits;
+    } catch (error) {
+        return 0;
+    }
+}
+
+async function addCredits(userId, amount, orderId = null) {
+    try {
+        console.log(`addCredits: user=${userId}, amount=${amount}, orderId=${orderId}`);
+        
+        if (!db.users[userId]) {
+            db.users[userId] = { 
+                username: '', 
+                success: 0, 
+                credits: 0, 
+                topup_history: [] 
+            };
+        }
+        
+        if (typeof db.users[userId].credits !== 'number') {
+            db.users[userId].credits = 0;
+        }
+        
+        const sebelum = db.users[userId].credits;
+        db.users[userId].credits += amount;
+        const sesudah = db.users[userId].credits;
+        
+        console.log(`Saldo: ${sebelum} -> ${sesudah}`);
+        
+        if (!db.users[userId].topup_history) {
+            db.users[userId].topup_history = [];
+        }
+        
+        db.users[userId].topup_history.push({
+            amount: amount,
+            order_id: orderId,
+            date: new Date().toISOString(),
+            method: orderId ? 'qris' : 'admin'
+        });
+        
+        console.log('Menyimpan ke database...');
+        await saveDB();
+        console.log('Database tersimpan');
+        
+        const verifikasi = await getCreditsFromDB(userId);
+        console.log(`Verifikasi dari DB: ${verifikasi}`);
+        
+        return db.users[userId].credits;
+    } catch (error) {
+        console.log('Error addCredits:', error.message);
+        console.log(error.stack);
+        return getUserCredits(userId);
+    }
+}
+
+async function getCreditsFromDB(userId) {
+    try {
+        const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['database']);
+        if (res.rows.length > 0) {
+            const dbFromPostgres = res.rows[0].value;
+            return dbFromPostgres.users?.[userId]?.credits || 0;
+        }
+        return 0;
+    } catch (error) {
+        console.log('Error verifikasi DB:', error.message);
+        return 0;
+    }
+}
 
 // ================== DATABASE POSTGRES ==================
 let db = { 
@@ -42,8 +149,7 @@ let db = {
 };
 let spamData = {};
 let tempAnnouncement = null;
-let userProcessing = {}; // ANTI DOUBLE CHAT
-let failedTransactions = []; // QUEUE TRANSAKSI GAGAL
+let userProcessing = {}; // ANTI DOUBLE CHAT: untuk track user yang sedang diproses
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -90,21 +196,25 @@ async function loadDB() {
 async function saveDB() {
     try {
         console.log('Menyimpan database ke Postgres...');
-        await pool.query(
+        const result = await pool.query(
             `INSERT INTO bot_data (key, value, updated_at) 
              VALUES ($1, $2, NOW())
              ON CONFLICT (key) DO UPDATE 
-             SET value = $2, updated_at = NOW()`,
+             SET value = $2, updated_at = NOW()
+             RETURNING *`,
             ['database', db]
         );
         console.log('Database tersimpan di Postgres');
         return true;
     } catch (error) {
         console.log('Gagal save database:', error.message);
+        console.log(error.stack);
         try {
             fs.writeFileSync('database.json', JSON.stringify(db, null, 2));
             console.log('Database tersimpan di file (fallback)');
-        } catch (e) {}
+        } catch (e) {
+            console.log('Gagal save file:', e.message);
+        }
         return false;
     }
 }
@@ -190,10 +300,7 @@ async function addCredits(userId, amount, orderId = null) {
             };
         }
         
-        const saldoLama = db.users[userId].credits || 0;
-        db.users[userId].credits = saldoLama + amount;
-        
-        console.log(`💰 addCredits: user=${userId}, amount=${amount}, saldo=${saldoLama} -> ${db.users[userId].credits}`);
+        db.users[userId].credits += amount;
         
         if (!db.users[userId].topup_history) {
             db.users[userId].topup_history = [];
@@ -279,6 +386,7 @@ async function addBan(userId, reason = 'Ban manual oleh admin') {
 // ================== CEK JOIN CHANNEL/GROUP ==================
 async function checkJoin(bot, userId) {
     try {
+        // Jika channel/group tidak dikonfigurasi, anggap sudah join
         if (!CHANNEL || !GROUP) {
             console.log('Channel atau Group tidak dikonfigurasi, checkJoin dinonaktifkan');
             return { channel: true, group: true };
@@ -286,6 +394,7 @@ async function checkJoin(bot, userId) {
         
         let isChannelMember = false, isGroupMember = false;
         
+        // Cek Channel
         if (CHANNEL) {
             try {
                 const channelCheck = await bot.getChatMember(CHANNEL, userId);
@@ -298,6 +407,7 @@ async function checkJoin(bot, userId) {
             isChannelMember = true;
         }
         
+        // Cek Group
         if (GROUP) {
             try {
                 const groupCheck = await bot.getChatMember(GROUP, userId);
@@ -518,9 +628,6 @@ async function createPakasirTopup(amount, userId) {
 
 async function checkPakasirTransaction(orderId, amount) {
     try {
-        // JEDA 1 DETIK UNTUK HINDARI RATE LIMIT
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
         const response = await axios.get(
             `${process.env.PAKASIR_BASE_URL || 'https://app.pakasir.com/api'}/transactiondetail`,
             { 
@@ -535,11 +642,6 @@ async function checkPakasirTransaction(orderId, amount) {
         );
         return response.data?.transaction?.status || 'pending';
     } catch (error) {
-        if (error.response?.status === 429) {
-            console.log('⚠️ Rate limit, tunggu 5 detik...');
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            return 'pending';
-        }
         console.log('Error checkPakasirTransaction:', error.message);
         return 'pending';
     }
@@ -573,17 +675,6 @@ async function sendRequestToRelay(chatId, userId, serverId) {
     }
 }
 
-// ================== AUTO RELOAD FUNCTION ==================
-async function reloadDataBeforeCheck() {
-    try {
-        await loadDB();
-        await loadSpamData();
-        console.log('📊 Data reloaded for transaction check');
-    } catch (error) {
-        console.log('Error reload data:', error.message);
-    }
-}
-
 // ================== EXPRESS SERVER (WEB) ==================
 if (!IS_WORKER) {
     const app = express();
@@ -592,12 +683,12 @@ if (!IS_WORKER) {
 
     app.get('/', (req, res) => res.send('MLBB API Server is running'));
 
-    // ================== WEBHOOK PAKASIR (REALTIME) ==================
+    // ================== WEBHOOK PAKASIR ==================
     app.post('/webhook/pakasir', (req, res) => {
         // LANGSUNG RESPON 200 KE PAKASIR
         res.status(200).json({ status: 'ok' });
         
-        // PROSES DI BACKGROUND
+        // PROSES DI BACKGROUND AGAR TIDAK MEMBLOKIR RESPON
         setImmediate(async () => {
             try {
                 const body = req.body;
@@ -605,10 +696,7 @@ if (!IS_WORKER) {
                 
                 const { order_id, status, amount } = body;
                 
-                if (!order_id || !status) {
-                    console.log('❌ Data webhook tidak lengkap');
-                    return;
-                }
+                if (!order_id || !status) return;
                 
                 // Load database terbaru
                 await loadDB();
@@ -665,13 +753,10 @@ if (!IS_WORKER) {
                         } catch (e) {
                             console.log(`❌ Gagal kirim notif ke user ${userId}:`, e.message);
                         }
-                    } else {
-                        console.log(`⚠️ Bukan transaksi topup: ${order_id}`);
                     }
                 }
             } catch (error) {
                 console.log('❌ Error proses webhook:', error.message);
-                console.log(error.stack);
             }
         });
     });
@@ -682,19 +767,12 @@ if (!IS_WORKER) {
             if (!userId || !serverId || !role_id || !zone_id) {
                 return res.status(400).send('Parameter tidak lengkap');
             }
-            const data = await getMLBBData(userId, serverId, 'bind');
-            if (!data?.username) {
+            const data = await getMLBBData(userId, serverId, 'lookup');
+            if (!data) {
                 return res.status(500).send('Gagal mengambil data');
             }
             
-            let output = `[userId] => ${userId}\n[serverId] => ${serverId}\n[username] => ${data.username}\n[region] => ${data.region}\n\n`;
-            output += `Android: ${data.devices.android} | iOS: ${data.devices.ios}\n\n`;
-            if (data.ttl) output += `<table><tr><td>${data.ttl}</td></tr></table>\n\n`;
-            if (data.bindAccounts?.length > 0) {
-                output += `<ul>\n`;
-                data.bindAccounts.forEach(b => output += `<li>${b.platform} : ${b.details || 'empty.'}</li>\n`);
-                output += `</ul>\n`;
-            }
+            let output = `[userId] => ${userId}\n[serverId] => ${serverId}\n[username] => ${data.name}\n\n`;
             res.set('Content-Type', 'text/plain').send(output);
         } catch (error) {
             res.status(500).send('Internal Server Error');
@@ -738,99 +816,6 @@ else {
                 console.log('Error auto-reload:', error.message);
             }
         }, 5000);
-
-        // ================== AUTO CHECK PAYMENT (SETIAP 15 DETIK) ==================
-        setInterval(async () => {
-            try {
-                console.log('🔄 Auto-check transaksi...');
-                
-                await reloadDataBeforeCheck();
-                
-                // CEK PENDING TOPUPS (MAX 5 PER BATCH)
-                let checked = 0;
-                for (const [orderId, data] of Object.entries(db.pending_topups || {})) {
-                    if (checked >= 5) break;
-                    
-                    if (data.status === 'pending' && !data.processed) {
-                        console.log(`🔍 Cek transaksi: ${orderId}`);
-                        
-                        const status = await checkPakasirTransaction(orderId, data.amount);
-                        
-                        if (status === 'completed' || status === 'paid') {
-                            console.log(`✅ Transaksi ${orderId} SUDAH LUNAS!`);
-                            
-                            const userId = data.userId;
-                            const amount = data.amount;
-                            
-                            await addCredits(userId, amount, orderId);
-                            
-                            db.pending_topups[orderId].status = 'paid';
-                            db.pending_topups[orderId].processed = true;
-                            await saveDB();
-                            
-                            if (data.messageId && data.chatId) {
-                                try {
-                                    await bot.deleteMessage(data.chatId, data.messageId);
-                                } catch (e) {}
-                            }
-                            
-                            try {
-                                const saldoBaru = getUserCredits(userId);
-                                await bot.sendMessage(userId,
-                                    `✅ TOP UP BERHASIL\n\n` +
-                                    `Nominal: Rp ${amount.toLocaleString()}\n` +
-                                    `Saldo sekarang: Rp ${saldoBaru.toLocaleString()}`
-                                );
-                                console.log(`📨 Notifikasi terkirim ke user ${userId}`);
-                            } catch (e) {}
-                        }
-                        
-                        checked++;
-                        await new Promise(resolve => setTimeout(resolve, 2000)); // JEDA 2 DETIK
-                    }
-                }
-            } catch (error) {
-                console.log('Error auto-check:', error.message);
-            }
-        }, 15000);
-
-        // ================== QUEUE UNTUK TRANSAKSI GAGAL (SETIAP 30 DETIK) ==================
-        setInterval(async () => {
-            if (failedTransactions.length === 0) return;
-            
-            console.log(`🔄 Memproses ulang ${failedTransactions.length} transaksi gagal`);
-            
-            const toProcess = [...failedTransactions];
-            failedTransactions = [];
-            
-            for (const tx of toProcess) {
-                try {
-                    await reloadDataBeforeCheck();
-                    
-                    const status = await checkPakasirTransaction(tx.orderId, tx.amount);
-                    
-                    if (status === 'completed' || status === 'paid') {
-                        await addCredits(tx.userId, tx.amount, tx.orderId);
-                        
-                        console.log(`✅ Transaksi gagal ${tx.orderId} BERHASIL diproses ulang`);
-                        
-                        try {
-                            const saldoBaru = getUserCredits(tx.userId);
-                            await bot.sendMessage(tx.userId,
-                                `✅ TOP UP BERHASIL (PROSES ULANG)\n\n` +
-                                `Nominal: Rp ${tx.amount.toLocaleString()}\n` +
-                                `Saldo sekarang: Rp ${saldoBaru.toLocaleString()}`
-                            );
-                        } catch (e) {}
-                    } else {
-                        failedTransactions.push(tx);
-                    }
-                } catch (error) {
-                    console.log(`❌ Gagal proses ulang ${tx.orderId}:`, error.message);
-                    failedTransactions.push(tx);
-                }
-            }
-        }, 30000);
 
         // ================== MIDDLEWARE ==================
         bot.on('message', async (msg) => {
@@ -893,7 +878,7 @@ else {
                 message += `User ID: ${userId}\n`;
                 message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
                 message += `DAFTAR PERINTAH:\n`;
-                message += `/info ID SERVER - Info platform (GRATIS)\n`;
+                message += `/info ID SERVER - Info platform (GRATIS via relay)\n`;
                 message += `/cek ID SERVER - Full info (Rp 5.000)\n`;
                 message += `/find NICKNAME - Cari via nickname (Rp 5.000)\n`;
                 message += `/find ID - Cari via role ID (Rp 5.000)\n\n`;
@@ -926,7 +911,7 @@ else {
             }
         });
 
-        // ================== COMMAND /info (TOLAK KERAS + ANTI DOUBLE CHAT) ==================
+        // ================== COMMAND /info (via RELAY) ==================
         bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -934,7 +919,7 @@ else {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 
-                // ANTI DOUBLE CHAT - CEK APAKAH USER SEDANG DIPROSES
+                // ANTI DOUBLE CHAT
                 if (userProcessing[userId]) {
                     await bot.sendMessage(chatId, 'Permintaan Anda sedang diproses. Silakan tunggu.');
                     return;
@@ -1004,11 +989,11 @@ else {
                     return;
                 }
                 
-                // SET PROCESSING = TRUE (ANTI DOUBLE CHAT)
+                // SET PROCESSING
                 userProcessing[userId] = true;
                 
                 try {
-                    // KIRIM KE RELAY
+                    // KIRIM KE RELAY (TANPA LOADING MESSAGE)
                     const sent = await sendRequestToRelay(chatId, targetId, serverId);
                     
                     if (!sent) {
@@ -1026,15 +1011,15 @@ else {
                     await saveDB();
                     
                 } finally {
-                    // HAPUS PROCESSING (ANTI DOUBLE CHAT)
+                    // HAPUS PROCESSING
                     setTimeout(() => {
                         delete userProcessing[userId];
-                    }, 30000); // Reset setelah 30 detik
+                    }, 30000);
                 }
                 
             } catch (error) {
                 console.log('Error /info:', error.message);
-                delete userProcessing[userId]; // Reset jika error
+                delete userProcessing[userId];
                 try {
                     await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
                 } catch (e) {}
@@ -1906,7 +1891,7 @@ else {
                 message += `User ID: ${userId}\n`;
                 message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
                 message += `DAFTAR PERINTAH:\n`;
-                message += `/info ID SERVER - Info platform (GRATIS)\n`;
+                message += `/info ID SERVER - Info platform (GRATIS via relay)\n`;
                 message += `/cek ID SERVER - Full info (Rp 5.000)\n`;
                 message += `/find NICKNAME/ID - Cari akun (Rp 5.000)\n`;
                 
