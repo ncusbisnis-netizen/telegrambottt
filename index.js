@@ -550,27 +550,6 @@ async function createPakasirTopup(amount, userId) {
     }
 }
 
-async function checkPakasirTransaction(orderId, amount) {
-    try {
-        const response = await axios.get(
-            `${process.env.PAKASIR_BASE_URL || 'https://app.pakasir.com/api'}/transactiondetail`,
-            { 
-                params: { 
-                    project: process.env.PAKASIR_SLUG || 'ncusspayment', 
-                    order_id: orderId, 
-                    amount, 
-                    api_key: process.env.PAKASIR_API_KEY 
-                }, 
-                timeout: 10000 
-            }
-        );
-        return response.data?.transaction?.status || 'pending';
-    } catch (error) {
-        console.log('Error checkPakasirTransaction:', error.message);
-        return 'pending';
-    }
-}
-
 // ================== FUNGSI UNTUK RELAY (REDIS) ==================
 async function sendRequestToRelay(chatId, userId, serverId) {
     try {
@@ -599,7 +578,174 @@ async function sendRequestToRelay(chatId, userId, serverId) {
     }
 }
 
+// ================== SETUP EXPRESS UNTUK WEBHOOK ==================
+const app = express();
+app.use(express.json());
+
+// Health check endpoint
+app.get('/', (req, res) => {
+    res.send('Bot is running');
+});
+
+// Webhook endpoint untuk Pakasir
+app.post('/webhook/pakasir', async (req, res) => {
+    try {
+        console.log('Webhook received from Pakasir:', JSON.stringify(req.body, null, 2));
+        
+        const { 
+            order_id, 
+            status, 
+            amount,
+            payment_method,
+            transaction_id
+        } = req.body;
+        
+        if (!order_id) {
+            console.log('Webhook error: No order_id');
+            return res.status(400).json({ 
+                status: 'error', 
+                message: 'order_id required' 
+            });
+        }
+        
+        console.log(`Processing webhook for order: ${order_id}, status: ${status}`);
+        
+        // Cek apakah order_id ada di pending_topups
+        if (!db.pending_topups || !db.pending_topups[order_id]) {
+            console.log(`Order ${order_id} not found in pending_topups`);
+            
+            // Cek apakah ini order lama yang sudah diproses
+            try {
+                const checkRes = await pool.query(
+                    'SELECT value FROM bot_data WHERE key = $1',
+                    ['database']
+                );
+                if (checkRes.rows.length > 0) {
+                    const oldDb = checkRes.rows[0].value;
+                    if (oldDb.pending_topups?.[order_id]?.processed) {
+                        console.log(`Order ${order_id} already processed`);
+                        return res.status(200).json({ 
+                            status: 'ok', 
+                            message: 'already processed' 
+                        });
+                    }
+                }
+            } catch (dbError) {
+                console.log('Error checking old DB:', dbError.message);
+            }
+            
+            return res.status(200).json({ 
+                status: 'ok', 
+                message: 'order not found but accepted' 
+            });
+        }
+        
+        const pendingData = db.pending_topups[order_id];
+        
+        // Cek apakah sudah diproses sebelumnya
+        if (pendingData.processed) {
+            console.log(`Order ${order_id} already processed, skipping`);
+            return res.status(200).json({ 
+                status: 'ok', 
+                message: 'already processed' 
+            });
+        }
+        
+        // Jika status sukses
+        if (status === 'completed' || status === 'paid' || status === 'success' || status === 'settlement') {
+            console.log(`Payment SUCCESS for order ${order_id}`);
+            
+            const userId = pendingData.userId;
+            const amount = pendingData.amount;
+            
+            // Tambah saldo user
+            const newBalance = await addCredits(userId, amount, order_id);
+            
+            // Update status pending_topups
+            db.pending_topups[order_id].status = 'paid';
+            db.pending_topups[order_id].processed = true;
+            db.pending_topups[order_id].paid_at = Date.now();
+            db.pending_topups[order_id].transaction_id = transaction_id || null;
+            await saveDB();
+            
+            console.log(`Saldo added to user ${userId}: +${amount}, new balance: ${newBalance}`);
+            
+            // Hapus pesan QR jika ada (menggunakan bot)
+            if (pendingData.messageId && pendingData.chatId && bot) {
+                try {
+                    await bot.deleteMessage(pendingData.chatId, pendingData.messageId);
+                    console.log(`QR message deleted for order ${order_id}`);
+                } catch (deleteError) {
+                    console.log('Failed to delete message:', deleteError.message);
+                }
+            }
+            
+            // Kirim notifikasi ke user
+            if (bot) {
+                try {
+                    await bot.sendMessage(userId, 
+                        `PEMBAYARAN BERHASIL\n\n` +
+                        `Terima kasih! Pembayaran Anda telah kami terima.\n\n` +
+                        `Detail Transaksi:\n` +
+                        `Order ID: ${order_id}\n` +
+                        `Jumlah: Rp ${amount.toLocaleString()}\n` +
+                        `Status: BERHASIL\n\n` +
+                        `Saldo Anda sekarang: Rp ${newBalance.toLocaleString()}\n\n` +
+                        `Silakan gunakan bot untuk melakukan pengecekan.`
+                    );
+                    console.log(`Notification sent to user ${userId}`);
+                } catch (notifError) {
+                    console.log('Failed to send notification:', notifError.message);
+                }
+            }
+            
+        } else if (status === 'failed' || status === 'expired' || status === 'cancel') {
+            console.log(`Payment FAILED/EXPIRED for order ${order_id}`);
+            
+            // Update status
+            db.pending_topups[order_id].status = 'failed';
+            db.pending_topups[order_id].processed = true;
+            db.pending_topups[order_id].failed_at = Date.now();
+            await saveDB();
+            
+            // Kirim notifikasi gagal ke user
+            if (bot) {
+                try {
+                    await bot.sendMessage(pendingData.userId, 
+                        `PEMBAYARAN GAGAL\n\n` +
+                        `Maaf, pembayaran Anda gagal atau kadaluarsa.\n\n` +
+                        `Detail Transaksi:\n` +
+                        `Order ID: ${order_id}\n` +
+                        `Jumlah: Rp ${amount.toLocaleString()}\n` +
+                        `Status: ${status.toUpperCase()}\n\n` +
+                        `Silakan lakukan top up ulang jika masih membutuhkan.`
+                    );
+                } catch (notifError) {
+                    console.log('Failed to send failure notification:', notifError.message);
+                }
+            }
+        }
+        
+        // Selalu return 200 OK ke Pakasir
+        res.status(200).json({ 
+            status: 'ok', 
+            message: 'webhook processed' 
+        });
+        
+    } catch (error) {
+        console.log('Webhook error:', error.message);
+        console.log(error.stack);
+        // Tetap return 200 agar Pakasir tidak mengirim ulang terus
+        res.status(200).json({ 
+            status: 'ok', 
+            message: 'webhook received but error' 
+        });
+    }
+});
+
 // ================== BOT TELEGRAM ==================
+let bot = null;
+
 if (IS_WORKER) {
     console.log('Bot worker started');
     
@@ -608,7 +754,7 @@ if (IS_WORKER) {
             throw new Error('BOT_TOKEN tidak ditemukan!');
         }
 
-        const bot = new TelegramBot(BOT_TOKEN, { 
+        bot = new TelegramBot(BOT_TOKEN, { 
             polling: { 
                 interval: 300, 
                 autoStart: true,
@@ -1747,46 +1893,6 @@ if (IS_WORKER) {
             }
         }
 
-        // ================== AUTO CHECK PAYMENT (CRON JOB) ==================
-        cron.schedule('* * * * *', async () => {
-            try {
-                console.log('Cron job berjalan (backup mode)');
-                
-                for (const [orderId, data] of Object.entries(db.pending_topups || {})) {
-                    if (data.status === 'pending') {
-                        const status = await checkPakasirTransaction(orderId, data.amount);
-                        
-                        if (status === 'completed' || status === 'paid') {
-                            console.log(`Cron job: Topup sukses ${orderId}`);
-                            
-                            if (data.processed) {
-                                console.log(`Order ${orderId} sudah diproses, lewati`);
-                                continue;
-                            }
-                            
-                            const userId = data.userId;
-                            const amount = data.amount;
-                            
-                            await addCredits(userId, amount, orderId);
-                            
-                            db.pending_topups[orderId].status = 'paid';
-                            db.pending_topups[orderId].processed = true;
-                            db.pending_topups[orderId].notified = true;
-                            await saveDB();
-                            
-                            if (data.messageId && data.chatId) {
-                                try { await bot.deleteMessage(data.chatId, data.messageId); } catch {}
-                            }
-                            
-                            console.log(`Cron job: Topup sukses diproses untuk user ${userId}`);
-                        }
-                    }
-                }
-            } catch (error) {
-                console.log('Error cron:', error.message);
-            }
-        });
-
         // ================== RELOAD DATABASE PERIODIK (1 MENIT) ==================
         setInterval(async () => {
             try {
@@ -1805,3 +1911,9 @@ if (IS_WORKER) {
         console.log('Bot failed to start. Check your configuration.');
     }
 }
+
+// ================== JALANKAN SERVER ==================
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
