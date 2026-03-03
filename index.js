@@ -190,7 +190,10 @@ async function addCredits(userId, amount, orderId = null) {
             };
         }
         
-        db.users[userId].credits += amount;
+        const saldoLama = db.users[userId].credits || 0;
+        db.users[userId].credits = saldoLama + amount;
+        
+        console.log(`💰 addCredits: user=${userId}, amount=${amount}, saldo=${saldoLama} -> ${db.users[userId].credits}`);
         
         if (!db.users[userId].topup_history) {
             db.users[userId].topup_history = [];
@@ -515,6 +518,9 @@ async function createPakasirTopup(amount, userId) {
 
 async function checkPakasirTransaction(orderId, amount) {
     try {
+        // JEDA 1 DETIK UNTUK HINDARI RATE LIMIT
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         const response = await axios.get(
             `${process.env.PAKASIR_BASE_URL || 'https://app.pakasir.com/api'}/transactiondetail`,
             { 
@@ -529,6 +535,11 @@ async function checkPakasirTransaction(orderId, amount) {
         );
         return response.data?.transaction?.status || 'pending';
     } catch (error) {
+        if (error.response?.status === 429) {
+            console.log('⚠️ Rate limit, tunggu 5 detik...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            return 'pending';
+        }
         console.log('Error checkPakasirTransaction:', error.message);
         return 'pending';
     }
@@ -573,8 +584,127 @@ async function reloadDataBeforeCheck() {
     }
 }
 
-// ================== BOT TELEGRAM ==================
-if (IS_WORKER) {
+// ================== EXPRESS SERVER (WEB) ==================
+if (!IS_WORKER) {
+    const app = express();
+    const PORT = process.env.PORT || 3000;
+    app.use(express.json());
+
+    app.get('/', (req, res) => res.send('MLBB API Server is running'));
+
+    // ================== WEBHOOK PAKASIR (REALTIME) ==================
+    app.post('/webhook/pakasir', (req, res) => {
+        // LANGSUNG RESPON 200 KE PAKASIR
+        res.status(200).json({ status: 'ok' });
+        
+        // PROSES DI BACKGROUND
+        setImmediate(async () => {
+            try {
+                const body = req.body;
+                console.log('📩 WEBHOOK PAKASIR:', JSON.stringify(body));
+                
+                const { order_id, status, amount } = body;
+                
+                if (!order_id || !status) {
+                    console.log('❌ Data webhook tidak lengkap');
+                    return;
+                }
+                
+                // Load database terbaru
+                await loadDB();
+                
+                if (status === 'completed' || status === 'paid') {
+                    console.log(`✅ Pembayaran sukses: ${order_id}`);
+                    
+                    // CEK APAKAH TOPUP
+                    if (order_id.startsWith('TOPUP-')) {
+                        const topupData = db.pending_topups?.[order_id];
+                        
+                        if (!topupData) {
+                            console.log(`❌ Order ${order_id} tidak ditemukan di pending_topups`);
+                            return;
+                        }
+                        
+                        if (topupData.processed) {
+                            console.log(`⚠️ Order ${order_id} sudah diproses sebelumnya`);
+                            return;
+                        }
+                        
+                        const userId = topupData.userId;
+                        console.log(`👤 User ID: ${userId}, Amount: ${amount || topupData.amount}`);
+                        
+                        // TAMBAH SALDO LANGSUNG
+                        await addCredits(userId, amount || topupData.amount, order_id);
+                        
+                        // Update status
+                        db.pending_topups[order_id].status = 'paid';
+                        db.pending_topups[order_id].processed = true;
+                        await saveDB();
+                        
+                        // Hapus pesan QR jika ada
+                        if (topupData.messageId && topupData.chatId) {
+                            try {
+                                const bot = new TelegramBot(BOT_TOKEN);
+                                await bot.deleteMessage(topupData.chatId, topupData.messageId);
+                                console.log(`🗑️ Pesan QR dihapus untuk user ${userId}`);
+                            } catch (e) {
+                                console.log(`❌ Gagal hapus pesan QR:`, e.message);
+                            }
+                        }
+                        
+                        // KIRIM NOTIF KE USER
+                        try {
+                            const bot = new TelegramBot(BOT_TOKEN);
+                            const saldoBaru = getUserCredits(userId);
+                            await bot.sendMessage(userId,
+                                `✅ TOP UP BERHASIL\n\n` +
+                                `Nominal: Rp ${(amount || topupData.amount).toLocaleString()}\n` +
+                                `Saldo sekarang: Rp ${saldoBaru.toLocaleString()}`
+                            );
+                            console.log(`📨 Notifikasi terkirim ke user ${userId}`);
+                        } catch (e) {
+                            console.log(`❌ Gagal kirim notif ke user ${userId}:`, e.message);
+                        }
+                    } else {
+                        console.log(`⚠️ Bukan transaksi topup: ${order_id}`);
+                    }
+                }
+            } catch (error) {
+                console.log('❌ Error proses webhook:', error.message);
+                console.log(error.stack);
+            }
+        });
+    });
+
+    app.get('/tes.php', async (req, res) => {
+        try {
+            const { userId, serverId, role_id, zone_id } = req.query;
+            if (!userId || !serverId || !role_id || !zone_id) {
+                return res.status(400).send('Parameter tidak lengkap');
+            }
+            const data = await getMLBBData(userId, serverId, 'bind');
+            if (!data?.username) {
+                return res.status(500).send('Gagal mengambil data');
+            }
+            
+            let output = `[userId] => ${userId}\n[serverId] => ${serverId}\n[username] => ${data.username}\n[region] => ${data.region}\n\n`;
+            output += `Android: ${data.devices.android} | iOS: ${data.devices.ios}\n\n`;
+            if (data.ttl) output += `<table><tr><td>${data.ttl}</td></tr></table>\n\n`;
+            if (data.bindAccounts?.length > 0) {
+                output += `<ul>\n`;
+                data.bindAccounts.forEach(b => output += `<li>${b.platform} : ${b.details || 'empty.'}</li>\n`);
+                output += `</ul>\n`;
+            }
+            res.set('Content-Type', 'text/plain').send(output);
+        } catch (error) {
+            res.status(500).send('Internal Server Error');
+        }
+    });
+
+    app.listen(PORT, () => console.log(`🌐 Web server running on port ${PORT}`));
+} 
+// ================== BOT TELEGRAM (WORKER) ==================
+else {
     console.log('🤖 Bot worker started');
     
     try {
@@ -609,15 +739,18 @@ if (IS_WORKER) {
             }
         }, 5000);
 
-        // ================== AUTO CHECK PAYMENT (SETIAP 10 DETIK) ==================
-        cron.schedule('*/10 * * * * *', async () => {
+        // ================== AUTO CHECK PAYMENT (SETIAP 15 DETIK) ==================
+        setInterval(async () => {
             try {
                 console.log('🔄 Auto-check transaksi...');
                 
                 await reloadDataBeforeCheck();
                 
-                // CEK PENDING TOPUPS
+                // CEK PENDING TOPUPS (MAX 5 PER BATCH)
+                let checked = 0;
                 for (const [orderId, data] of Object.entries(db.pending_topups || {})) {
+                    if (checked >= 5) break;
+                    
                     if (data.status === 'pending' && !data.processed) {
                         console.log(`🔍 Cek transaksi: ${orderId}`);
                         
@@ -629,11 +762,7 @@ if (IS_WORKER) {
                             const userId = data.userId;
                             const amount = data.amount;
                             
-                            const saldoLama = getUserCredits(userId);
                             await addCredits(userId, amount, orderId);
-                            const saldoBaru = getUserCredits(userId);
-                            
-                            console.log(`💰 Saldo user ${userId}: ${saldoLama} -> ${saldoBaru}`);
                             
                             db.pending_topups[orderId].status = 'paid';
                             db.pending_topups[orderId].processed = true;
@@ -646,6 +775,7 @@ if (IS_WORKER) {
                             }
                             
                             try {
+                                const saldoBaru = getUserCredits(userId);
                                 await bot.sendMessage(userId,
                                     `✅ TOP UP BERHASIL\n\n` +
                                     `Nominal: Rp ${amount.toLocaleString()}\n` +
@@ -654,12 +784,15 @@ if (IS_WORKER) {
                                 console.log(`📨 Notifikasi terkirim ke user ${userId}`);
                             } catch (e) {}
                         }
+                        
+                        checked++;
+                        await new Promise(resolve => setTimeout(resolve, 2000)); // JEDA 2 DETIK
                     }
                 }
             } catch (error) {
                 console.log('Error auto-check:', error.message);
             }
-        });
+        }, 15000);
 
         // ================== QUEUE UNTUK TRANSAKSI GAGAL (SETIAP 30 DETIK) ==================
         setInterval(async () => {
@@ -677,14 +810,12 @@ if (IS_WORKER) {
                     const status = await checkPakasirTransaction(tx.orderId, tx.amount);
                     
                     if (status === 'completed' || status === 'paid') {
-                        const saldoLama = getUserCredits(tx.userId);
                         await addCredits(tx.userId, tx.amount, tx.orderId);
-                        const saldoBaru = getUserCredits(tx.userId);
                         
                         console.log(`✅ Transaksi gagal ${tx.orderId} BERHASIL diproses ulang`);
-                        console.log(`💰 Saldo: ${saldoLama} -> ${saldoBaru}`);
                         
                         try {
+                            const saldoBaru = getUserCredits(tx.userId);
                             await bot.sendMessage(tx.userId,
                                 `✅ TOP UP BERHASIL (PROSES ULANG)\n\n` +
                                 `Nominal: Rp ${tx.amount.toLocaleString()}\n` +
@@ -710,6 +841,7 @@ if (IS_WORKER) {
                 if (chatType !== 'private') return;
                 if (isAdmin(userId)) return;
                 
+                // CEK USERNAME - WAJIB!
                 if (!msg.from.username) {
                     await bot.sendMessage(chatId, 
                         `USERNAME DIPERLUKAN\n\n` +
@@ -741,6 +873,7 @@ if (IS_WORKER) {
                 const userId = msg.from.id;
                 const username = msg.from.username;
                 
+                // CEK USERNAME - WAJIB!
                 if (!username && !isAdmin(userId)) {
                     await bot.sendMessage(chatId, 
                         `USERNAME DIPERLUKAN\n\n` +
@@ -793,7 +926,7 @@ if (IS_WORKER) {
             }
         });
 
-        // ================== COMMAND /info ==================
+        // ================== COMMAND /info (TOLAK KERAS + ANTI DOUBLE CHAT) ==================
         bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -801,6 +934,7 @@ if (IS_WORKER) {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 
+                // ANTI DOUBLE CHAT - CEK APAKAH USER SEDANG DIPROSES
                 if (userProcessing[userId]) {
                     await bot.sendMessage(chatId, 'Permintaan Anda sedang diproses. Silakan tunggu.');
                     return;
@@ -815,16 +949,19 @@ if (IS_WORKER) {
                     return;
                 }
                 
+                // CEK BANNED
                 if (isBanned(userId) && !isAdmin(userId)) {
                     await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
                     return;
                 }
                 
+                // CEK FITUR INFO
                 if (!db.feature?.info && !isAdmin(userId)) {
                     await bot.sendMessage(chatId, 'Fitur info sedang dinonaktifkan oleh admin.');
                     return;
                 }
                 
+                // CEK JOIN
                 const joined = await checkJoin(bot, userId);
                 
                 if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
@@ -846,6 +983,7 @@ if (IS_WORKER) {
                     return;
                 }
                 
+                // CEK SPAM
                 const banned = await recordInfoActivity(userId);
                 if (banned) {
                     await bot.sendMessage(chatId, 'Anda telah dibanned karena spam.');
@@ -866,9 +1004,11 @@ if (IS_WORKER) {
                     return;
                 }
                 
+                // SET PROCESSING = TRUE (ANTI DOUBLE CHAT)
                 userProcessing[userId] = true;
                 
                 try {
+                    // KIRIM KE RELAY
                     const sent = await sendRequestToRelay(chatId, targetId, serverId);
                     
                     if (!sent) {
@@ -876,6 +1016,7 @@ if (IS_WORKER) {
                         return;
                     }
                     
+                    // Update statistik
                     if (!db.users[userId]) {
                         db.users[userId] = { username: msg.from.username || '', success: 0, credits: 0, topup_history: [] };
                     }
@@ -885,14 +1026,15 @@ if (IS_WORKER) {
                     await saveDB();
                     
                 } finally {
+                    // HAPUS PROCESSING (ANTI DOUBLE CHAT)
                     setTimeout(() => {
                         delete userProcessing[userId];
-                    }, 30000);
+                    }, 30000); // Reset setelah 30 detik
                 }
                 
             } catch (error) {
                 console.log('Error /info:', error.message);
-                delete userProcessing[userId];
+                delete userProcessing[userId]; // Reset jika error
                 try {
                     await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
                 } catch (e) {}
@@ -907,6 +1049,7 @@ if (IS_WORKER) {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 
+                // ANTI DOUBLE CHAT
                 if (userProcessing[userId]) {
                     await bot.sendMessage(chatId, 'Permintaan Anda sedang diproses. Silakan tunggu.');
                     return;
@@ -985,6 +1128,7 @@ if (IS_WORKER) {
                     return;
                 }
                 
+                // SET PROCESSING
                 userProcessing[userId] = true;
                 
                 const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data detail... (45 detik)');
@@ -1070,6 +1214,7 @@ if (IS_WORKER) {
                     });
                     
                 } finally {
+                    // HAPUS PROCESSING
                     setTimeout(() => {
                         delete userProcessing[userId];
                     }, 30000);
@@ -1092,6 +1237,7 @@ if (IS_WORKER) {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 
+                // ANTI DOUBLE CHAT
                 if (userProcessing[userId]) {
                     await bot.sendMessage(chatId, 'Permintaan Anda sedang diproses. Silakan tunggu.');
                     return;
@@ -1165,6 +1311,7 @@ if (IS_WORKER) {
                     return;
                 }
                 
+                // SET PROCESSING
                 userProcessing[userId] = true;
                 
                 const loadingMsg = await bot.sendMessage(chatId, 'Mencari data... (maksimal 45 detik)');
@@ -1231,6 +1378,7 @@ if (IS_WORKER) {
                     });
                     
                 } finally {
+                    // HAPUS PROCESSING
                     setTimeout(() => {
                         delete userProcessing[userId];
                     }, 30000);
