@@ -27,7 +27,7 @@ const CHANNEL = process.env.CHANNEL;
 const GROUP = process.env.GROUP;
 const STOK_ADMIN = process.env.STOK_ADMIN;
 const REDIS_URL = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
-const CHECKTON_API_KEY = process.env.API_KEY_CHECKTOKEN || process.env.CHECKTON_API_KEY;
+const API_KEY_CHECKTON = process.env.API_KEY_CHECKTON || process.env.API_KEY_CHECKTON;
 
 const ADMIN_IDS = process.env.ADMIN_IDS 
     ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim())) 
@@ -330,7 +330,7 @@ async function getMLBBData(userId, serverId, type = 'lookup') {
         const response = await axios.post("https://checkton.online/backend/info", payload, {
             headers: { 
                 "Content-Type": "application/json",
-                "x-api-key": CHECKTON_API_KEY
+                "x-api-key": API_KEY_CHECKTON
             },
             timeout: 45000
         });
@@ -369,7 +369,7 @@ async function findPlayerByName(name) {
         const response = await axios.post("https://checkton.online/backend/info", payload, {
             headers: { 
                 "Content-Type": "application/json",
-                "x-api-key": CHECKTON_API_KEY
+                "x-api-key": API_KEY_CHECKTON
             },
             timeout: 45000
         });
@@ -413,7 +413,7 @@ async function getPlayerByRoleId(roleId) {
         const response = await axios.post("https://checkton.online/backend/info", payload, {
             headers: { 
                 "Content-Type": "application/json",
-                "x-api-key": CHECKTON_API_KEY
+                "x-api-key": API_KEY_CHECKTON
             },
             timeout: 45000
         });
