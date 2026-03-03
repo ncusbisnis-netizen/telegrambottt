@@ -155,15 +155,6 @@ initDB().then(async () => {
     await loadSpamData();
 });
 
-setInterval(async () => {
-    try {
-        await loadDB();
-        await loadSpamData();
-    } catch (error) {
-        console.log('Error auto reload:', error.message);
-    }
-}, 3000);
-
 let redisClient = null;
 if (REDIS_URL) {
     try {
@@ -832,13 +823,15 @@ if (IS_WORKER) {
                     return;
                 }
                 
+                await loadDB();
+                
                 const credits = getUserCredits(userId, username || '');
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `User ID: ${userId}\n`;
                 message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
                 message += `DAFTAR PERINTAH:\n`;
-                message += `/info ID SERVER - Info akun\n`;
+                message += `/info ID SERVER - Info akun ( GRATIS )\n`;
                 message += `/cek ID SERVER - Detail akun (Rp 5.000)\n`;
                 message += `/find NICKNAME/ID - Cari akun (Rp 5.000)\n\n`;
                 
@@ -1672,6 +1665,8 @@ if (IS_WORKER) {
 
         async function editToMainMenu(bot, chatId, messageId, userId) {
             try {
+                await loadDB();
+                
                 const credits = getUserCredits(userId);
                 
                 let message = `MENU UTAMA\n\n`;
