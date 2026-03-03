@@ -564,9 +564,114 @@ async function sendRequestToRelay(chatId, userId, serverId) {
     }
 }
 
-// ================== BOT TELEGRAM ==================
-if (IS_WORKER) {
-    console.log('Bot worker started');
+// ================== EXPRESS SERVER (WEB) ==================
+if (!IS_WORKER) {
+    const app = express();
+    const PORT = process.env.PORT || 3000;
+    app.use(express.json());
+
+    app.get('/', (req, res) => res.send('MLBB API Server is running'));
+
+    // ================== WEBHOOK PAKASIR (REALTIME) ==================
+    app.post('/webhook/pakasir', (req, res) => {
+        // LANGSUNG RESPON 200 KE PAKASIR
+        res.status(200).json({ status: 'ok' });
+        
+        // PROSES DI BACKGROUND AGAR TIDAK MEMBLOKIR RESPON
+        setImmediate(async () => {
+            try {
+                const body = req.body;
+                console.log('📩 WEBHOOK PAKASIR:', JSON.stringify(body));
+                
+                const { order_id, status, amount } = body;
+                
+                if (!order_id || !status) {
+                    console.log('❌ Data webhook tidak lengkap');
+                    return;
+                }
+                
+                // Load database terbaru
+                await loadDB();
+                
+                if (status === 'completed' || status === 'paid') {
+                    console.log(`✅ Pembayaran sukses: ${order_id}`);
+                    
+                    // CEK APAKAH TOPUP
+                    if (order_id.startsWith('TOPUP-')) {
+                        const topupData = db.pending_topups?.[order_id];
+                        if (topupData && !topupData.processed) {
+                            const userId = topupData.userId;
+                            
+                            // TAMBAH SALDO LANGSUNG
+                            await addCredits(userId, amount, order_id);
+                            
+                            // Update status
+                            db.pending_topups[order_id].status = 'paid';
+                            db.pending_topups[order_id].processed = true;
+                            db.pending_topups[order_id].notified = true;
+                            await saveDB();
+                            
+                            // Hapus pesan QR jika ada
+                            if (topupData.messageId && topupData.chatId) {
+                                try {
+                                    const bot = new TelegramBot(BOT_TOKEN);
+                                    await bot.deleteMessage(topupData.chatId, topupData.messageId);
+                                } catch (e) {}
+                            }
+                            
+                            // KIRIM NOTIF LANGSUNG KE USER
+                            try {
+                                const bot = new TelegramBot(BOT_TOKEN);
+                                await bot.sendMessage(userId,
+                                    `✅ TOP UP BERHASIL\n\n` +
+                                    `Nominal: Rp ${amount.toLocaleString()}\n` +
+                                    `Saldo bertambah: Rp ${amount.toLocaleString()}\n` +
+                                    `Saldo sekarang: Rp ${getUserCredits(userId).toLocaleString()}`
+                                );
+                                console.log(`📨 Notifikasi terkirim ke user ${userId}`);
+                            } catch (e) {
+                                console.log(`❌ Gagal kirim notif ke user ${userId}:`, e.message);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log('❌ Error proses webhook:', error.message);
+            }
+        });
+    });
+
+    // Endpoint untuk tes
+    app.get('/tes.php', async (req, res) => {
+        try {
+            const { userId, serverId, role_id, zone_id } = req.query;
+            if (!userId || !serverId || !role_id || !zone_id) {
+                return res.status(400).send('Parameter tidak lengkap');
+            }
+            const data = await getMLBBData(userId, serverId, 'bind');
+            if (!data?.username) {
+                return res.status(500).send('Gagal mengambil data');
+            }
+            
+            let output = `[userId] => ${userId}\n[serverId] => ${serverId}\n[username] => ${data.username}\n[region] => ${data.region}\n\n`;
+            output += `Android: ${data.devices.android} | iOS: ${data.devices.ios}\n\n`;
+            if (data.ttl) output += `<table><tr><td>${data.ttl}</td></tr></table>\n\n`;
+            if (data.bindAccounts?.length > 0) {
+                output += `<ul>\n`;
+                data.bindAccounts.forEach(b => output += `<li>${b.platform} : ${b.details || 'empty.'}</li>\n`);
+                output += `</ul>\n`;
+            }
+            res.set('Content-Type', 'text/plain').send(output);
+        } catch (error) {
+            res.status(500).send('Internal Server Error');
+        }
+    });
+
+    app.listen(PORT, () => console.log(`🌐 Web server running on port ${PORT}`));
+} 
+// ================== BOT TELEGRAM (WORKER) ==================
+else {
+    console.log('🤖 Bot worker started');
     
     try {
         if (!BOT_TOKEN) {
@@ -582,7 +687,7 @@ if (IS_WORKER) {
         });
 
         bot.on('polling_error', (error) => {
-            console.log('Polling error:', error.message);
+            console.log('⚠️ Polling error:', error.message);
         });
 
         // ================== MIDDLEWARE ==================
