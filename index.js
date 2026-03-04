@@ -998,7 +998,7 @@ if (IS_WORKER) {
                 message += `DAFTAR PERINTAH:\n`;
                 message += `/info ID SERVER - Info akun ( GRATIS )\n`;
                 message += `/cek ID SERVER - Detail akun (Rp 5.000)\n`;
-                message += `/find NICKNAME SERVER (Rp 5.000)
+                message += `/find NICKNAME SERVER (Rp 5.000)\n`;
                 
                 if (isAdmin(userId)) {
                     message += `ADMIN:\n`;
@@ -1898,7 +1898,7 @@ if (IS_WORKER) {
                 message += `DAFTAR PERINTAH:\n`;
                 message += `/info ID SERVER - Info akun\n`;
                 message += `/cek ID SERVER - Detail akun (Rp 5.000)\n`;
-                message += `/find NICKNAME SERVER (Rp 5.000) 
+                message += `/find NICKNAME SERVER (Rp 5.000) \n`;
                 
                 if (isAdmin(userId)) {
                     message += `\nADMIN MENU\n`;
