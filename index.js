@@ -754,9 +754,6 @@ app.post('/webhook/pakasir', async (req, res) => {
     try {
         console.log('WEBHOOK PAKASIR DITERIMA:', JSON.stringify(req.body));
         
-        // 🔥 PASTIKAN DATABASE TERBARU (LOAD DULU)
-        await loadDB();
-        
         const { order_id, status, amount, transaction_id } = req.body;
         
         // CEK STATUS BAYAR BERHASIL
@@ -771,13 +768,9 @@ app.post('/webhook/pakasir', async (req, res) => {
                     console.log(`DETEKSI PEMBAYARAN: User ${userId}, Amount ${amount}`);
                     
                     // ========== AUTO DELETE QRIS PAKAI AXIOS ==========
-                    console.log('📦 SEMUA PENDING TOPUPS:', Object.keys(db.pending_topups || {}));
-                    
                     if (db.pending_topups && db.pending_topups[order_id]) {
                         const chatId = db.pending_topups[order_id].chatId;
                         const messageId = db.pending_topups[order_id].messageId;
-                        
-                        console.log(`🔍 DATA DITEMUKAN - Chat: ${chatId}, Message: ${messageId}`);
                         
                         if (chatId && messageId) {
                             try {
@@ -785,12 +778,10 @@ app.post('/webhook/pakasir', async (req, res) => {
                                     chat_id: chatId,
                                     message_id: messageId
                                 });
-                                console.log(`✅ QRIS BERHASIL DIHAPUS untuk chat ${chatId} (Order: ${order_id})`);
+                                console.log(`QRIS BERHASIL DIHAPUS untuk chat ${chatId} (Order: ${order_id})`);
                             } catch (deleteError) {
-                                console.log('❌ GAGAL HAPUS QRIS:', deleteError.message);
+                                console.log('GAGAL HAPUS QRIS:', deleteError.message);
                             }
-                        } else {
-                            console.log('⚠️ Chat ID atau Message ID tidak lengkap');
                         }
                         
                         // Update status pending
@@ -799,8 +790,6 @@ app.post('/webhook/pakasir', async (req, res) => {
                         db.pending_topups[order_id].paid_at = Date.now();
                         
                         await saveDB();
-                    } else {
-                        console.log(`❌ Order ${order_id} TIDAK DITEMUKAN di pending_topups`);
                     }
                     // ========== SELESAI AUTO DELETE ==========
                     
@@ -834,7 +823,7 @@ app.post('/webhook/pakasir', async (req, res) => {
                     // SIMPAN KE DATABASE
                     await saveDB();
                     
-                    console.log(`💰 SALDO USER ${userId}: ${oldBalance} -> ${db.users[userId].credits}`);
+                    console.log(`SALDO USER ${userId}: ${oldBalance} -> ${db.users[userId].credits}`);
                     
                     // ========== KIRIM NOTIFIKASI KE USER ==========
                     try {
@@ -849,9 +838,9 @@ app.post('/webhook/pakasir', async (req, res) => {
                                   `Saldo Anda sekarang: Rp ${db.users[userId].credits.toLocaleString()}`,
                             parse_mode: 'HTML'
                         });
-                        console.log(`📨 NOTIFIKASI TERKIRIM KE USER ${userId}`);
+                        console.log(`NOTIFIKASI TERKIRIM KE USER ${userId}`);
                     } catch (notifError) {
-                        console.log('❌ GAGAL KIRIM NOTIFIKASI:', notifError.message);
+                        console.log('GAGAL KIRIM NOTIFIKASI:', notifError.message);
                     }
                     // ========== SELESAI NOTIFIKASI ==========
                 }
@@ -865,7 +854,7 @@ app.post('/webhook/pakasir', async (req, res) => {
         });
         
     } catch (error) {
-        console.log('💥 WEBHOOK PAKASIR ERROR:', error.message);
+        console.log('WEBHOOK PAKASIR ERROR:', error.message);
         res.status(200).json({ 
             status: 'ok', 
             message: 'error but accepted' 
