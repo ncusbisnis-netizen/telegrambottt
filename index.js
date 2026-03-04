@@ -1037,148 +1037,109 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== /INFO - KIRIM "Proses request..." LALU DIEDIT ==========
-        bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                
-                if (!match || !match[1]) {
-                    await bot.sendMessage(chatId,
-                        `INFORMASI AKUN\n\n` +
-                        `Format: /info ID_USER ID_SERVER\n` +
-                        `Contoh: /info 643461181 8554`
-                    );
-                    return;
-                }
-                
-                if (isBanned(userId) && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
-                    return;
-                }
-                
-                if (!db.feature?.info && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 'Fitur info sedang dinonaktifkan oleh admin.');
-                    return;
-                }
-                
-                const joined = await checkJoin(bot, userId);
-                
-                if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-                    let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
-                    if (!joined.channel) message += `• ${CHANNEL}\n`;
-                    if (!joined.group) message += `• ${GROUP}\n\n`;
-                    
-                    const buttons = [];
-                    if (!joined.channel) {
-                        buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
-                    }
-                    if (!joined.group) {
-                        buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
-                    }
-                    
-                    await bot.sendMessage(chatId, message, { 
-                        reply_markup: { inline_keyboard: buttons } 
-                    });
-                    return;
-                }
-                
-                const banned = await recordInfoActivity(userId);
-                if (banned) {
-                    await bot.sendMessage(chatId, 'Anda telah dibanned karena spam.');
-                    return;
-                }
-                
-                const args = match[1].trim().split(/\s+/);
-                if (args.length < 2) {
-                    await bot.sendMessage(chatId, `Format: /info ID_USER ID_SERVER`);
-                    return;
-                }
-                
-                const targetId = args[0];
-                const serverId = args[1];
-                
-                if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-                    await bot.sendMessage(chatId, 'ID dan Server harus angka.');
-                    return;
-                }
-                
-                userProcessing[userId] = true;
-                
-                try {
-                    // KIRIM PESAN "Proses request..." - INI AKAN DIEDIT NANTI
-                    const loadingMsg = await bot.sendMessage(chatId, `Proses request...`);
-                    
-                    // SIMPAN DATA PENDING REQUEST
-                    if (!db.pending_requests) db.pending_requests = {};
-                    
-                    const requestKey = `${chatId}_${targetId}_${serverId}`;
-                    db.pending_requests[requestKey] = {
-                        messageId: loadingMsg.message_id,
-                        chatId: chatId,
-                        targetId: targetId,
-                        serverId: serverId,
-                        timestamp: Date.now()
-                    };
-                    await saveDB();
-                    
-                    console.log(`Pending request tersimpan: ${requestKey} dengan messageId ${loadingMsg.message_id}`);
-                    
-                    // KIRIM KE RELAY
-                    const sent = await sendRequestToRelay(chatId, targetId, serverId);
-                    
-                    if (!sent) {
-                        // GAGAL KIRIM KE RELAY
-                        await bot.editMessageText('Gagal terhubung ke relay. Coba lagi nanti.', {
-                            chat_id: chatId,
-                            message_id: loadingMsg.message_id
-                        });
-                        
-                        // HAPUS DARI PENDING
-                        delete db.pending_requests[requestKey];
-                        await saveDB();
-                        return;
-                    }
-                    
-                    // SET TIMEOUT 30 DETIK (kalau relay lama)
-                    setTimeout(async () => {
-                        try {
-                            if (db.pending_requests && db.pending_requests[requestKey]) {
-                                await bot.editMessageText('Request timeout. Silakan coba lagi.', {
-                                    chat_id: chatId,
-                                    message_id: loadingMsg.message_id
-                                });
-                                delete db.pending_requests[requestKey];
-                                await saveDB();
-                            }
-                        } catch (e) {
-                            console.log('Error timeout:', e.message);
-                        }
-                    }, 30000);
-                    
-                    // UPDATE STATISTIK USER
-                    getUserCredits(userId, msg.from.username || '');
-                    db.users[userId].success += 1;
-                    db.total_success += 1;
-                    await saveDB();
-                    
-                } finally {
-                    setTimeout(() => {
-                        delete userProcessing[userId];
-                    }, 30000);
-                }
-                
-            } catch (error) {
-                console.log('Error /info:', error.message);
-                delete userProcessing[userId];
-                try {
-                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
-                } catch (e) {}
+// ========== /INFO - KIRIM "Proses request..." SAJA ==========
+bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
+    try {
+        if (msg.chat.type !== 'private') return;
+        
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        
+        if (!match || !match[1]) {
+            await bot.sendMessage(chatId,
+                `INFORMASI AKUN\n\n` +
+                `Format: /info ID_USER ID_SERVER\n` +
+                `Contoh: /info 643461181 8554`
+            );
+            return;
+        }
+        
+        if (isBanned(userId) && !isAdmin(userId)) {
+            await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
+            return;
+        }
+        
+        if (!db.feature?.info && !isAdmin(userId)) {
+            await bot.sendMessage(chatId, 'Fitur info sedang dinonaktifkan oleh admin.');
+            return;
+        }
+        
+        const joined = await checkJoin(bot, userId);
+        
+        if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
+            let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
+            if (!joined.channel) message += `• ${CHANNEL}\n`;
+            if (!joined.group) message += `• ${GROUP}\n\n`;
+            
+            const buttons = [];
+            if (!joined.channel) {
+                buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
             }
-        });
-        // ========== END /INFO ==========
+            if (!joined.group) {
+                buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
+            }
+            
+            await bot.sendMessage(chatId, message, { 
+                reply_markup: { inline_keyboard: buttons } 
+            });
+            return;
+        }
+        
+        const banned = await recordInfoActivity(userId);
+        if (banned) {
+            await bot.sendMessage(chatId, 'Anda telah dibanned karena spam.');
+            return;
+        }
+        
+        const args = match[1].trim().split(/\s+/);
+        if (args.length < 2) {
+            await bot.sendMessage(chatId, `Format: /info ID_USER ID_SERVER`);
+            return;
+        }
+        
+        const targetId = args[0];
+        const serverId = args[1];
+        
+        if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
+            await bot.sendMessage(chatId, 'ID dan Server harus angka.');
+            return;
+        }
+        
+        userProcessing[userId] = true;
+        
+        try {
+            // KIRIM PESAN "Proses request..." SAJA
+            await bot.sendMessage(chatId, `Proses request...`);
+            
+            // KIRIM KE RELAY
+            const sent = await sendRequestToRelay(chatId, targetId, serverId);
+            
+            if (!sent) {
+                await bot.sendMessage(chatId, 'Gagal terhubung ke relay. Coba lagi nanti.');
+                return;
+            }
+            
+            // UPDATE STATISTIK USER
+            getUserCredits(userId, msg.from.username || '');
+            db.users[userId].success += 1;
+            db.total_success += 1;
+            await saveDB();
+            
+        } finally {
+            setTimeout(() => {
+                delete userProcessing[userId];
+            }, 30000);
+        }
+        
+    } catch (error) {
+        console.log('Error /info:', error.message);
+        delete userProcessing[userId];
+        try {
+            await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
+        } catch (e) {}
+    }
+});
+// ========== END /INFO ==========
 
         bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             try {
