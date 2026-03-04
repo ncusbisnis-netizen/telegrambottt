@@ -744,7 +744,7 @@ app.post('/webhook/relay', async (req, res) => {
     }
 });
 
-// ==================== WEBHOOK PAKASIR - REALTIME SALDO & AUTO DELETE QRIS ====================
+// ==================== WEBHOOK PAKASIR - REALTIME SALDO & EDIT QRIS ====================
 app.post('/webhook/pakasir', async (req, res) => {
     try {
         console.log('WEBHOOK PAKASIR DITERIMA:', JSON.stringify(req.body));
@@ -760,7 +760,7 @@ app.post('/webhook/pakasir', async (req, res) => {
                 const userId = parseInt(parts[1]);
                 
                 if (userId) {
-                    // Konversi amount ke integer (perbaikan utama)
+                    // 1. KONVERSI amount KE INTEGER (WAJIB)
                     const amountNum = parseInt(amount);
                     if (isNaN(amountNum)) {
                         console.log('Invalid amount from Pakasir:', amount);
@@ -769,33 +769,7 @@ app.post('/webhook/pakasir', async (req, res) => {
                     
                     console.log(`DETEKSI PEMBAYARAN: User ${userId}, Amount ${amountNum}`);
                     
-                    // ========== AUTO DELETE QRIS PAKAI AXIOS ==========
-                    if (db.pending_topups && db.pending_topups[order_id]) {
-                        const chatId = db.pending_topups[order_id].chatId;
-                        const messageId = db.pending_topups[order_id].messageId;
-                        
-                        if (chatId && messageId) {
-                            try {
-                                await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
-                                    chat_id: chatId,
-                                    message_id: messageId
-                                });
-                                console.log(`QRIS BERHASIL DIHAPUS untuk chat ${chatId} (Order: ${order_id})`);
-                            } catch (deleteError) {
-                                console.log('GAGAL HAPUS QRIS:', deleteError.message);
-                            }
-                        }
-                        
-                        // Update status pending
-                        db.pending_topups[order_id].status = 'paid';
-                        db.pending_topups[order_id].processed = true;
-                        db.pending_topups[order_id].paid_at = Date.now();
-                        
-                        await saveDB();
-                    }
-                    // ========== SELESAI AUTO DELETE ==========
-                    
-                    // PASTIKAN USER ADA
+                    // 2. PASTIKAN USER ADA (BUAT JIKA BELUM)
                     if (!db.users[userId]) {
                         db.users[userId] = { 
                             username: '', 
@@ -805,15 +779,14 @@ app.post('/webhook/pakasir', async (req, res) => {
                         };
                     }
                     
-                    // TAMBAH SALDO
+                    // 3. UPDATE SALDO (PRIORITAS UTAMA)
                     const oldBalance = db.users[userId].credits || 0;
                     db.users[userId].credits = oldBalance + amountNum;
                     
-                    // CATAT HISTORY
+                    // 4. CATAT HISTORY
                     if (!db.users[userId].topup_history) {
                         db.users[userId].topup_history = [];
                     }
-                    
                     db.users[userId].topup_history.push({
                         amount: amountNum,
                         order_id: order_id,
@@ -822,27 +795,76 @@ app.post('/webhook/pakasir', async (req, res) => {
                         transaction_id: transaction_id || null
                     });
                     
-                    // SIMPAN KE DATABASE
+                    // 5. SIMPAN DATABASE (PASTIKAN SALDO TERSIMPAN)
                     await saveDB();
-                    
                     console.log(`SALDO USER ${userId}: ${oldBalance} -> ${db.users[userId].credits}`);
                     
-                    // ========== KIRIM NOTIFIKASI KE USER ==========
-                    try {
-                        await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-                            chat_id: userId,
-                            text: `PEMBAYARAN BERHASIL\n\n` +
-                                  `Terima kasih! Pembayaran Anda telah kami terima.\n\n` +
-                                  `Detail Transaksi:\n` +
-                                  `Order ID: ${order_id}\n` +
-                                  `Jumlah: Rp ${amountNum.toLocaleString()}\n` +
-                                  `Status: BERHASIL\n\n` +
-                                  `Saldo Anda sekarang: Rp ${db.users[userId].credits.toLocaleString()}`,
-                            parse_mode: 'HTML'
-                        });
-                        console.log(`NOTIFIKASI TERKIRIM KE USER ${userId}`);
-                    } catch (notifError) {
-                        console.log('GAGAL KIRIM NOTIFIKASI:', notifError.message);
+                    // ========== EDIT QRIS MENJADI NOTIFIKASI (SETELAH SALDO AMAN) ==========
+                    if (db.pending_topups && db.pending_topups[order_id]) {
+                        const chatId = db.pending_topups[order_id].chatId;
+                        const messageId = db.pending_topups[order_id].messageId;
+                        
+                        if (chatId && messageId) {
+                            try {
+                                // Edit pesan QRIS menjadi notifikasi sukses (tanpa emoji)
+                                await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
+                                    chat_id: chatId,
+                                    message_id: messageId,
+                                    text: `PEMBAYARAN BERHASIL\n\n` +
+                                          `Terima kasih! Pembayaran Anda telah kami terima.\n\n` +
+                                          `Detail Transaksi:\n` +
+                                          `Order ID: ${order_id}\n` +
+                                          `Jumlah: Rp ${amountNum.toLocaleString()}\n` +
+                                          `Status: BERHASIL\n\n` +
+                                          `Saldo Anda sekarang: Rp ${db.users[userId].credits.toLocaleString()}`,
+                                    parse_mode: 'HTML'
+                                });
+                                console.log(`QRIS BERHASIL DIEDIT untuk chat ${chatId} (Order: ${order_id})`);
+                            } catch (editError) {
+                                console.log('GAGAL EDIT QRIS, kirim pesan baru:', editError.message);
+                                // Fallback: kirim pesan baru (tidak mengganggu saldo)
+                                try {
+                                    await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                                        chat_id: userId,
+                                        text: `PEMBAYARAN BERHASIL\n\n` +
+                                              `Terima kasih! Pembayaran Anda telah kami terima.\n\n` +
+                                              `Detail Transaksi:\n` +
+                                              `Order ID: ${order_id}\n` +
+                                              `Jumlah: Rp ${amountNum.toLocaleString()}\n` +
+                                              `Status: BERHASIL\n\n` +
+                                              `Saldo Anda sekarang: Rp ${db.users[userId].credits.toLocaleString()}`,
+                                        parse_mode: 'HTML'
+                                    });
+                                    console.log(`PESAN BARU TERKIRIM KE USER ${userId}`);
+                                } catch (notifError) {
+                                    console.log('GAGAL KIRIM PESAN BARU:', notifError.message);
+                                }
+                            }
+                        }
+                        
+                        // Update status pending
+                        db.pending_topups[order_id].status = 'paid';
+                        db.pending_topups[order_id].processed = true;
+                        db.pending_topups[order_id].paid_at = Date.now();
+                        await saveDB(); // simpan perubahan status pending
+                    } else {
+                        // Jika tidak ada pending_topups, tetap kirim notifikasi via pesan baru
+                        try {
+                            await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                                chat_id: userId,
+                                text: `PEMBAYARAN BERHASIL\n\n` +
+                                      `Terima kasih! Pembayaran Anda telah kami terima.\n\n` +
+                                      `Detail Transaksi:\n` +
+                                      `Order ID: ${order_id}\n` +
+                                      `Jumlah: Rp ${amountNum.toLocaleString()}\n` +
+                                      `Status: BERHASIL\n\n` +
+                                      `Saldo Anda sekarang: Rp ${db.users[userId].credits.toLocaleString()}`,
+                                parse_mode: 'HTML'
+                            });
+                            console.log(`NOTIFIKASI TERKIRIM KE USER ${userId}`);
+                        } catch (notifError) {
+                            console.log('GAGAL KIRIM NOTIFIKASI:', notifError.message);
+                        }
                     }
                     // ========== SELESAI NOTIFIKASI ==========
                 }
@@ -857,6 +879,7 @@ app.post('/webhook/pakasir', async (req, res) => {
         
     } catch (error) {
         console.log('WEBHOOK PAKASIR ERROR:', error.message);
+        // Tetap return 200 agar Pakasir tidak mengirim ulang
         res.status(200).json({ 
             status: 'ok', 
             message: 'error but accepted' 
