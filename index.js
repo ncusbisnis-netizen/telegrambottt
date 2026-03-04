@@ -47,7 +47,8 @@ let db = {
     users: {}, 
     total_success: 0, 
     feature: { info: true },
-    pending_topups: {} 
+    pending_topups: {},
+    pending_requests: {} 
 };
 let spamData = {};
 let userProcessing = {};
@@ -637,10 +638,121 @@ app.get('/', (req, res) => {
     res.send('Bot is running');
 });
 
+// ==================== WEBHOOK RELAY - MENERIMA HASIL DARI RELAY ====================
+app.post('/webhook/relay', async (req, res) => {
+    try {
+        console.log('WEBHOOK RELAY DITERIMA:', JSON.stringify(req.body));
+        
+        const { 
+            chat_id, 
+            target_id, 
+            server_id, 
+            data, 
+            status,
+            message 
+        } = req.body;
+        
+        if (!chat_id) {
+            return res.status(200).json({ status: 'ok', message: 'no chat_id' });
+        }
+        
+        // CEK PENDING REQUESTS
+        if (!db.pending_requests || Object.keys(db.pending_requests).length === 0) {
+            console.log('Tidak ada pending requests');
+            return res.status(200).json({ status: 'ok', message: 'no pending requests' });
+        }
+        
+        // CARI REQUEST YANG COCOK
+        let foundKey = null;
+        let foundRequest = null;
+        
+        // COCOKKAN BERDASARKAN CHAT_ID, TARGET_ID, SERVER_ID
+        if (target_id && server_id) {
+            const exactKey = `${chat_id}_${target_id}_${server_id}`;
+            if (db.pending_requests[exactKey]) {
+                foundKey = exactKey;
+                foundRequest = db.pending_requests[exactKey];
+                console.log(`Ditemukan exact match: ${exactKey}`);
+            }
+        }
+        
+        // KALAU TIDAK DITEMUKAN, CARI BERDASARKAN CHAT_ID SAJA
+        if (!foundRequest) {
+            for (const [key, req] of Object.entries(db.pending_requests)) {
+                if (req.chatId == chat_id) {
+                    foundKey = key;
+                    foundRequest = req;
+                    console.log(`Ditemukan berdasarkan chat_id: ${key}`);
+                    break;
+                }
+            }
+        }
+        
+        if (!foundRequest) {
+            console.log(`Tidak ada pending request untuk chat ${chat_id}`);
+            return res.status(200).json({ status: 'ok', message: 'no matching request' });
+        }
+        
+        const messageId = foundRequest.messageId;
+        
+        // EDIT PESAN "Proses request..." DENGAN HASIL DARI RELAY
+        try {
+            if (status === 'success' && data) {
+                // FORMAT OUTPUT INFO
+                let output = `INFORMASI AKUN\n\n`;
+                output += `ID: ${data.role_id || target_id || '-'}\n`;
+                output += `Server: ${data.zone_id || server_id || '-'}\n`;
+                output += `Nickname: ${data.name || '-'}\n`;
+                output += `Level: ${data.level || '-'}\n`;
+                
+                if (data.current_tier) {
+                    output += `Tier: ${data.current_tier}\n`;
+                }
+                if (data.skin_count) {
+                    output += `Total Skin: ${data.skin_count}\n`;
+                }
+                if (data.overall_win_rate) {
+                    output += `Win Rate: ${data.overall_win_rate}\n`;
+                }
+                if (data.achievement_points) {
+                    output += `Achievement Points: ${data.achievement_points.toLocaleString()}\n`;
+                }
+                
+                // EDIT PESAN LOADING MENJADI HASIL INFO
+                await bot.editMessageText(output, {
+                    chat_id: chat_id,
+                    message_id: messageId
+                });
+                
+                console.log(`✅ Pesan berhasil diedit untuk chat ${chat_id}`);
+            } else {
+                // KALAU GAGAL
+                await bot.editMessageText(`Gagal mengambil data: ${message || 'Unknown error'}`, {
+                    chat_id: chat_id,
+                    message_id: messageId
+                });
+            }
+            
+            // HAPUS DARI PENDING REQUESTS
+            delete db.pending_requests[foundKey];
+            await saveDB();
+            
+        } catch (editError) {
+            console.log('❌ Gagal edit pesan:', editError.message);
+        }
+        
+        res.status(200).json({ status: 'ok', message: 'processed' });
+        
+    } catch (error) {
+        console.log('❌ WEBHOOK RELAY ERROR:', error.message);
+        res.status(200).json({ status: 'ok', message: 'error but accepted' });
+    }
+});
+
 // ==================== WEBHOOK PAKASIR - REALTIME SALDO & AUTO DELETE QRIS ====================
 app.post('/webhook/pakasir', async (req, res) => {
     try {
-        console.log('WEBHOOK PAKASIR:', JSON.stringify(req.body));
+        console.log('WEBHOOK PAKASIR DITERIMA:', JSON.stringify(req.body));
         
         const { order_id, status, amount, transaction_id } = req.body;
         
@@ -664,10 +776,22 @@ app.post('/webhook/pakasir', async (req, res) => {
                         // LANGSUNG HAPUS QRIS!
                         if (chatId && messageId) {
                             try {
-                                await deleteMessage(chatId, messageId);
-                                console.log(`QRIS OTOMATIS DIHAPUS untuk chat ${chatId} (Order: ${order_id})`);
+                                // PAKAI BOT.DELETEMESSAGE LANGSUNG
+                                await bot.deleteMessage(chatId, messageId);
+                                console.log(`QRIS BERHASIL DIHAPUS untuk chat ${chatId} (Order: ${order_id})`);
                             } catch (deleteError) {
                                 console.log('GAGAL HAPUS QRIS:', deleteError.message);
+                                
+                                // COBA LAGI PAKAI AXIOS LANGSUNG
+                                try {
+                                    await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
+                                        chat_id: chatId,
+                                        message_id: messageId
+                                    });
+                                    console.log(`QRIS BERHASIL DIHAPUS (coba ke-2) untuk chat ${chatId}`);
+                                } catch (retryError) {
+                                    console.log('GAGAL JUGA:', retryError.message);
+                                }
                             }
                         }
                         
@@ -675,6 +799,8 @@ app.post('/webhook/pakasir', async (req, res) => {
                         db.pending_topups[order_id].status = 'paid';
                         db.pending_topups[order_id].processed = true;
                         db.pending_topups[order_id].paid_at = Date.now();
+                        
+                        await saveDB();
                     }
                     // ========== SELESAI AUTO DELETE ==========
                     
@@ -708,12 +834,11 @@ app.post('/webhook/pakasir', async (req, res) => {
                     // SIMPAN KE DATABASE
                     await saveDB();
                     
-                    console.log(`SALDO USER ${userId} LANGSUNG KEISI: ${oldBalance} -> ${db.users[userId].credits}`);
+                    console.log(`SALDO USER ${userId}: ${oldBalance} -> ${db.users[userId].credits}`);
                     
                     // ========== KIRIM NOTIFIKASI KE USER ==========
                     try {
-                        // Kirim pesan via API Telegram langsung
-                        const notifResponse = await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                        await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                             chat_id: userId,
                             text: `PEMBAYARAN BERHASIL\n\n` +
                                   `Terima kasih! Pembayaran Anda telah kami terima.\n\n` +
@@ -724,10 +849,7 @@ app.post('/webhook/pakasir', async (req, res) => {
                                   `Saldo Anda sekarang: Rp ${db.users[userId].credits.toLocaleString()}`,
                             parse_mode: 'HTML'
                         });
-                        
-                        if (notifResponse.data && notifResponse.data.ok) {
-                            console.log(`NOTIFIKASI TERKIRIM KE USER ${userId}`);
-                        }
+                        console.log(`NOTIFIKASI TERKIRIM KE USER ${userId}`);
                     } catch (notifError) {
                         console.log('GAGAL KIRIM NOTIFIKASI:', notifError.message);
                     }
@@ -743,14 +865,56 @@ app.post('/webhook/pakasir', async (req, res) => {
         });
         
     } catch (error) {
-        console.log('WEBHOOK ERROR:', error.message);
+        console.log('WEBHOOK PAKASIR ERROR:', error.message);
         res.status(200).json({ 
             status: 'ok', 
             message: 'error but accepted' 
         });
     }
 });
-// ==================== END WEBHOOK PAKASIR ====================
+
+// Endpoint untuk test relay (debug)
+app.post('/test-relay', async (req, res) => {
+    const { chat_id, target_id, server_id } = req.body;
+    
+    if (!chat_id) {
+        return res.status(400).json({ error: 'chat_id required' });
+    }
+    
+    // DATA DUMMY UNTUK TEST
+    const dummyData = {
+        role_id: target_id || '123456',
+        zone_id: server_id || '1234',
+        name: 'TEST USER',
+        level: '120',
+        current_tier: 'Mythical Glory',
+        skin_count: 350,
+        overall_win_rate: '58.5%',
+        achievement_points: 25000
+    };
+    
+    // KIRIM KE WEBHOOK RELAY
+    try {
+        const response = await axios.post(`http://localhost:${PORT}/webhook/relay`, {
+            chat_id: parseInt(chat_id),
+            target_id: target_id || '123456',
+            server_id: server_id || '1234',
+            data: dummyData,
+            status: 'success'
+        });
+        
+        res.json({ 
+            status: 'ok', 
+            message: 'test relay sent',
+            relay_response: response.data 
+        });
+    } catch (error) {
+        res.status(500).json({ 
+            status: 'error', 
+            message: error.message 
+        });
+    }
+});
 
 // Endpoint untuk cek saldo user (debug)
 app.get('/cek-saldo/:user_id', async (req, res) => {
@@ -873,7 +1037,7 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== /INFO - HANYA KIRIM "Proses request..." ==========
+        // ========== /INFO - KIRIM "Proses request..." LALU DIEDIT ==========
         bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -944,27 +1108,57 @@ if (IS_WORKER) {
                 userProcessing[userId] = true;
                 
                 try {
-                    // KIRIM PESAN "Proses request..." SAJA
-                    const requestMsg = await bot.sendMessage(chatId, `Proses request...`);
+                    // KIRIM PESAN "Proses request..." - INI AKAN DIEDIT NANTI
+                    const loadingMsg = await bot.sendMessage(chatId, `Proses request...`);
                     
-                    const sent = await sendRequestToRelay(chatId, targetId, serverId);
-                    
-                    if (!sent) {
-                        await bot.editMessageText('Gagal terhubung Coba lagi nanti.', {
-                            chat_id: chatId,
-                            message_id: requestMsg.message_id
-                        });
-                        return;
-                    }
-                    
-                    // Simpan untuk referensi (opsional)
+                    // SIMPAN DATA PENDING REQUEST
                     if (!db.pending_requests) db.pending_requests = {};
-                    db.pending_requests[`${chatId}_${targetId}_${serverId}`] = {
-                        messageId: requestMsg.message_id,
+                    
+                    const requestKey = `${chatId}_${targetId}_${serverId}`;
+                    db.pending_requests[requestKey] = {
+                        messageId: loadingMsg.message_id,
+                        chatId: chatId,
+                        targetId: targetId,
+                        serverId: serverId,
                         timestamp: Date.now()
                     };
                     await saveDB();
                     
+                    console.log(`Pending request tersimpan: ${requestKey} dengan messageId ${loadingMsg.message_id}`);
+                    
+                    // KIRIM KE RELAY
+                    const sent = await sendRequestToRelay(chatId, targetId, serverId);
+                    
+                    if (!sent) {
+                        // GAGAL KIRIM KE RELAY
+                        await bot.editMessageText('Gagal terhubung ke relay. Coba lagi nanti.', {
+                            chat_id: chatId,
+                            message_id: loadingMsg.message_id
+                        });
+                        
+                        // HAPUS DARI PENDING
+                        delete db.pending_requests[requestKey];
+                        await saveDB();
+                        return;
+                    }
+                    
+                    // SET TIMEOUT 30 DETIK (kalau relay lama)
+                    setTimeout(async () => {
+                        try {
+                            if (db.pending_requests && db.pending_requests[requestKey]) {
+                                await bot.editMessageText('Request timeout. Silakan coba lagi.', {
+                                    chat_id: chatId,
+                                    message_id: loadingMsg.message_id
+                                });
+                                delete db.pending_requests[requestKey];
+                                await saveDB();
+                            }
+                        } catch (e) {
+                            console.log('Error timeout:', e.message);
+                        }
+                    }, 30000);
+                    
+                    // UPDATE STATISTIK USER
                     getUserCredits(userId, msg.from.username || '');
                     db.users[userId].success += 1;
                     db.total_success += 1;
