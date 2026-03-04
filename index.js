@@ -376,10 +376,19 @@ async function getMLBBData(userId, serverId, type = 'lookup') {
         
         console.log(`Checkton response status: ${response.status}`);
         
-        if (response.data?.data) {
-            return response.data.data;
+        // Validasi response lebih ketat
+        if (response.data) {
+            // Cek struktur response yang valid
+            if (response.data.data && response.data.data.role_id) {
+                return response.data.data;
+            }
+            // Kalau response langsung data
+            if (response.data.role_id) {
+                return response.data;
+            }
         }
         
+        console.log('Response tidak valid:', JSON.stringify(response.data));
         return null;
         
     } catch (error) {
@@ -868,10 +877,11 @@ if (IS_WORKER) {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 
-                if (userProcessing[userId]) {
-                    await bot.sendMessage(chatId, 'Permintaan Anda sedang diproses. Silakan tunggu.');
-                    return;
-                }
+                // HAPUS CEK userProcessing - biarkan user bisa spam /info
+                // if (userProcessing[userId]) {
+                //     await bot.sendMessage(chatId, 'Permintaan Anda sedang diproses. Silakan tunggu.');
+                //     return;
+                // }
                 
                 if (!match || !match[1]) {
                     await bot.sendMessage(chatId,
@@ -933,20 +943,53 @@ if (IS_WORKER) {
                     return;
                 }
                 
+                // Set userProcessing untuk mencegah double process, tapi tanpa notifikasi ke user
                 userProcessing[userId] = true;
                 
                 try {
+                    // Kirim notifikasi REQUEST DATE
+                    const requestMsg = await bot.sendMessage(chatId, 
+                        `📡 REQUEST DATE: ${moment().tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB\n\n` +
+                        `ID: ${targetId}\n` +
+                        `Server: ${serverId}\n\n` +
+                        `Menunggu response dari relay...`
+                    );
+                    
                     const sent = await sendRequestToRelay(chatId, targetId, serverId);
                     
                     if (!sent) {
-                        await bot.sendMessage(chatId, 'Gagal terhubung ke relay. Coba lagi nanti.');
+                        await bot.editMessageText('❌ Gagal terhubung ke relay. Coba lagi nanti.', {
+                            chat_id: chatId,
+                            message_id: requestMsg.message_id
+                        });
                         return;
                     }
+                    
+                    // Simpan messageId request untuk dihapus nanti
+                    if (!db.pending_requests) db.pending_requests = {};
+                    db.pending_requests[`${chatId}_${targetId}_${serverId}`] = {
+                        messageId: requestMsg.message_id,
+                        timestamp: Date.now()
+                    };
+                    await saveDB();
                     
                     getUserCredits(userId, msg.from.username || '');
                     db.users[userId].success += 1;
                     db.total_success += 1;
                     await saveDB();
+                    
+                    // Set timeout untuk hapus request message jika relay terlalu lama
+                    setTimeout(async () => {
+                        try {
+                            if (db.pending_requests && db.pending_requests[`${chatId}_${targetId}_${serverId}`]) {
+                                await deleteMessage(chatId, requestMsg.message_id);
+                                delete db.pending_requests[`${chatId}_${targetId}_${serverId}`];
+                                await saveDB();
+                            }
+                        } catch (e) {
+                            console.log('Gagal hapus timeout request:', e.message);
+                        }
+                    }, 30000); // Hapus setelah 30 detik
                     
                 } finally {
                     setTimeout(() => {
@@ -963,6 +1006,39 @@ if (IS_WORKER) {
             }
         });
 
+        // Handler untuk relay response (asumsi ada webhook atau listener lain yang memanggil ini)
+        // Fungsi ini harus dipanggil ketika relay mengirim balik data
+        async function handleRelayResponse(chatId, targetId, serverId, data) {
+            try {
+                const key = `${chatId}_${targetId}_${serverId}`;
+                if (db.pending_requests && db.pending_requests[key]) {
+                    const { messageId } = db.pending_requests[key];
+                    
+                    // Hapus pesan REQUEST DATE
+                    await deleteMessage(chatId, messageId);
+                    
+                    // Hapus dari pending
+                    delete db.pending_requests[key];
+                    await saveDB();
+                }
+                
+                // Kirim hasil info
+                if (data && data.role_id) {
+                    let output = `INFORMASI AKUN\n\n`;
+                    output += `ID: ${data.role_id || targetId}\n`;
+                    output += `Server: ${data.zone_id || serverId}\n`;
+                    output += `Nickname: ${data.name || '-'}\n`;
+                    output += `Level: ${data.level || '-'}\n`;
+                    
+                    await bot.sendMessage(chatId, output);
+                } else {
+                    await bot.sendMessage(chatId, '❌ Gagal mengambil data dari relay.');
+                }
+            } catch (error) {
+                console.log('Error handleRelayResponse:', error.message);
+            }
+        }
+
         bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -970,10 +1046,11 @@ if (IS_WORKER) {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 
-                if (userProcessing[userId]) {
-                    await bot.sendMessage(chatId, 'Permintaan Anda sedang diproses. Silakan tunggu.');
-                    return;
-                }
+                // HAPUS CEK userProcessing
+                // if (userProcessing[userId]) {
+                //     await bot.sendMessage(chatId, 'Permintaan Anda sedang diproses. Silakan tunggu.');
+                //     return;
+                // }
                 
                 if (!match || !match[1]) {
                     await bot.sendMessage(chatId, 
@@ -1050,22 +1127,29 @@ if (IS_WORKER) {
                 
                 userProcessing[userId] = true;
                 
-                const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data detail...');
+                const loadingMsg = await bot.sendMessage(chatId, '📡 Mengambil data detail...');
                 
                 try {
                     const data = await getMLBBData(targetId, serverId, 'lookup');
                     
+                    // CEK DATA DULU sebelum potong saldo
                     if (!data) {
-                        await bot.editMessageText('Gagal mengambil data.', {
+                        await bot.editMessageText(
+                            '❌ Gagal mengambil data. Saldo Anda tidak terpotong.\n\n' +
+                            'Silakan coba lagi nanti.', {
                             chat_id: chatId,
                             message_id: loadingMsg.message_id
                         });
+                        console.log(`SALDO TIDAK DIPOTONG: User ${userId} | Command: cek | Alasan: Data null`);
                         return;
                     }
-
+                    
+                    // ✅ Potong saldo HANYA jika data berhasil
                     if (!isAdmin(userId)) {
+                        const sebelum = db.users[userId].credits;
                         db.users[userId].credits -= 5000;
                         await saveDB();
+                        console.log(`SALDO DIPOTONG: User ${userId} | Sebelum: ${sebelum} | Sesudah: ${db.users[userId].credits} | Command: cek | Status: SUKSES`);
                     }
 
                     const d = data;
@@ -1154,10 +1238,11 @@ if (IS_WORKER) {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 
-                if (userProcessing[userId]) {
-                    await bot.sendMessage(chatId, 'Permintaan Anda sedang diproses. Silakan tunggu.');
-                    return;
-                }
+                // HAPUS CEK userProcessing
+                // if (userProcessing[userId]) {
+                //     await bot.sendMessage(chatId, 'Permintaan Anda sedang diproses. Silakan tunggu.');
+                //     return;
+                // }
                 
                 if (!match || !match[1]) {
                     await bot.sendMessage(msg.chat.id,
@@ -1225,12 +1310,11 @@ if (IS_WORKER) {
                 
                 userProcessing[userId] = true;
                 
-                const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
+                const loadingMsg = await bot.sendMessage(chatId, '📡 Mencari data...');
                 
                 try {
                     let results = null;
                     let isRoleIdSearch = false;
-                    let searchSuccess = false;
                     
                     if (/^\d+$/.test(input)) {
                         isRoleIdSearch = true;
@@ -1239,21 +1323,26 @@ if (IS_WORKER) {
                         results = await findPlayerByName(input);
                     }
                     
-                    if (results && results.length > 0) {
-                        searchSuccess = true;
-                    }
+                    // CEK DATA DULU sebelum potong saldo
+                    const searchSuccess = results && results.length > 0;
                     
-                    if (!searchSuccess || !results) {
-                        await bot.editMessageText('Gagal mengambil data. Saldo Anda tidak terpotong.', {
+                    if (!searchSuccess) {
+                        await bot.editMessageText(
+                            '❌ Gagal mengambil data. Saldo Anda tidak terpotong.\n\n' +
+                            'Silakan coba lagi nanti.', {
                             chat_id: chatId,
                             message_id: loadingMsg.message_id
                         });
+                        console.log(`SALDO TIDAK DIPOTONG: User ${userId} | Command: find | Alasan: Data null`);
                         return;
                     }
                     
+                    // ✅ Potong saldo HANYA jika data berhasil
                     if (!isAdmin(userId)) {
+                        const sebelum = db.users[userId].credits;
                         db.users[userId].credits -= 5000;
                         await saveDB();
+                        console.log(`SALDO DIPOTONG: User ${userId} | Sebelum: ${sebelum} | Sesudah: ${db.users[userId].credits} | Command: find | Status: SUKSES`);
                     }
                     
                     let output = isRoleIdSearch 
