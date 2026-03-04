@@ -767,42 +767,31 @@ app.post('/webhook/pakasir', async (req, res) => {
                 if (userId && amount) {
                     console.log(`DETEKSI PEMBAYARAN: User ${userId}, Amount ${amount}`);
                     
-                    // ========== AUTO DELETE QRIS ==========
-                    // Cek apakah order ada di pending_topups
-                    if (db.pending_topups && db.pending_topups[order_id]) {
-                        const chatId = db.pending_topups[order_id].chatId;
-                        const messageId = db.pending_topups[order_id].messageId;
-                        
-                        // LANGSUNG HAPUS QRIS!
-                        if (chatId && messageId) {
-                            try {
-                                // PAKAI BOT.DELETEMESSAGE LANGSUNG
-                                await bot.deleteMessage(chatId, messageId);
-                                console.log(`QRIS BERHASIL DIHAPUS untuk chat ${chatId} (Order: ${order_id})`);
-                            } catch (deleteError) {
-                                console.log('GAGAL HAPUS QRIS:', deleteError.message);
-                                
-                                // COBA LAGI PAKAI AXIOS LANGSUNG
-                                try {
-                                    await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
-                                        chat_id: chatId,
-                                        message_id: messageId
-                                    });
-                                    console.log(`QRIS BERHASIL DIHAPUS (coba ke-2) untuk chat ${chatId}`);
-                                } catch (retryError) {
-                                    console.log('GAGAL JUGA:', retryError.message);
-                                }
-                            }
-                        }
-                        
-                        // Update status pending
-                        db.pending_topups[order_id].status = 'paid';
-                        db.pending_topups[order_id].processed = true;
-                        db.pending_topups[order_id].paid_at = Date.now();
-                        
-                        await saveDB();
-                    }
-                    // ========== SELESAI AUTO DELETE ==========
+                    // ========== AUTO DELETE QRIS PAKAI AXIOS ==========
+if (db.pending_topups && db.pending_topups[order_id]) {
+    const chatId = db.pending_topups[order_id].chatId;
+    const messageId = db.pending_topups[order_id].messageId;
+    
+    if (chatId && messageId) {
+        try {
+            await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
+                chat_id: chatId,
+                message_id: messageId
+            });
+            console.log(`QRIS BERHASIL DIHAPUS untuk chat ${chatId} (Order: ${order_id})`);
+        } catch (deleteError) {
+            console.log('GAGAL HAPUS QRIS:', deleteError.message);
+        }
+    }
+    
+    // Update status pending
+    db.pending_topups[order_id].status = 'paid';
+    db.pending_topups[order_id].processed = true;
+    db.pending_topups[order_id].paid_at = Date.now();
+    
+    await saveDB();
+}
+// ========== SELESAI AUTO DELETE ==========
                     
                     // PASTIKAN USER ADA
                     if (!db.users[userId]) {
