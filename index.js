@@ -637,25 +637,48 @@ app.get('/', (req, res) => {
     res.send('Bot is running');
 });
 
-// ==================== WEBHOOK PAKASIR - REALTIME SALDO ====================
+// ==================== WEBHOOK PAKASIR - REALTIME SALDO & AUTO DELETE QRIS ====================
 app.post('/webhook/pakasir', async (req, res) => {
     try {
-        console.log('🔔 WEBHOOK PAKASIR:', JSON.stringify(req.body));
+        console.log('WEBHOOK PAKASIR:', JSON.stringify(req.body));
         
         const { order_id, status, amount, transaction_id } = req.body;
         
-        // 1. CEK KALAU STATUSNYA PAID/SUCCESS (BAYAR BERHASIL)
+        // CEK STATUS BAYAR BERHASIL
         if (status === 'paid' || status === 'success' || status === 'completed' || status === 'settlement') {
             
-            // 2. AMBIL USER ID DARI ORDER ID (format: TOPUP-USERID-TIMESTAMP)
+            // AMBIL USER ID DARI ORDER ID (format: TOPUP-USERID-TIMESTAMP)
             const parts = order_id.split('-');
             if (parts.length >= 2) {
-                const userId = parseInt(parts[1]); // Ambil bagian kedua = USER ID
+                const userId = parseInt(parts[1]);
                 
                 if (userId && amount) {
-                    console.log(`💰 DETEKSI PEMBAYARAN: User ${userId}, Amount ${amount}`);
+                    console.log(`DETEKSI PEMBAYARAN: User ${userId}, Amount ${amount}`);
                     
-                    // 3. PASTIKAN USER ADA DI DATABASE
+                    // ========== AUTO DELETE QRIS ==========
+                    // Cek apakah order ada di pending_topups
+                    if (db.pending_topups && db.pending_topups[order_id]) {
+                        const chatId = db.pending_topups[order_id].chatId;
+                        const messageId = db.pending_topups[order_id].messageId;
+                        
+                        // LANGSUNG HAPUS QRIS!
+                        if (chatId && messageId) {
+                            try {
+                                await deleteMessage(chatId, messageId);
+                                console.log(`QRIS OTOMATIS DIHAPUS untuk chat ${chatId} (Order: ${order_id})`);
+                            } catch (deleteError) {
+                                console.log('GAGAL HAPUS QRIS:', deleteError.message);
+                            }
+                        }
+                        
+                        // Update status pending
+                        db.pending_topups[order_id].status = 'paid';
+                        db.pending_topups[order_id].processed = true;
+                        db.pending_topups[order_id].paid_at = Date.now();
+                    }
+                    // ========== SELESAI AUTO DELETE ==========
+                    
+                    // PASTIKAN USER ADA
                     if (!db.users[userId]) {
                         db.users[userId] = { 
                             username: '', 
@@ -665,11 +688,11 @@ app.post('/webhook/pakasir', async (req, res) => {
                         };
                     }
                     
-                    // 4. TAMBAH SALDO LANGSUNG (REALTIME)
+                    // TAMBAH SALDO
                     const oldBalance = db.users[userId].credits || 0;
                     db.users[userId].credits = oldBalance + amount;
                     
-                    // 5. CATAT HISTORY TRANSAKSI
+                    // CATAT HISTORY
                     if (!db.users[userId].topup_history) {
                         db.users[userId].topup_history = [];
                     }
@@ -682,53 +705,38 @@ app.post('/webhook/pakasir', async (req, res) => {
                         transaction_id: transaction_id || null
                     });
                     
-                    // 6. UPDATE STATUS PENDING JIKA ADA
-                    if (db.pending_topups && db.pending_topups[order_id]) {
-                        db.pending_topups[order_id].status = 'paid';
-                        db.pending_topups[order_id].processed = true;
-                        db.pending_topups[order_id].paid_at = Date.now();
-                        
-                        // HAPUS QR CODE JIKA ADA
-                        const chatId = db.pending_topups[order_id].chatId;
-                        const messageId = db.pending_topups[order_id].messageId;
-                        
-                        if (chatId && messageId) {
-                            try {
-                                await deleteMessage(chatId, messageId);
-                                console.log(`✅ QR dihapus untuk chat ${chatId}`);
-                            } catch (e) {}
-                        }
-                    }
-                    
-                    // 7. SIMPAN KE DATABASE
+                    // SIMPAN KE DATABASE
                     await saveDB();
                     
-                    console.log(`✅ SALDO USER ${userId} LANGSUNG KEISI: ${oldBalance} -> ${db.users[userId].credits}`);
+                    console.log(`SALDO USER ${userId} LANGSUNG KEISI: ${oldBalance} -> ${db.users[userId].credits}`);
                     
-                    // 8. KIRIM NOTIFIKASI KE USER
+                    // ========== KIRIM NOTIFIKASI KE USER ==========
                     try {
-                        const bot = require('./bot'); // atau akses bot instance
-                        // Untuk sementara kirim via axios dulu
-                        await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                        // Kirim pesan via API Telegram langsung
+                        const notifResponse = await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                             chat_id: userId,
-                            text: `✅ *PEMBAYARAN BERHASIL*\n\n` +
+                            text: `PEMBAYARAN BERHASIL\n\n` +
                                   `Terima kasih! Pembayaran Anda telah kami terima.\n\n` +
-                                  `*Detail Transaksi:*\n` +
-                                  `Order ID: \`${order_id}\`\n` +
-                                  `Jumlah: *Rp ${amount.toLocaleString()}*\n` +
-                                  `Status: *BERHASIL*\n\n` +
-                                  `*Saldo Anda sekarang:* Rp ${db.users[userId].credits.toLocaleString()}`,
-                            parse_mode: 'Markdown'
+                                  `Detail Transaksi:\n` +
+                                  `Order ID: ${order_id}\n` +
+                                  `Jumlah: Rp ${amount.toLocaleString()}\n` +
+                                  `Status: BERHASIL\n\n` +
+                                  `Saldo Anda sekarang: Rp ${db.users[userId].credits.toLocaleString()}`,
+                            parse_mode: 'HTML'
                         });
-                        console.log(`✅ NOTIFIKASI TERKIRIM KE USER ${userId}`);
+                        
+                        if (notifResponse.data && notifResponse.data.ok) {
+                            console.log(`NOTIFIKASI TERKIRIM KE USER ${userId}`);
+                        }
                     } catch (notifError) {
                         console.log('GAGAL KIRIM NOTIFIKASI:', notifError.message);
                     }
+                    // ========== SELESAI NOTIFIKASI ==========
                 }
             }
         }
         
-        // 9. SELALU BALIKIN 200 KE PAKASIR
+        // SELALU BALIKIN 200 KE PAKASIR
         res.status(200).json({ 
             status: 'ok', 
             message: 'saldo updated realtime' 
@@ -736,11 +744,9 @@ app.post('/webhook/pakasir', async (req, res) => {
         
     } catch (error) {
         console.log('WEBHOOK ERROR:', error.message);
-        // TETAP BALIKIN 200 BIAR PAKASIR GAK NGIRIM ULANG
         res.status(200).json({ 
             status: 'ok', 
-            message: 'error but accepted',
-            error: error.message 
+            message: 'error but accepted' 
         });
     }
 });
@@ -867,6 +873,7 @@ if (IS_WORKER) {
             }
         });
 
+        // ========== /INFO - HANYA KIRIM "Proses request..." ==========
         bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -937,20 +944,20 @@ if (IS_WORKER) {
                 userProcessing[userId] = true;
                 
                 try {
-                    const requestMsg = await bot.sendMessage(chatId,
-                        `Proses request...`
-                    );
+                    // KIRIM PESAN "Proses request..." SAJA
+                    const requestMsg = await bot.sendMessage(chatId, `Proses request...`);
                     
                     const sent = await sendRequestToRelay(chatId, targetId, serverId);
                     
                     if (!sent) {
-                        await bot.editMessageText('Gagal terhubung. Coba lagi nanti.', {
+                        await bot.editMessageText('Gagal terhubung Coba lagi nanti.', {
                             chat_id: chatId,
                             message_id: requestMsg.message_id
                         });
                         return;
                     }
                     
+                    // Simpan untuk referensi (opsional)
                     if (!db.pending_requests) db.pending_requests = {};
                     db.pending_requests[`${chatId}_${targetId}_${serverId}`] = {
                         messageId: requestMsg.message_id,
@@ -962,18 +969,6 @@ if (IS_WORKER) {
                     db.users[userId].success += 1;
                     db.total_success += 1;
                     await saveDB();
-                    
-                    setTimeout(async () => {
-                        try {
-                            if (db.pending_requests && db.pending_requests[`${chatId}_${targetId}_${serverId}`]) {
-                                await deleteMessage(chatId, requestMsg.message_id);
-                                delete db.pending_requests[`${chatId}_${targetId}_${serverId}`];
-                                await saveDB();
-                            }
-                        } catch (e) {
-                            console.log('Gagal hapus timeout request:', e.message);
-                        }
-                    }, 30000);
                     
                 } finally {
                     setTimeout(() => {
@@ -989,6 +984,7 @@ if (IS_WORKER) {
                 } catch (e) {}
             }
         });
+        // ========== END /INFO ==========
 
         bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             try {
@@ -1641,8 +1637,7 @@ if (IS_WORKER) {
                                 `Order ID: ${payment.orderId}\n` +
                                 `Berlaku sampai: ${payment.expiredAt} WIB\n\n` +
                                 `Scan QR code di atas untuk membayar.\n\n` +
-                                `*Saldo akan masuk otomatis begitu pembayaran berhasil*`,
-                            parse_mode: 'Markdown',
+                                `Saldo akan masuk otomatis begitu pembayaran berhasil`,
                             reply_markup: {
                                 inline_keyboard: [
                                     [{ text: 'BATALKAN', callback_data: `cancel_topup_${payment.orderId}` }]
@@ -1664,11 +1659,10 @@ if (IS_WORKER) {
                             `Nominal: Rp ${amount.toLocaleString()}\n\n` +
                             `QR Code:\n${payment.qrString}\n\n` +
                             `Order ID: ${payment.orderId}\n\n` +
-                            `*Saldo akan masuk otomatis begitu pembayaran berhasil*`,
+                            `Saldo akan masuk otomatis begitu pembayaran berhasil`,
                             {
                                 chat_id: chatId,
                                 message_id: messageId,
-                                parse_mode: 'Markdown',
                                 reply_markup: {
                                     inline_keyboard: [
                                         [{ text: 'BATALKAN', callback_data: `cancel_topup_${payment.orderId}` }]
@@ -1740,7 +1734,7 @@ if (IS_WORKER) {
                     `TOP UP SALDO\n\n` +
                     `Saldo Anda: Rp ${credits.toLocaleString()}\n\n` +
                     `Pilih nominal top up:\n\n` +
-                    `*Saldo akan masuk otomatis begitu pembayaran berhasil*`;
+                    `Saldo akan masuk otomatis begitu pembayaran berhasil`;
                 
                 const replyMarkup = {
                     inline_keyboard: [
@@ -1769,7 +1763,6 @@ if (IS_WORKER) {
                 await bot.editMessageText(message, {
                     chat_id: chatId,
                     message_id: messageId,
-                    parse_mode: 'Markdown',
                     reply_markup: replyMarkup
                 });
             } catch (error) {
