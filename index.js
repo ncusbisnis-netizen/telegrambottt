@@ -724,7 +724,7 @@ app.post('/webhook/relay', async (req, res) => {
                     message_id: messageId
                 });
                 
-                console.log(`✅ Pesan berhasil diedit untuk chat ${chat_id}`);
+                console.log(`Pesan berhasil diedit untuk chat ${chat_id}`);
             } else {
                 // KALAU GAGAL
                 await bot.editMessageText(`Gagal mengambil data: ${message || 'Unknown error'}`, {
@@ -738,13 +738,13 @@ app.post('/webhook/relay', async (req, res) => {
             await saveDB();
             
         } catch (editError) {
-            console.log('❌ Gagal edit pesan:', editError.message);
+            console.log('Gagal edit pesan:', editError.message);
         }
         
         res.status(200).json({ status: 'ok', message: 'processed' });
         
     } catch (error) {
-        console.log('❌ WEBHOOK RELAY ERROR:', error.message);
+        console.log('WEBHOOK RELAY ERROR:', error.message);
         res.status(200).json({ status: 'ok', message: 'error but accepted' });
     }
 });
@@ -768,30 +768,30 @@ app.post('/webhook/pakasir', async (req, res) => {
                     console.log(`DETEKSI PEMBAYARAN: User ${userId}, Amount ${amount}`);
                     
                     // ========== AUTO DELETE QRIS PAKAI AXIOS ==========
-if (db.pending_topups && db.pending_topups[order_id]) {
-    const chatId = db.pending_topups[order_id].chatId;
-    const messageId = db.pending_topups[order_id].messageId;
-    
-    if (chatId && messageId) {
-        try {
-            await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
-                chat_id: chatId,
-                message_id: messageId
-            });
-            console.log(`QRIS BERHASIL DIHAPUS untuk chat ${chatId} (Order: ${order_id})`);
-        } catch (deleteError) {
-            console.log('GAGAL HAPUS QRIS:', deleteError.message);
-        }
-    }
-    
-    // Update status pending
-    db.pending_topups[order_id].status = 'paid';
-    db.pending_topups[order_id].processed = true;
-    db.pending_topups[order_id].paid_at = Date.now();
-    
-    await saveDB();
-}
-// ========== SELESAI AUTO DELETE ==========
+                    if (db.pending_topups && db.pending_topups[order_id]) {
+                        const chatId = db.pending_topups[order_id].chatId;
+                        const messageId = db.pending_topups[order_id].messageId;
+                        
+                        if (chatId && messageId) {
+                            try {
+                                await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
+                                    chat_id: chatId,
+                                    message_id: messageId
+                                });
+                                console.log(`QRIS BERHASIL DIHAPUS untuk chat ${chatId} (Order: ${order_id})`);
+                            } catch (deleteError) {
+                                console.log('GAGAL HAPUS QRIS:', deleteError.message);
+                            }
+                        }
+                        
+                        // Update status pending
+                        db.pending_topups[order_id].status = 'paid';
+                        db.pending_topups[order_id].processed = true;
+                        db.pending_topups[order_id].paid_at = Date.now();
+                        
+                        await saveDB();
+                    }
+                    // ========== SELESAI AUTO DELETE ==========
                     
                     // PASTIKAN USER ADA
                     if (!db.users[userId]) {
@@ -1026,109 +1026,109 @@ if (IS_WORKER) {
             }
         });
 
-// ========== /INFO - KIRIM "Proses request..." SAJA ==========
-bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
-    try {
-        if (msg.chat.type !== 'private') return;
-        
-        const chatId = msg.chat.id;
-        const userId = msg.from.id;
-        
-        if (!match || !match[1]) {
-            await bot.sendMessage(chatId,
-                `INFORMASI AKUN\n\n` +
-                `Format: /info ID_USER ID_SERVER\n` +
-                `Contoh: /info 643461181 8554`
-            );
-            return;
-        }
-        
-        if (isBanned(userId) && !isAdmin(userId)) {
-            await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
-            return;
-        }
-        
-        if (!db.feature?.info && !isAdmin(userId)) {
-            await bot.sendMessage(chatId, 'Fitur info sedang dinonaktifkan oleh admin.');
-            return;
-        }
-        
-        const joined = await checkJoin(bot, userId);
-        
-        if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-            let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
-            if (!joined.channel) message += `• ${CHANNEL}\n`;
-            if (!joined.group) message += `• ${GROUP}\n\n`;
-            
-            const buttons = [];
-            if (!joined.channel) {
-                buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
-            }
-            if (!joined.group) {
-                buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
-            }
-            
-            await bot.sendMessage(chatId, message, { 
-                reply_markup: { inline_keyboard: buttons } 
-            });
-            return;
-        }
-        
-        const banned = await recordInfoActivity(userId);
-        if (banned) {
-            await bot.sendMessage(chatId, 'Anda telah dibanned karena spam.');
-            return;
-        }
-        
-        const args = match[1].trim().split(/\s+/);
-        if (args.length < 2) {
-            await bot.sendMessage(chatId, `Format: /info ID_USER ID_SERVER`);
-            return;
-        }
-        
-        const targetId = args[0];
-        const serverId = args[1];
-        
-        if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-            await bot.sendMessage(chatId, 'ID dan Server harus angka.');
-            return;
-        }
-        
-        userProcessing[userId] = true;
-        
-        try {
-            // KIRIM PESAN "Proses request..." SAJA
-            await bot.sendMessage(chatId, `Proses request...`);
-            
-            // KIRIM KE RELAY
-            const sent = await sendRequestToRelay(chatId, targetId, serverId);
-            
-            if (!sent) {
-                await bot.sendMessage(chatId, 'Gagal terhubung ke relay. Coba lagi nanti.');
-                return;
-            }
-            
-            // UPDATE STATISTIK USER
-            getUserCredits(userId, msg.from.username || '');
-            db.users[userId].success += 1;
-            db.total_success += 1;
-            await saveDB();
-            
-        } finally {
-            setTimeout(() => {
+        // ========== /INFO - KIRIM "Proses request..." SAJA ==========
+        bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
+            try {
+                if (msg.chat.type !== 'private') return;
+                
+                const chatId = msg.chat.id;
+                const userId = msg.from.id;
+                
+                if (!match || !match[1]) {
+                    await bot.sendMessage(chatId,
+                        `INFORMASI AKUN\n\n` +
+                        `Format: /info ID_USER ID_SERVER\n` +
+                        `Contoh: /info 643461181 8554`
+                    );
+                    return;
+                }
+                
+                if (isBanned(userId) && !isAdmin(userId)) {
+                    await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
+                    return;
+                }
+                
+                if (!db.feature?.info && !isAdmin(userId)) {
+                    await bot.sendMessage(chatId, 'Fitur info sedang dinonaktifkan oleh admin.');
+                    return;
+                }
+                
+                const joined = await checkJoin(bot, userId);
+                
+                if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
+                    let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
+                    if (!joined.channel) message += `• ${CHANNEL}\n`;
+                    if (!joined.group) message += `• ${GROUP}\n\n`;
+                    
+                    const buttons = [];
+                    if (!joined.channel) {
+                        buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
+                    }
+                    if (!joined.group) {
+                        buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
+                    }
+                    
+                    await bot.sendMessage(chatId, message, { 
+                        reply_markup: { inline_keyboard: buttons } 
+                    });
+                    return;
+                }
+                
+                const banned = await recordInfoActivity(userId);
+                if (banned) {
+                    await bot.sendMessage(chatId, 'Anda telah dibanned karena spam.');
+                    return;
+                }
+                
+                const args = match[1].trim().split(/\s+/);
+                if (args.length < 2) {
+                    await bot.sendMessage(chatId, `Format: /info ID_USER ID_SERVER`);
+                    return;
+                }
+                
+                const targetId = args[0];
+                const serverId = args[1];
+                
+                if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
+                    await bot.sendMessage(chatId, 'ID dan Server harus angka.');
+                    return;
+                }
+                
+                userProcessing[userId] = true;
+                
+                try {
+                    // KIRIM PESAN "Proses request..." SAJA
+                    await bot.sendMessage(chatId, `Proses request...`);
+                    
+                    // KIRIM KE RELAY
+                    const sent = await sendRequestToRelay(chatId, targetId, serverId);
+                    
+                    if (!sent) {
+                        await bot.sendMessage(chatId, 'Gagal terhubung ke relay. Coba lagi nanti.');
+                        return;
+                    }
+                    
+                    // UPDATE STATISTIK USER
+                    getUserCredits(userId, msg.from.username || '');
+                    db.users[userId].success += 1;
+                    db.total_success += 1;
+                    await saveDB();
+                    
+                } finally {
+                    setTimeout(() => {
+                        delete userProcessing[userId];
+                    }, 30000);
+                }
+                
+            } catch (error) {
+                console.log('Error /info:', error.message);
                 delete userProcessing[userId];
-            }, 30000);
-        }
-        
-    } catch (error) {
-        console.log('Error /info:', error.message);
-        delete userProcessing[userId];
-        try {
-            await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
-        } catch (e) {}
-    }
-});
-// ========== END /INFO ==========
+                try {
+                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
+                } catch (e) {}
+            }
+        });
+        // ========== END /INFO ==========
 
         bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             try {
@@ -1790,10 +1790,11 @@ bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
                         });
                         
                         if (db.pending_topups && db.pending_topups[payment.orderId]) {
+                            // SIMPAN CHAT ID DAN MESSAGE ID UNTUK AUTO DELETE
                             db.pending_topups[payment.orderId].messageId = sentMessage.message_id;
                             db.pending_topups[payment.orderId].chatId = chatId;
                             await saveDB();
-                            console.log(`QR terkirim ke chat ${chatId} dengan messageId ${sentMessage.message_id}`);
+                            console.log(`QR DISIMPAN - Order: ${payment.orderId}, Chat: ${chatId}, Message: ${sentMessage.message_id}`);
                         }
                         
                     } catch (qrError) {
