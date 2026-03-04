@@ -37,7 +37,7 @@ const CHANNEL = process.env.CHANNEL;
 const GROUP = process.env.GROUP;
 const STOK_ADMIN = process.env.STOK_ADMIN;
 const REDIS_URL = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
-const API_KEY_CHECKTON = process.env.API_KEY_CHECKTON || process.env.API_KEY_CHECKTON;
+const API_KEY_CHECKTON = process.env.API_KEY_CHECKTON;
 
 const ADMIN_IDS = process.env.ADMIN_IDS 
     ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim())) 
@@ -998,7 +998,9 @@ if (IS_WORKER) {
                 message += `DAFTAR PERINTAH:\n`;
                 message += `/info ID SERVER - Info akun ( GRATIS )\n`;
                 message += `/cek ID SERVER - Detail akun (Rp 5.000)\n`;
-                message += `/find NICKNAME/ID - Cari akun (Rp 5.000)\n\n`;
+                message += `/find - Cari akun (Rp 5.000) - gunakan format:\n`;
+                message += `  • /find NICKNAME SERVER\n`;
+                message += `  • /find ID (Role ID)\n\n`;
                 
                 if (isAdmin(userId)) {
                     message += `ADMIN:\n`;
@@ -1314,6 +1316,7 @@ if (IS_WORKER) {
             }
         });
 
+        // ========== /FIND - UPDATE HANYA TERIMA NICKNAME+SERVER ATAU ROLE ID ==========
         bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1321,28 +1324,70 @@ if (IS_WORKER) {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 
+                // Tampilkan panduan jika tidak ada argumen
                 if (!match || !match[1]) {
-                    await bot.sendMessage(msg.chat.id,
+                    await bot.sendMessage(chatId,
                         `PENCARIAN AKUN\n\n` +
-                        `Format:\n` +
-                        `• Via Nickname: /find NICKNAME\n` +
-                        `  Contoh: /find RRQ Jule\n\n` +
-                        `• Via Role ID: /find ID\n` +
-                        `  Contoh: /find 643461181\n\n` +
+                        `Format yang tersedia:\n` +
+                        `1. Cari via Nickname + Server:\n` +
+                        `   /find NICKNAME SERVER\n` +
+                        `   Contoh: /find Nama Pemain 1234\n\n` +
+                        `2. Cari via Role ID:\n` +
+                        `   /find ID\n` +
+                        `   Contoh: /find 643461181\n\n` +
                         `Biaya: Rp 5.000`
                     );
                     return;
                 }
                 
                 const input = match[1].trim();
+                const parts = input.split(/\s+/);
                 
+                let nickname, serverFilter = null;
+                let isRoleIdSearch = false;
+                
+                // Kasus 1 kata
+                if (parts.length === 1) {
+                    const single = parts[0];
+                    if (/^\d+$/.test(single)) {
+                        // Role ID
+                        isRoleIdSearch = true;
+                        nickname = single; // untuk dipakai di getPlayerByRoleId
+                    } else {
+                        // Nickname saja tanpa server -> tolak
+                        await bot.sendMessage(chatId,
+                            `❌ Format salah.\n\n` +
+                            `Jika ingin mencari berdasarkan nickname, Anda WAJIB menyertakan server.\n` +
+                            `Contoh: /find Nama Pemain 1234\n\n` +
+                            `Atau cari langsung via Role ID: /find 643461181`
+                        );
+                        return;
+                    }
+                } 
+                // Kasus lebih dari 1 kata
+                else {
+                    const lastPart = parts[parts.length - 1];
+                    if (/^\d+$/.test(lastPart)) {
+                        serverFilter = lastPart;
+                        nickname = parts.slice(0, -1).join(' ');
+                    } else {
+                        // Kata terakhir bukan angka
+                        await bot.sendMessage(chatId,
+                            `❌ Format salah.\n\n` +
+                            `Server harus berupa angka.\n` +
+                            `Contoh: /find Nama Pemain 1234`
+                        );
+                        return;
+                    }
+                }
+                
+                // ===== Pengecekan akses (banned, join, saldo, spam) =====
                 if (isBanned(userId) && !isAdmin(userId)) {
                     await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
                     return;
                 }
                 
                 const joined = await checkJoin(bot, userId);
-                
                 if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
                     let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
                     if (!joined.channel) message += `• ${CHANNEL}\n`;
@@ -1386,26 +1431,32 @@ if (IS_WORKER) {
                 }
                 
                 userProcessing[userId] = true;
-                
                 const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
                 
                 try {
                     let results = null;
-                    let isRoleIdSearch = false;
                     
-                    if (/^\d+$/.test(input)) {
-                        isRoleIdSearch = true;
-                        results = await getPlayerByRoleId(input);
+                    if (isRoleIdSearch) {
+                        // Pencarian via Role ID
+                        results = await getPlayerByRoleId(nickname);
                     } else {
-                        results = await findPlayerByName(input);
+                        // Pencarian via nickname, lalu filter server
+                        results = await findPlayerByName(nickname);
+                        if (results && results.length > 0) {
+                            results = results.filter(r => r.zone_id == serverFilter);
+                        }
                     }
                     
                     const searchSuccess = results && results.length > 0;
                     
                     if (!searchSuccess) {
-                        await bot.editMessageText(
-                            'Gagal mengambil data. Saldo Anda tidak terpotong.\n\n' +
-                            'Silakan coba lagi nanti.', {
+                        let failMsg = 'Gagal mengambil data. Saldo Anda tidak terpotong.\n\nSilakan coba lagi nanti.';
+                        if (!isRoleIdSearch) {
+                            failMsg = `Tidak ditemukan akun dengan nickname "${nickname}" dan server ${serverFilter}. Saldo tidak terpotong.`;
+                        } else {
+                            failMsg = `Tidak ditemukan akun dengan Role ID ${nickname}. Saldo tidak terpotong.`;
+                        }
+                        await bot.editMessageText(failMsg, {
                             chat_id: chatId,
                             message_id: loadingMsg.message_id
                         });
@@ -1413,6 +1464,7 @@ if (IS_WORKER) {
                         return;
                     }
                     
+                    // Potong saldo jika sukses dan bukan admin
                     if (!isAdmin(userId)) {
                         const sebelum = db.users[userId].credits;
                         db.users[userId].credits -= 5000;
@@ -1420,14 +1472,19 @@ if (IS_WORKER) {
                         console.log(`SALDO DIPOTONG: User ${userId} | Sebelum: ${sebelum} | Sesudah: ${db.users[userId].credits} | Command: find | Status: SUKSES`);
                     }
                     
-                    let output = isRoleIdSearch 
-                        ? `HASIL PENCARIAN ROLE ID: ${input}\n\n`
-                        : `HASIL PENCARIAN NICKNAME: ${input}\n\n`;
-                    
-                    output += `Ditemukan ${results.length} akun:\n\n`;
+                    // Bangun output
+                    let output = '';
+                    if (isRoleIdSearch) {
+                        output = `HASIL PENCARIAN ROLE ID: ${nickname}\n\n`;
+                    } else {
+                        output = `HASIL PENCARIAN: ${nickname} (Server: ${serverFilter})\n\n`;
+                    }
                     
                     results.forEach((item, index) => {
-                        output += `[${index + 1}] ${item.name || item.nickname || 'Unknown'}\n`;
+                        if (!isRoleIdSearch && results.length > 1) {
+                            output += `[${index + 1}] `;
+                        }
+                        output += `${item.name || item.nickname || 'Unknown'}\n`;
                         output += `ID: ${item.role_id || '-'} | Server: ${item.zone_id || '-'}\n`;
                         output += `Level: ${item.level || '-'}\n`;
                         
@@ -1466,6 +1523,7 @@ if (IS_WORKER) {
                 } catch (e) {}
             }
         });
+        // ========== END /FIND ==========
 
         bot.onText(/\/listtopup(?:\s+(\d+))?/, async (msg, match) => {
             try {
@@ -1842,7 +1900,9 @@ if (IS_WORKER) {
                 message += `DAFTAR PERINTAH:\n`;
                 message += `/info ID SERVER - Info akun\n`;
                 message += `/cek ID SERVER - Detail akun (Rp 5.000)\n`;
-                message += `/find NICKNAME/ID - Cari akun (Rp 5.000)\n`;
+                message += `/find - Cari akun (Rp 5.000) - gunakan format:\n`;
+                message += `  • /find NICKNAME SERVER\n`;
+                message += `  • /find ID (Role ID)\n\n`;
                 
                 if (isAdmin(userId)) {
                     message += `\nADMIN MENU\n`;
