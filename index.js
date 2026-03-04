@@ -949,16 +949,13 @@ if (IS_WORKER) {
                 try {
                     // Kirim notifikasi REQUEST DATE
                     const requestMsg = await bot.sendMessage(chatId, 
-                        `📡 REQUEST DATE: ${moment().tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm:ss')} WIB\n\n` +
-                        `ID: ${targetId}\n` +
-                        `Server: ${serverId}\n\n` +
-                        `Menunggu response dari relay...`
+                        `memproses data...`
                     );
                     
                     const sent = await sendRequestToRelay(chatId, targetId, serverId);
                     
                     if (!sent) {
-                        await bot.editMessageText('❌ Gagal terhubung ke relay. Coba lagi nanti.', {
+                        await bot.editMessageText('Gagal terhubung ke relay. Coba lagi nanti.', {
                             chat_id: chatId,
                             message_id: requestMsg.message_id
                         });
@@ -1032,7 +1029,7 @@ if (IS_WORKER) {
                     
                     await bot.sendMessage(chatId, output);
                 } else {
-                    await bot.sendMessage(chatId, '❌ Gagal mengambil data dari relay.');
+                    await bot.sendMessage(chatId, 'Gagal mengambil data.');
                 }
             } catch (error) {
                 console.log('Error handleRelayResponse:', error.message);
@@ -1127,7 +1124,7 @@ if (IS_WORKER) {
                 
                 userProcessing[userId] = true;
                 
-                const loadingMsg = await bot.sendMessage(chatId, '📡 Mengambil data detail...');
+                const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data detail...');
                 
                 try {
                     const data = await getMLBBData(targetId, serverId, 'lookup');
@@ -1135,7 +1132,7 @@ if (IS_WORKER) {
                     // CEK DATA DULU sebelum potong saldo
                     if (!data) {
                         await bot.editMessageText(
-                            '❌ Gagal mengambil data. Saldo Anda tidak terpotong.\n\n' +
+                            'Gagal mengambil data. Saldo Anda tidak terpotong.\n\n' +
                             'Silakan coba lagi nanti.', {
                             chat_id: chatId,
                             message_id: loadingMsg.message_id
@@ -1310,7 +1307,7 @@ if (IS_WORKER) {
                 
                 userProcessing[userId] = true;
                 
-                const loadingMsg = await bot.sendMessage(chatId, '📡 Mencari data...');
+                const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
                 
                 try {
                     let results = null;
@@ -1328,7 +1325,7 @@ if (IS_WORKER) {
                     
                     if (!searchSuccess) {
                         await bot.editMessageText(
-                            '❌ Gagal mengambil data. Saldo Anda tidak terpotong.\n\n' +
+                            'Gagal mengambil data. Saldo Anda tidak terpotong.\n\n' +
                             'Silakan coba lagi nanti.', {
                             chat_id: chatId,
                             message_id: loadingMsg.message_id
