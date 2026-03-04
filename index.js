@@ -151,11 +151,6 @@ async function saveSpamData() {
     }
 }
 
-initDB().then(async () => {
-    await loadDB();
-    await loadSpamData();
-});
-
 let redisClient = null;
 if (REDIS_URL) {
     try {
@@ -764,8 +759,15 @@ app.post('/webhook/pakasir', async (req, res) => {
             if (parts.length >= 2) {
                 const userId = parseInt(parts[1]);
                 
-                if (userId && amount) {
-                    console.log(`DETEKSI PEMBAYARAN: User ${userId}, Amount ${amount}`);
+                if (userId) {
+                    // Konversi amount ke integer (perbaikan utama)
+                    const amountNum = parseInt(amount);
+                    if (isNaN(amountNum)) {
+                        console.log('Invalid amount from Pakasir:', amount);
+                        return res.status(200).json({ status: 'ok' });
+                    }
+                    
+                    console.log(`DETEKSI PEMBAYARAN: User ${userId}, Amount ${amountNum}`);
                     
                     // ========== AUTO DELETE QRIS PAKAI AXIOS ==========
                     if (db.pending_topups && db.pending_topups[order_id]) {
@@ -805,7 +807,7 @@ app.post('/webhook/pakasir', async (req, res) => {
                     
                     // TAMBAH SALDO
                     const oldBalance = db.users[userId].credits || 0;
-                    db.users[userId].credits = oldBalance + amount;
+                    db.users[userId].credits = oldBalance + amountNum;
                     
                     // CATAT HISTORY
                     if (!db.users[userId].topup_history) {
@@ -813,7 +815,7 @@ app.post('/webhook/pakasir', async (req, res) => {
                     }
                     
                     db.users[userId].topup_history.push({
-                        amount: amount,
+                        amount: amountNum,
                         order_id: order_id,
                         date: new Date().toISOString(),
                         method: 'qris',
@@ -833,7 +835,7 @@ app.post('/webhook/pakasir', async (req, res) => {
                                   `Terima kasih! Pembayaran Anda telah kami terima.\n\n` +
                                   `Detail Transaksi:\n` +
                                   `Order ID: ${order_id}\n` +
-                                  `Jumlah: Rp ${amount.toLocaleString()}\n` +
+                                  `Jumlah: Rp ${amountNum.toLocaleString()}\n` +
                                   `Status: BERHASIL\n\n` +
                                   `Saldo Anda sekarang: Rp ${db.users[userId].credits.toLocaleString()}`,
                             parse_mode: 'HTML'
@@ -919,1065 +921,1100 @@ app.get('/cek-saldo/:user_id', async (req, res) => {
     });
 });
 
-if (IS_WORKER) {
-    console.log('Bot worker started');
-    
-    try {
-        if (!BOT_TOKEN) {
-            throw new Error('BOT_TOKEN tidak ditemukan!');
-        }
+// PENTING: Inisialisasi bot hanya setelah database dimuat
+initDB().then(async () => {
+    await loadDB();
+    await loadSpamData();
 
-        const bot = new TelegramBot(BOT_TOKEN, { 
-            polling: { 
-                interval: 300, 
-                autoStart: true,
-                params: { timeout: 10 }
-            } 
-        });
-
-        bot.on('polling_error', (error) => {
-            console.log('Polling error:', error.message);
-        });
-
-        bot.on('message', async (msg) => {
-            try {
-                const chatId = msg.chat.id, userId = msg.from.id, text = msg.text, chatType = msg.chat.type;
-                
-                if (!text) return;
-                if (chatType !== 'private') return;
-                if (isAdmin(userId)) return;
-                
-                if (!msg.from.username) {
-                    await bot.sendMessage(chatId, 
-                        `USERNAME DIPERLUKAN\n\n` +
-                        `Anda harus memiliki username Telegram untuk menggunakan bot ini.\n\n` +
-                        `Cara membuat username:\n` +
-                        `1. Buka Settings\n` +
-                        `2. Pilih Username\n` +
-                        `3. Buat username baru\n` +
-                        `4. Simpan`
-                    );
-                    return;
-                }
-                
-                const publicCommands = ['/start', '/info', '/cek', '/find', '/offinfo', '/oninfo', '/listbanned', '/listtopup', '/addban', '/unban', '/addtopup'];
-                if (publicCommands.includes(text.split(' ')[0])) return;
-            } catch (error) {
-                console.log('Middleware error:', error.message);
+    if (IS_WORKER) {
+        console.log('Bot worker started');
+        
+        try {
+            if (!BOT_TOKEN) {
+                throw new Error('BOT_TOKEN tidak ditemukan!');
             }
-        });
 
-        bot.onText(/\/start/, async (msg) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const username = msg.from.username;
-                
-                if (!username && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 
-                        `USERNAME DIPERLUKAN\n\n` +
-                        `Anda harus memiliki username Telegram untuk menggunakan bot ini.\n\n` +
-                        `Cara membuat username:\n` +
-                        `1. Buka Settings\n` +
-                        `2. Pilih Username\n` +
-                        `3. Buat username baru\n` +
-                        `4. Simpan`
-                    );
-                    return;
-                }
-                
-                await loadDB();
-                
-                const credits = getUserCredits(userId, username || '');
-                
-                let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
-                message += `User ID: ${userId}\n`;
-                message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
-                message += `DAFTAR PERINTAH:\n`;
-                message += `/info ID SERVER - Info akun ( GRATIS )\n`;
-                message += `/cek ID SERVER - Detail akun (Rp 5.000)\n`;
-                message += `/find NICKNAME SERVER (Rp 5.000)\n`;
-                
-                if (isAdmin(userId)) {
-                    message += `ADMIN:\n`;
-                    message += `/offinfo - Nonaktifkan fitur\n`;
-                    message += `/oninfo - Aktifkan fitur\n`;
-                    message += `/listbanned - Daftar banned\n`;
-                    message += `/listtopup - Daftar topup\n`;
-                    message += `/addban ID - Blokir user\n`;
-                    message += `/unban ID - Buka blokir\n`;
-                    message += `/addtopup ID JUMLAH - Tambah saldo user\n`;
-                }
-                
-                const replyMarkup = {
-                    inline_keyboard: [
-                        [{ text: 'TOP UP', callback_data: 'topup_menu' }]
-                    ]
-                };
-                
-                await bot.sendMessage(chatId, message, { reply_markup: replyMarkup });
-            } catch (error) {
-                console.log('Error /start:', error.message);
-                try {
-                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
-                } catch (e) {}
-            }
-        });
-
-        // ========== /INFO - KIRIM "Proses request..." SAJA ==========
-        bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                
-                if (!match || !match[1]) {
-                    await bot.sendMessage(chatId,
-                        `INFORMASI AKUN\n\n` +
-                        `Format: /info ID_USER ID_SERVER\n` +
-                        `Contoh: /info 643461181 8554`
-                    );
-                    return;
-                }
-                
-                if (isBanned(userId) && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
-                    return;
-                }
-                
-                if (!db.feature?.info && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 'Fitur info sedang dinonaktifkan oleh admin.');
-                    return;
-                }
-                
-                const joined = await checkJoin(bot, userId);
-                
-                if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-                    let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
-                    if (!joined.channel) message += `• ${CHANNEL}\n`;
-                    if (!joined.group) message += `• ${GROUP}\n\n`;
-                    
-                    const buttons = [];
-                    if (!joined.channel) {
-                        buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
-                    }
-                    if (!joined.group) {
-                        buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
-                    }
-                    
-                    await bot.sendMessage(chatId, message, { 
-                        reply_markup: { inline_keyboard: buttons } 
-                    });
-                    return;
-                }
-                
-                const banned = await recordInfoActivity(userId);
-                if (banned) {
-                    await bot.sendMessage(chatId, 'Anda telah dibanned karena spam.');
-                    return;
-                }
-                
-                const args = match[1].trim().split(/\s+/);
-                if (args.length < 2) {
-                    await bot.sendMessage(chatId, `Format: /info ID_USER ID_SERVER`);
-                    return;
-                }
-                
-                const targetId = args[0];
-                const serverId = args[1];
-                
-                if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-                    await bot.sendMessage(chatId, 'ID dan Server harus angka.');
-                    return;
-                }
-                
-                userProcessing[userId] = true;
-                
-                try {
-                    // KIRIM PESAN "Proses request..." SAJA
-                    await bot.sendMessage(chatId, `Proses request...`);
-                    
-                    // KIRIM KE RELAY
-                    const sent = await sendRequestToRelay(chatId, targetId, serverId);
-                    
-                    if (!sent) {
-                        await bot.sendMessage(chatId, 'Gagal terhubung ke relay. Coba lagi nanti.');
-                        return;
-                    }
-                    
-                    // UPDATE STATISTIK USER
-                    getUserCredits(userId, msg.from.username || '');
-                    db.users[userId].success += 1;
-                    db.total_success += 1;
-                    await saveDB();
-                    
-                } finally {
-                    setTimeout(() => {
-                        delete userProcessing[userId];
-                    }, 30000);
-                }
-                
-            } catch (error) {
-                console.log('Error /info:', error.message);
-                delete userProcessing[userId];
-                try {
-                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
-                } catch (e) {}
-            }
-        });
-        // ========== END /INFO ==========
-
-        bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                
-                if (!match || !match[1]) {
-                    await bot.sendMessage(chatId, 
-                        `DETAIL AKUN\n\n` +
-                        `Format: /cek ID_USER ID_SERVER\n` +
-                        `Contoh: /cek 643461181 8554\n\n` +
-                        `Biaya: Rp 5.000`
-                    );
-                    return;
-                }
-                
-                if (isBanned(userId) && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
-                    return;
-                }
-                
-                const joined = await checkJoin(bot, userId);
-                
-                if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-                    let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
-                    if (!joined.channel) message += `• ${CHANNEL}\n`;
-                    if (!joined.group) message += `• ${GROUP}\n\n`;
-                    
-                    const buttons = [];
-                    if (!joined.channel) {
-                        buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
-                    }
-                    if (!joined.group) {
-                        buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
-                    }
-                    
-                    await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
-                    return;
-                }
-                
-                const args = match[1].trim().split(/\s+/);
-                if (args.length < 2) {
-                    await bot.sendMessage(chatId, `Format: /cek ID_USER ID_SERVER`);
-                    return;
-                }
-                
-                const targetId = args[0];
-                const serverId = args[1];
-                
-                if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-                    await bot.sendMessage(chatId, 'ID dan Server harus angka.');
-                    return;
-                }
-                
-                const banned = await recordInfoActivity(userId);
-                if (banned) {
-                    await bot.sendMessage(chatId, 'Anda telah dibanned karena spam.');
-                    return;
-                }
-                
-                const credits = getUserCredits(userId, msg.from.username || '');
-                if (credits < 5000 && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId,
-                        `SALDO TIDAK CUKUP\n\n` +
-                        `Saldo Anda: Rp ${credits.toLocaleString()}\n` +
-                        `Biaya /cek: Rp 5.000\n` +
-                        `Kekurangan: Rp ${(5000 - credits).toLocaleString()}\n\n` +
-                        `Silakan isi saldo terlebih dahulu:`,
-                        {
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'TOP UP', callback_data: 'topup_menu' }]
-                                ]
-                            }
-                        }
-                    );
-                    return;
-                }
-                
-                userProcessing[userId] = true;
-                
-                const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data detail...');
-                
-                try {
-                    const data = await getMLBBData(targetId, serverId, 'lookup');
-                    
-                    if (!data) {
-                        await bot.editMessageText(
-                            'Gagal mengambil data. Saldo Anda tidak terpotong.\n\n' +
-                            'Silakan coba lagi nanti.', {
-                            chat_id: chatId,
-                            message_id: loadingMsg.message_id
-                        });
-                        console.log(`SALDO TIDAK DIPOTONG: User ${userId} | Command: cek | Alasan: Data null`);
-                        return;
-                    }
-                    
-                    if (!isAdmin(userId)) {
-                        const sebelum = db.users[userId].credits;
-                        db.users[userId].credits -= 5000;
-                        await saveDB();
-                        console.log(`SALDO DIPOTONG: User ${userId} | Sebelum: ${sebelum} | Sesudah: ${db.users[userId].credits} | Command: cek | Status: SUKSES`);
-                    }
-
-                    const d = data;
-                    let output = `DETAIL AKUN\n\n`;
-                    output += `ID: ${d.role_id || targetId}\n`;
-                    output += `Server: ${d.zone_id || serverId}\n`;
-                    output += `Nickname: ${d.name || '-'}\n`;
-                    output += `Level: ${d.level || '-'}\n`;
-                    output += `TTL: ${d.ttl || '-'}\n\n`;
-                    
-                    output += `RANK & TIER\n`;
-                    output += `Current: ${d.current_tier || '-'}\n`;
-                    output += `Max: ${d.max_tier || '-'}\n`;
-                    output += `Achievement Points: ${d.achievement_points?.toLocaleString() || '-'}\n\n`;
-                    
-                    output += `KOLEKSI SKIN\n`;
-                    output += `Total: ${d.skin_count || 0}\n`;
-                    output += `Supreme: ${d.supreme_skins || 0} | Grand: ${d.grand_skins || 0}\n`;
-                    output += `Exquisite: ${d.exquisite_skins || 0} | Deluxe: ${d.deluxe_skins || 0}\n`;
-                    output += `Exceptional: ${d.exceptional_skins || 0} | Common: ${d.common_skins || 0}\n\n`;
-                    
-                    if (d.top_3_hero_details && d.top_3_hero_details.length > 0) {
-                        output += `TOP 3 HERO\n`;
-                        d.top_3_hero_details.forEach((h, i) => {
-                            output += `${i+1}. ${h.hero || '-'}\n`;
-                            output += `   Matches: ${h.matches || 0} | WR: ${h.win_rate || '0%'}\n`;
-                            output += `   Power: ${h.power || 0}\n`;
-                        });
-                        output += `\n`;
-                    }
-                    
-                    output += `STATISTIK\n`;
-                    output += `Total Match: ${d.total_match_played?.toLocaleString() || 0}\n`;
-                    output += `Win Rate: ${d.overall_win_rate || '0%'}\n`;
-                    output += `KDA: ${d.kda || '-'}\n`;
-                    output += `MVP: ${d.total_mvp || 0}\n`;
-                    output += `Savage: ${d.savage_kill || 0} | Maniac: ${d.maniac_kill || 0}\n`;
-                    output += `Legendary: ${d.legendary_kill || 0}\n\n`;
-                    
-                    if (d.squad_name) {
-                        output += `SQUAD\n`;
-                        output += `Name: ${d.squad_name}\n`;
-                        output += `Prefix: ${d.squad_prefix || '-'}\n`;
-                        output += `ID: ${d.squad_id || '-'}\n\n`;
-                    }
-                    
-                    if (d.last_match_data) {
-                        output += `LAST MATCH\n`;
-                        output += `Hero: ${d.last_match_data.hero_name || '-'}\n`;
-                        output += `K/D/A: ${d.last_match_data.kills || 0}/${d.last_match_data.deaths || 0}/${d.last_match_data.assists || 0}\n`;
-                        output += `Gold: ${d.last_match_data.gold?.toLocaleString() || 0}\n`;
-                        output += `Damage: ${d.last_match_data.hero_damage?.toLocaleString() || 0}\n`;
-                        output += `Duration: ${d.last_match_duration || '-'}\n`;
-                        output += `Date: ${d.last_match_date || '-'}\n`;
-                    }
-
-                    output += `\nSisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
-
-                    await bot.editMessageText(output, {
-                        chat_id: chatId,
-                        message_id: loadingMsg.message_id,
-                        reply_markup: { 
-                            inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
-                        }
-                    });
-                    
-                } finally {
-                    setTimeout(() => {
-                        delete userProcessing[userId];
-                    }, 30000);
-                }
-
-            } catch (error) {
-                console.log('Error /cek:', error.message);
-                delete userProcessing[userId];
-                try {
-                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
-                } catch (e) {}
-            }
-        });
-
-        // ========== /FIND - UPDATE HANYA TERIMA NICKNAME+SERVER ATAU ROLE ID ==========
-        bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                
-                // Tampilkan panduan jika tidak ada argumen
-                if (!match || !match[1]) {
-                    await bot.sendMessage(chatId,
-                        `PENCARIAN AKUN\n\n` +
-                        `Format yang tersedia:\n` +
-                        `1. Cari via Nickname + Server:\n` +
-                        `   /find NICKNAME SERVER\n` +
-                        `   Contoh: /find Nama Pemain 1234\n\n` +
-                        `2. Cari via Role ID:\n` +
-                        `   /find ID\n` +
-                        `   Contoh: /find 643461181\n\n` +
-                        `Biaya: Rp 5.000`
-                    );
-                    return;
-                }
-                
-                const input = match[1].trim();
-                const parts = input.split(/\s+/);
-                
-                let nickname, serverFilter = null;
-                let isRoleIdSearch = false;
-                
-                // Kasus 1 kata
-                if (parts.length === 1) {
-                    const single = parts[0];
-                    if (/^\d+$/.test(single)) {
-                        // Role ID
-                        isRoleIdSearch = true;
-                        nickname = single; // untuk dipakai di getPlayerByRoleId
-                    } else {
-                        // Nickname saja tanpa server -> tolak
-                        await bot.sendMessage(chatId,
-                            `❌ Format salah.\n\n` +
-                            `Jika ingin mencari berdasarkan nickname, Anda WAJIB menyertakan server.\n` +
-                            `Contoh: /find Nama Pemain 1234\n\n` +
-                            `Atau cari langsung via Role ID: /find 643461181`
-                        );
-                        return;
-                    }
+            const bot = new TelegramBot(BOT_TOKEN, { 
+                polling: { 
+                    interval: 300, 
+                    autoStart: true,
+                    params: { timeout: 10 }
                 } 
-                // Kasus lebih dari 1 kata
-                else {
-                    const lastPart = parts[parts.length - 1];
-                    if (/^\d+$/.test(lastPart)) {
-                        serverFilter = lastPart;
-                        nickname = parts.slice(0, -1).join(' ');
-                    } else {
-                        // Kata terakhir bukan angka
-                        await bot.sendMessage(chatId,
-                            `❌ Format salah.\n\n` +
-                            `Server harus berupa angka.\n` +
-                            `Contoh: /find Nama Pemain 1234`
+            });
+
+            bot.on('polling_error', (error) => {
+                console.log('Polling error:', error.message);
+            });
+
+            bot.on('message', async (msg) => {
+                try {
+                    const chatId = msg.chat.id, userId = msg.from.id, text = msg.text, chatType = msg.chat.type;
+                    
+                    if (!text) return;
+                    if (chatType !== 'private') return;
+                    if (isAdmin(userId)) return;
+                    
+                    if (!msg.from.username) {
+                        await bot.sendMessage(chatId, 
+                            `USERNAME DIPERLUKAN\n\n` +
+                            `Anda harus memiliki username Telegram untuk menggunakan bot ini.\n\n` +
+                            `Cara membuat username:\n` +
+                            `1. Buka Settings\n` +
+                            `2. Pilih Username\n` +
+                            `3. Buat username baru\n` +
+                            `4. Simpan`
                         );
                         return;
                     }
-                }
-                
-                // ===== Pengecekan akses (banned, join, saldo, spam) =====
-                if (isBanned(userId) && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
-                    return;
-                }
-                
-                const joined = await checkJoin(bot, userId);
-                if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-                    let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
-                    if (!joined.channel) message += `• ${CHANNEL}\n`;
-                    if (!joined.group) message += `• ${GROUP}\n\n`;
                     
-                    const buttons = [];
-                    if (!joined.channel) {
-                        buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
-                    }
-                    if (!joined.group) {
-                        buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
-                    }
-                    
-                    await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
-                    return;
+                    const publicCommands = ['/start', '/info', '/cek', '/find', '/offinfo', '/oninfo', '/listbanned', '/listtopup', '/addban', '/unban', '/addtopup'];
+                    if (publicCommands.includes(text.split(' ')[0])) return;
+                } catch (error) {
+                    console.log('Middleware error:', error.message);
                 }
-                
-                const credits = getUserCredits(userId, msg.from.username || '');
-                if (credits < 5000 && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId,
-                        `SALDO TIDAK CUKUP\n\n` +
-                        `Saldo Anda: Rp ${credits.toLocaleString()}\n` +
-                        `Biaya /find: Rp 5.000\n` +
-                        `Kekurangan: Rp ${(5000 - credits).toLocaleString()}\n\n` +
-                        `Silakan isi saldo terlebih dahulu:`,
-                        {
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'TOP UP', callback_data: 'topup_menu' }]
-                                ]
-                            }
-                        }
-                    );
-                    return;
-                }
-                
-                const banned = await recordInfoActivity(userId);
-                if (banned) {
-                    await bot.sendMessage(chatId, 'Anda telah dibanned karena spam.');
-                    return;
-                }
-                
-                userProcessing[userId] = true;
-                const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
-                
+            });
+
+            bot.onText(/\/start/, async (msg) => {
                 try {
-                    let results = null;
+                    if (msg.chat.type !== 'private') return;
                     
-                    if (isRoleIdSearch) {
-                        // Pencarian via Role ID
-                        results = await getPlayerByRoleId(nickname);
-                    } else {
-                        // Pencarian via nickname, lalu filter server
-                        results = await findPlayerByName(nickname);
-                        if (results && results.length > 0) {
-                            results = results.filter(r => r.zone_id == serverFilter);
-                        }
-                    }
+                    const chatId = msg.chat.id;
+                    const userId = msg.from.id;
+                    const username = msg.from.username;
                     
-                    const searchSuccess = results && results.length > 0;
-                    
-                    if (!searchSuccess) {
-                        let failMsg = 'Gagal mengambil data. Saldo Anda tidak terpotong.\n\nSilakan coba lagi nanti.';
-                        if (!isRoleIdSearch) {
-                            failMsg = `Tidak ditemukan akun dengan nickname "${nickname}" dan server ${serverFilter}. Saldo tidak terpotong.`;
-                        } else {
-                            failMsg = `Tidak ditemukan akun dengan Role ID ${nickname}. Saldo tidak terpotong.`;
-                        }
-                        await bot.editMessageText(failMsg, {
-                            chat_id: chatId,
-                            message_id: loadingMsg.message_id
-                        });
-                        console.log(`SALDO TIDAK DIPOTONG: User ${userId} | Command: find | Alasan: Data null`);
+                    if (!username && !isAdmin(userId)) {
+                        await bot.sendMessage(chatId, 
+                            `USERNAME DIPERLUKAN\n\n` +
+                            `Anda harus memiliki username Telegram untuk menggunakan bot ini.\n\n` +
+                            `Cara membuat username:\n` +
+                            `1. Buka Settings\n` +
+                            `2. Pilih Username\n` +
+                            `3. Buat username baru\n` +
+                            `4. Simpan`
+                        );
                         return;
                     }
                     
-                    // Potong saldo jika sukses dan bukan admin
-                    if (!isAdmin(userId)) {
-                        const sebelum = db.users[userId].credits;
-                        db.users[userId].credits -= 5000;
-                        await saveDB();
-                        console.log(`SALDO DIPOTONG: User ${userId} | Sebelum: ${sebelum} | Sesudah: ${db.users[userId].credits} | Command: find | Status: SUKSES`);
+                    await loadDB();
+                    
+                    const credits = getUserCredits(userId, username || '');
+                    
+                    let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
+                    message += `User ID: ${userId}\n`;
+                    message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
+                    message += `DAFTAR PERINTAH:\n`;
+                    message += `/info ID SERVER - Info akun ( GRATIS )\n`;
+                    message += `/cek ID SERVER - Detail akun (Rp 5.000)\n`;
+                    message += `/find NICKNAME SERVER (Rp 5.000)\n`;
+                    
+                    if (isAdmin(userId)) {
+                        message += `ADMIN:\n`;
+                        message += `/offinfo - Nonaktifkan fitur\n`;
+                        message += `/oninfo - Aktifkan fitur\n`;
+                        message += `/listbanned - Daftar banned\n`;
+                        message += `/listtopup - Daftar topup\n`;
+                        message += `/addban ID - Blokir user\n`;
+                        message += `/unban ID - Buka blokir\n`;
+                        message += `/addtopup ID JUMLAH - Tambah saldo user\n`;
                     }
                     
-                    // Bangun output
-                    let output = '';
-                    if (isRoleIdSearch) {
-                        output = `HASIL PENCARIAN ROLE ID: ${nickname}\n\n`;
-                    } else {
-                        output = `HASIL PENCARIAN: ${nickname} (Server: ${serverFilter})\n\n`;
-                    }
+                    const replyMarkup = {
+                        inline_keyboard: [
+                            [{ text: 'TOP UP', callback_data: 'topup_menu' }]
+                        ]
+                    };
                     
-                    results.forEach((item, index) => {
-                        if (!isRoleIdSearch && results.length > 1) {
-                            output += `[${index + 1}] `;
-                        }
-                        output += `${item.name || item.nickname || 'Unknown'}\n`;
-                        output += `ID: ${item.role_id || '-'} | Server: ${item.zone_id || '-'}\n`;
-                        output += `Level: ${item.level || '-'}\n`;
-                        
-                        if (item.last_login) {
-                            output += `Last Login: ${item.last_login}\n`;
-                        }
-                        
-                        if (item.locations_logged && Array.isArray(item.locations_logged)) {
-                            const locations = formatLocations(item.locations_logged, 5);
-                            if (locations) {
-                                output += `Lokasi: ${locations}\n`;
-                            }
-                        }
-                        
-                        output += `--------------------\n`;
-                    });
-                    
-                    output += `\nSisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
-                    
-                    await bot.editMessageText(output, {
-                        chat_id: chatId,
-                        message_id: loadingMsg.message_id
-                    });
-                    
-                } finally {
-                    setTimeout(() => {
-                        delete userProcessing[userId];
-                    }, 30000);
+                    await bot.sendMessage(chatId, message, { reply_markup: replyMarkup });
+                } catch (error) {
+                    console.log('Error /start:', error.message);
+                    try {
+                        await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
+                    } catch (e) {}
                 }
-                
-            } catch (error) {
-                console.log('Error /find:', error.message);
-                delete userProcessing[userId];
-                try {
-                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
-                } catch (e) {}
-            }
-        });
-        // ========== END /FIND ==========
+            });
 
-        bot.onText(/\/listtopup(?:\s+(\d+))?/, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                if (!isAdmin(msg.from.id)) return;
-                
-                const targetId = match[1] ? parseInt(match[1]) : null;
-                
-                if (targetId) {
-                    const user = db.users[targetId];
-                    if (!user || !user.topup_history || user.topup_history.length === 0) {
-                        await bot.sendMessage(msg.chat.id, `User ${targetId} tidak memiliki riwayat topup.`);
+            // ========== /INFO - KIRIM "Proses request..." SAJA ==========
+            bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
+                try {
+                    if (msg.chat.type !== 'private') return;
+                    
+                    const chatId = msg.chat.id;
+                    const userId = msg.from.id;
+                    const username = msg.from.username || '';
+                    
+                    // PASTIKAN USER TERDAFTAR (perbaikan)
+                    getUserCredits(userId, username);
+                    
+                    if (!match || !match[1]) {
+                        await bot.sendMessage(chatId,
+                            `INFORMASI AKUN\n\n` +
+                            `Format: /info ID_USER ID_SERVER\n` +
+                            `Contoh: /info 643461181 8554`
+                        );
                         return;
                     }
                     
-                    let message = `RIWAYAT TOPUP USER ${targetId}\n\n`;
-                    message += `Saldo saat ini: Rp ${(user.credits || 0).toLocaleString()}\n\n`;
-                    
-                    user.topup_history.forEach((item, i) => {
-                        const date = moment(item.date).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm');
-                        message += `${i+1}. Rp ${item.amount.toLocaleString()} (${item.order_id || 'Manual'})\n`;
-                        message += `   Tanggal: ${date} WIB\n\n`;
-                    });
-                    
-                    await bot.sendMessage(msg.chat.id, message);
-                    
-                } else {
-                    let message = `DAFTAR USER DENGAN SALDO > 0\n\n`;
-                    
-                    const usersWithBalance = Object.entries(db.users || {})
-                        .filter(([_, u]) => (u.credits || 0) > 0)
-                        .sort((a, b) => (b[1].credits || 0) - (a[1].credits || 0));
-                    
-                    if (usersWithBalance.length === 0) {
-                        message += 'Tidak ada user dengan saldo.';
-                    } else {
-                        const totalSaldo = usersWithBalance.reduce((sum, [_, u]) => sum + (u.credits || 0), 0);
-                        message += `Total ${usersWithBalance.length} user | Total Saldo: Rp ${totalSaldo.toLocaleString()}\n\n`;
-                        
-                        usersWithBalance.forEach(([id, u], i) => {
-                            const totalTopup = (u.topup_history || []).reduce((sum, item) => sum + (item.amount || 0), 0);
-                            message += `${i+1}. ${u.username || 'tanpa username'}\n`;
-                            message += `   ID: ${id}\n`;
-                            message += `   Saldo: Rp ${(u.credits || 0).toLocaleString()}\n`;
-                            message += `   Total Topup: Rp ${totalTopup.toLocaleString()} (${(u.topup_history || []).length}x)\n\n`;
-                        });
+                    if (isBanned(userId) && !isAdmin(userId)) {
+                        await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
+                        return;
                     }
                     
-                    await bot.sendMessage(msg.chat.id, message);
-                }
-            } catch (error) {
-                console.log('Error /listtopup:', error.message);
-            }
-        });
-
-        bot.onText(/\/offinfo/, async (msg) => { 
-            try {
-                if (msg.chat.type !== 'private') return;
-                const userId = msg.from.id;
-                
-                if (!isAdmin(userId)) {
-                    await bot.sendMessage(msg.chat.id, 'Anda tidak memiliki akses.');
-                    return;
-                }
-                
-                if (!db.feature) db.feature = {};
-                db.feature.info = false; 
-                await saveDB(); 
-                await bot.sendMessage(msg.chat.id, 'Fitur info dinonaktifkan.'); 
-                console.log(`Fitur info dinonaktifkan oleh admin ${userId}`);
-                
-            } catch (error) {
-                console.log('Error /offinfo:', error.message);
-                await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan.');
-            }
-        });
-
-        bot.onText(/\/oninfo/, async (msg) => { 
-            try {
-                if (msg.chat.type !== 'private') return;
-                const userId = msg.from.id;
-                
-                if (!isAdmin(userId)) {
-                    await bot.sendMessage(msg.chat.id, 'Anda tidak memiliki akses.');
-                    return;
-                }
-                
-                if (!db.feature) db.feature = {};
-                db.feature.info = true; 
-                await saveDB(); 
-                await bot.sendMessage(msg.chat.id, 'Fitur info diaktifkan.'); 
-                console.log(`Fitur info diaktifkan oleh admin ${userId}`);
-                
-            } catch (error) {
-                console.log('Error /oninfo:', error.message);
-                await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan.');
-            }
-        });
-
-        bot.onText(/\/listbanned/, async (msg) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                if (!isAdmin(msg.from.id)) return;
-                
-                let message = `DAFTAR USER BANNED\n\n`;
-                const bannedList = Object.entries(spamData).filter(([_, d]) => d.banned);
-                
-                if (bannedList.length === 0) {
-                    message += 'Tidak ada user yang diblokir.';
-                } else {
-                    bannedList.forEach(([id, d], i) => {
-                        const date = moment(d.bannedAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm');
-                        message += `${i+1}. ID: ${id}\n`;
-                        message += `   Alasan: ${d.banReason || 'Tidak ada'}\n`;
-                        message += `   Tanggal: ${date} WIB\n\n`;
-                    });
-                }
-                
-                await bot.sendMessage(msg.chat.id, message);
-            } catch (error) {
-                console.log('Error /listbanned:', error.message);
-            }
-        });
-
-        bot.onText(/\/addban(?:\s+(\d+)(?:\s+(.+))?)?/, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                if (!isAdmin(msg.from.id)) return;
-                
-                if (!match[1]) {
-                    await bot.sendMessage(msg.chat.id, 'Format: /addban ID [alasan]');
-                    return;
-                }
-                
-                const targetId = parseInt(match[1]);
-                const reason = match[2] || 'Ban manual oleh admin';
-                
-                const now = Date.now();
-                spamData[targetId] = { 
-                    banned: true, 
-                    bannedAt: now, 
-                    banReason: reason, 
-                    infoCount: [] 
-                };
-                await saveSpamData();
-                
-                await bot.sendMessage(msg.chat.id, `User ${targetId} telah diblokir.\nAlasan: ${reason}`);
-                
-                try {
-                    await bot.sendMessage(targetId, 
-                        `AKUN ANDA DIBLOKIR\n\n` +
-                        `Alasan: ${reason}\n` +
-                        `Hubungi admin jika ada kesalahan.`
-                    );
-                } catch (e) {}
-                
-            } catch (error) {
-                console.log('Error /addban:', error.message);
-            }
-        });
-
-        bot.onText(/\/unban (\d+)/, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                if (!isAdmin(msg.from.id)) return;
-                
-                const targetId = parseInt(match[1]);
-                
-                if (spamData[targetId]) {
-                    spamData[targetId].banned = false;
-                    spamData[targetId].infoCount = [];
-                    await saveSpamData();
-                    await bot.sendMessage(msg.chat.id, `User ${targetId} telah di-unban.`);
+                    if (!db.feature?.info && !isAdmin(userId)) {
+                        await bot.sendMessage(chatId, 'Fitur info sedang dinonaktifkan oleh admin.');
+                        return;
+                    }
+                    
+                    const joined = await checkJoin(bot, userId);
+                    
+                    if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
+                        let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
+                        if (!joined.channel) message += `• ${CHANNEL}\n`;
+                        if (!joined.group) message += `• ${GROUP}\n\n`;
+                        
+                        const buttons = [];
+                        if (!joined.channel) {
+                            buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
+                        }
+                        if (!joined.group) {
+                            buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
+                        }
+                        
+                        await bot.sendMessage(chatId, message, { 
+                            reply_markup: { inline_keyboard: buttons } 
+                        });
+                        return;
+                    }
+                    
+                    const banned = await recordInfoActivity(userId);
+                    if (banned) {
+                        await bot.sendMessage(chatId, 'Anda telah dibanned karena spam.');
+                        return;
+                    }
+                    
+                    const args = match[1].trim().split(/\s+/);
+                    if (args.length < 2) {
+                        await bot.sendMessage(chatId, `Format: /info ID_USER ID_SERVER`);
+                        return;
+                    }
+                    
+                    const targetId = args[0];
+                    const serverId = args[1];
+                    
+                    if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
+                        await bot.sendMessage(chatId, 'ID dan Server harus angka.');
+                        return;
+                    }
+                    
+                    userProcessing[userId] = true;
                     
                     try {
-                        await bot.sendMessage(targetId, `Akun Anda telah di-unban. Silakan gunakan bot kembali.`);
+                        // KIRIM PESAN "Proses request..." SAJA
+                        const loadingMsg = await bot.sendMessage(chatId, `Proses request...`);
+                        
+                        // SIMPAN PENDING REQUEST (perbaikan utama)
+                        const requestKey = `${chatId}_${targetId}_${serverId}`;
+                        if (!db.pending_requests) db.pending_requests = {};
+                        db.pending_requests[requestKey] = {
+                            chatId: chatId,
+                            messageId: loadingMsg.message_id,
+                            targetId: targetId,
+                            serverId: serverId,
+                            timestamp: Date.now()
+                        };
+                        await saveDB();
+                        
+                        // KIRIM KE RELAY
+                        const sent = await sendRequestToRelay(chatId, targetId, serverId);
+                        
+                        if (!sent) {
+                            await bot.editMessageText('Gagal terhubung ke relay. Coba lagi nanti.', {
+                                chat_id: chatId,
+                                message_id: loadingMsg.message_id
+                            });
+                            return;
+                        }
+                        
+                        // UPDATE STATISTIK USER
+                        db.users[userId].success += 1;
+                        db.total_success += 1;
+                        await saveDB();
+                        
+                    } finally {
+                        setTimeout(() => {
+                            delete userProcessing[userId];
+                        }, 30000);
+                    }
+                    
+                } catch (error) {
+                    console.log('Error /info:', error.message);
+                    delete userProcessing[userId];
+                    try {
+                        await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
                     } catch (e) {}
-                } else {
-                    await bot.sendMessage(msg.chat.id, `User ${targetId} tidak ditemukan.`);
                 }
-            } catch (error) {
-                console.log('Error /unban:', error.message);
-            }
-        });
+            });
+            // ========== END /INFO ==========
 
-        bot.onText(/\/addtopup (\d+) (\d+)/, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                if (!isAdmin(msg.from.id)) return;
-                
-                const targetId = parseInt(match[1]);
-                const amount = parseInt(match[2]);
-                
-                if (amount < 1 || amount > 1000000) {
-                    await bot.sendMessage(msg.chat.id, 'Jumlah harus 1-1.000.000.');
-                    return;
-                }
-                
-                const newBalance = await addCredits(targetId, amount, null);
-                
-                await bot.sendMessage(msg.chat.id, 
-                    `TOPUP MANUAL BERHASIL\n\n` +
-                    `User: ${targetId}\n` +
-                    `Jumlah: Rp ${amount.toLocaleString()}\n` +
-                    `Saldo sekarang: Rp ${newBalance.toLocaleString()}`
-                );
-                
+            bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 try {
-                    await bot.sendMessage(targetId, 
-                        `SALDO DITAMBAH ADMIN\n\n` +
-                        `Saldo Anda bertambah Rp ${amount.toLocaleString()}.\n` +
+                    if (msg.chat.type !== 'private') return;
+                    
+                    const chatId = msg.chat.id;
+                    const userId = msg.from.id;
+                    const username = msg.from.username || '';
+                    
+                    // PASTIKAN USER TERDAFTAR
+                    getUserCredits(userId, username);
+                    
+                    if (!match || !match[1]) {
+                        await bot.sendMessage(chatId, 
+                            `DETAIL AKUN\n\n` +
+                            `Format: /cek ID_USER ID_SERVER\n` +
+                            `Contoh: /cek 643461181 8554\n\n` +
+                            `Biaya: Rp 5.000`
+                        );
+                        return;
+                    }
+                    
+                    if (isBanned(userId) && !isAdmin(userId)) {
+                        await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
+                        return;
+                    }
+                    
+                    const joined = await checkJoin(bot, userId);
+                    
+                    if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
+                        let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
+                        if (!joined.channel) message += `• ${CHANNEL}\n`;
+                        if (!joined.group) message += `• ${GROUP}\n\n`;
+                        
+                        const buttons = [];
+                        if (!joined.channel) {
+                            buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
+                        }
+                        if (!joined.group) {
+                            buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
+                        }
+                        
+                        await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
+                        return;
+                    }
+                    
+                    const args = match[1].trim().split(/\s+/);
+                    if (args.length < 2) {
+                        await bot.sendMessage(chatId, `Format: /cek ID_USER ID_SERVER`);
+                        return;
+                    }
+                    
+                    const targetId = args[0];
+                    const serverId = args[1];
+                    
+                    if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
+                        await bot.sendMessage(chatId, 'ID dan Server harus angka.');
+                        return;
+                    }
+                    
+                    const banned = await recordInfoActivity(userId);
+                    if (banned) {
+                        await bot.sendMessage(chatId, 'Anda telah dibanned karena spam.');
+                        return;
+                    }
+                    
+                    const credits = getUserCredits(userId, username);
+                    if (credits < 5000 && !isAdmin(userId)) {
+                        await bot.sendMessage(chatId,
+                            `SALDO TIDAK CUKUP\n\n` +
+                            `Saldo Anda: Rp ${credits.toLocaleString()}\n` +
+                            `Biaya /cek: Rp 5.000\n` +
+                            `Kekurangan: Rp ${(5000 - credits).toLocaleString()}\n\n` +
+                            `Silakan isi saldo terlebih dahulu:`,
+                            {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: 'TOP UP', callback_data: 'topup_menu' }]
+                                    ]
+                                }
+                            }
+                        );
+                        return;
+                    }
+                    
+                    userProcessing[userId] = true;
+                    
+                    const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data detail...');
+                    
+                    try {
+                        const data = await getMLBBData(targetId, serverId, 'lookup');
+                        
+                        if (!data) {
+                            await bot.editMessageText(
+                                'Gagal mengambil data. Saldo Anda tidak terpotong.\n\n' +
+                                'Silakan coba lagi nanti.', {
+                                chat_id: chatId,
+                                message_id: loadingMsg.message_id
+                            });
+                            console.log(`SALDO TIDAK DIPOTONG: User ${userId} | Command: cek | Alasan: Data null`);
+                            return;
+                        }
+                        
+                        if (!isAdmin(userId)) {
+                            const sebelum = db.users[userId].credits;
+                            db.users[userId].credits -= 5000;
+                            await saveDB();
+                            console.log(`SALDO DIPOTONG: User ${userId} | Sebelum: ${sebelum} | Sesudah: ${db.users[userId].credits} | Command: cek | Status: SUKSES`);
+                        }
+
+                        const d = data;
+                        let output = `DETAIL AKUN\n\n`;
+                        output += `ID: ${d.role_id || targetId}\n`;
+                        output += `Server: ${d.zone_id || serverId}\n`;
+                        output += `Nickname: ${d.name || '-'}\n`;
+                        output += `Level: ${d.level || '-'}\n`;
+                        output += `TTL: ${d.ttl || '-'}\n\n`;
+                        
+                        output += `RANK & TIER\n`;
+                        output += `Current: ${d.current_tier || '-'}\n`;
+                        output += `Max: ${d.max_tier || '-'}\n`;
+                        output += `Achievement Points: ${d.achievement_points?.toLocaleString() || '-'}\n\n`;
+                        
+                        output += `KOLEKSI SKIN\n`;
+                        output += `Total: ${d.skin_count || 0}\n`;
+                        output += `Supreme: ${d.supreme_skins || 0} | Grand: ${d.grand_skins || 0}\n`;
+                        output += `Exquisite: ${d.exquisite_skins || 0} | Deluxe: ${d.deluxe_skins || 0}\n`;
+                        output += `Exceptional: ${d.exceptional_skins || 0} | Common: ${d.common_skins || 0}\n\n`;
+                        
+                        if (d.top_3_hero_details && d.top_3_hero_details.length > 0) {
+                            output += `TOP 3 HERO\n`;
+                            d.top_3_hero_details.forEach((h, i) => {
+                                output += `${i+1}. ${h.hero || '-'}\n`;
+                                output += `   Matches: ${h.matches || 0} | WR: ${h.win_rate || '0%'}\n`;
+                                output += `   Power: ${h.power || 0}\n`;
+                            });
+                            output += `\n`;
+                        }
+                        
+                        output += `STATISTIK\n`;
+                        output += `Total Match: ${d.total_match_played?.toLocaleString() || 0}\n`;
+                        output += `Win Rate: ${d.overall_win_rate || '0%'}\n`;
+                        output += `KDA: ${d.kda || '-'}\n`;
+                        output += `MVP: ${d.total_mvp || 0}\n`;
+                        output += `Savage: ${d.savage_kill || 0} | Maniac: ${d.maniac_kill || 0}\n`;
+                        output += `Legendary: ${d.legendary_kill || 0}\n\n`;
+                        
+                        if (d.squad_name) {
+                            output += `SQUAD\n`;
+                            output += `Name: ${d.squad_name}\n`;
+                            output += `Prefix: ${d.squad_prefix || '-'}\n`;
+                            output += `ID: ${d.squad_id || '-'}\n\n`;
+                        }
+                        
+                        if (d.last_match_data) {
+                            output += `LAST MATCH\n`;
+                            output += `Hero: ${d.last_match_data.hero_name || '-'}\n`;
+                            output += `K/D/A: ${d.last_match_data.kills || 0}/${d.last_match_data.deaths || 0}/${d.last_match_data.assists || 0}\n`;
+                            output += `Gold: ${d.last_match_data.gold?.toLocaleString() || 0}\n`;
+                            output += `Damage: ${d.last_match_data.hero_damage?.toLocaleString() || 0}\n`;
+                            output += `Duration: ${d.last_match_duration || '-'}\n`;
+                            output += `Date: ${d.last_match_date || '-'}\n`;
+                        }
+
+                        output += `\nSisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
+
+                        await bot.editMessageText(output, {
+                            chat_id: chatId,
+                            message_id: loadingMsg.message_id,
+                            reply_markup: { 
+                                inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
+                            }
+                        });
+                        
+                    } finally {
+                        setTimeout(() => {
+                            delete userProcessing[userId];
+                        }, 30000);
+                    }
+
+                } catch (error) {
+                    console.log('Error /cek:', error.message);
+                    delete userProcessing[userId];
+                    try {
+                        await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
+                    } catch (e) {}
+                }
+            });
+
+            // ========== /FIND ==========
+            bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
+                try {
+                    if (msg.chat.type !== 'private') return;
+                    
+                    const chatId = msg.chat.id;
+                    const userId = msg.from.id;
+                    const username = msg.from.username || '';
+                    
+                    getUserCredits(userId, username);
+                    
+                    if (!match || !match[1]) {
+                        await bot.sendMessage(chatId,
+                            `PENCARIAN AKUN\n\n` +
+                            `Format yang tersedia:\n` +
+                            `1. Cari via Nickname + Server:\n` +
+                            `   /find NICKNAME SERVER\n` +
+                            `   Contoh: /find Nama Pemain 1234\n\n` +
+                            `2. Cari via Role ID:\n` +
+                            `   /find ID\n` +
+                            `   Contoh: /find 643461181\n\n` +
+                            `Biaya: Rp 5.000`
+                        );
+                        return;
+                    }
+                    
+                    const input = match[1].trim();
+                    const parts = input.split(/\s+/);
+                    
+                    let nickname, serverFilter = null;
+                    let isRoleIdSearch = false;
+                    
+                    if (parts.length === 1) {
+                        const single = parts[0];
+                        if (/^\d+$/.test(single)) {
+                            isRoleIdSearch = true;
+                            nickname = single;
+                        } else {
+                            await bot.sendMessage(chatId,
+                                `❌ Format salah.\n\n` +
+                                `Jika ingin mencari berdasarkan nickname, Anda WAJIB menyertakan server.\n` +
+                                `Contoh: /find Nama Pemain 1234\n\n` +
+                                `Atau cari langsung via Role ID: /find 643461181`
+                            );
+                            return;
+                        }
+                    } else {
+                        const lastPart = parts[parts.length - 1];
+                        if (/^\d+$/.test(lastPart)) {
+                            serverFilter = lastPart;
+                            nickname = parts.slice(0, -1).join(' ');
+                        } else {
+                            await bot.sendMessage(chatId,
+                                `❌ Format salah.\n\n` +
+                                `Server harus berupa angka.\n` +
+                                `Contoh: /find Nama Pemain 1234`
+                            );
+                            return;
+                        }
+                    }
+                    
+                    if (isBanned(userId) && !isAdmin(userId)) {
+                        await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
+                        return;
+                    }
+                    
+                    const joined = await checkJoin(bot, userId);
+                    if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
+                        let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
+                        if (!joined.channel) message += `• ${CHANNEL}\n`;
+                        if (!joined.group) message += `• ${GROUP}\n\n`;
+                        
+                        const buttons = [];
+                        if (!joined.channel) {
+                            buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
+                        }
+                        if (!joined.group) {
+                            buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
+                        }
+                        
+                        await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
+                        return;
+                    }
+                    
+                    const credits = getUserCredits(userId, username);
+                    if (credits < 5000 && !isAdmin(userId)) {
+                        await bot.sendMessage(chatId,
+                            `SALDO TIDAK CUKUP\n\n` +
+                            `Saldo Anda: Rp ${credits.toLocaleString()}\n` +
+                            `Biaya /find: Rp 5.000\n` +
+                            `Kekurangan: Rp ${(5000 - credits).toLocaleString()}\n\n` +
+                            `Silakan isi saldo terlebih dahulu:`,
+                            {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: 'TOP UP', callback_data: 'topup_menu' }]
+                                    ]
+                                }
+                            }
+                        );
+                        return;
+                    }
+                    
+                    const banned = await recordInfoActivity(userId);
+                    if (banned) {
+                        await bot.sendMessage(chatId, 'Anda telah dibanned karena spam.');
+                        return;
+                    }
+                    
+                    userProcessing[userId] = true;
+                    const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
+                    
+                    try {
+                        let results = null;
+                        
+                        if (isRoleIdSearch) {
+                            results = await getPlayerByRoleId(nickname);
+                        } else {
+                            results = await findPlayerByName(nickname);
+                            if (results && results.length > 0) {
+                                results = results.filter(r => r.zone_id == serverFilter);
+                            }
+                        }
+                        
+                        const searchSuccess = results && results.length > 0;
+                        
+                        if (!searchSuccess) {
+                            let failMsg = 'Gagal mengambil data. Saldo Anda tidak terpotong.\n\nSilakan coba lagi nanti.';
+                            if (!isRoleIdSearch) {
+                                failMsg = `Tidak ditemukan akun dengan nickname "${nickname}" dan server ${serverFilter}. Saldo tidak terpotong.`;
+                            } else {
+                                failMsg = `Tidak ditemukan akun dengan Role ID ${nickname}. Saldo tidak terpotong.`;
+                            }
+                            await bot.editMessageText(failMsg, {
+                                chat_id: chatId,
+                                message_id: loadingMsg.message_id
+                            });
+                            console.log(`SALDO TIDAK DIPOTONG: User ${userId} | Command: find | Alasan: Data null`);
+                            return;
+                        }
+                        
+                        if (!isAdmin(userId)) {
+                            const sebelum = db.users[userId].credits;
+                            db.users[userId].credits -= 5000;
+                            await saveDB();
+                            console.log(`SALDO DIPOTONG: User ${userId} | Sebelum: ${sebelum} | Sesudah: ${db.users[userId].credits} | Command: find | Status: SUKSES`);
+                        }
+                        
+                        let output = '';
+                        if (isRoleIdSearch) {
+                            output = `HASIL PENCARIAN ROLE ID: ${nickname}\n\n`;
+                        } else {
+                            output = `HASIL PENCARIAN: ${nickname} (Server: ${serverFilter})\n\n`;
+                        }
+                        
+                        results.forEach((item, index) => {
+                            if (!isRoleIdSearch && results.length > 1) {
+                                output += `[${index + 1}] `;
+                            }
+                            output += `${item.name || item.nickname || 'Unknown'}\n`;
+                            output += `ID: ${item.role_id || '-'} | Server: ${item.zone_id || '-'}\n`;
+                            output += `Level: ${item.level || '-'}\n`;
+                            
+                            if (item.last_login) {
+                                output += `Last Login: ${item.last_login}\n`;
+                            }
+                            
+                            if (item.locations_logged && Array.isArray(item.locations_logged)) {
+                                const locations = formatLocations(item.locations_logged, 5);
+                                if (locations) {
+                                    output += `Lokasi: ${locations}\n`;
+                                }
+                            }
+                            
+                            output += `--------------------\n`;
+                        });
+                        
+                        output += `\nSisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
+                        
+                        await bot.editMessageText(output, {
+                            chat_id: chatId,
+                            message_id: loadingMsg.message_id
+                        });
+                        
+                    } finally {
+                        setTimeout(() => {
+                            delete userProcessing[userId];
+                        }, 30000);
+                    }
+                    
+                } catch (error) {
+                    console.log('Error /find:', error.message);
+                    delete userProcessing[userId];
+                    try {
+                        await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
+                    } catch (e) {}
+                }
+            });
+            // ========== END /FIND ==========
+
+            bot.onText(/\/listtopup(?:\s+(\d+))?/, async (msg, match) => {
+                try {
+                    if (msg.chat.type !== 'private') return;
+                    if (!isAdmin(msg.from.id)) return;
+                    
+                    const targetId = match[1] ? parseInt(match[1]) : null;
+                    
+                    if (targetId) {
+                        const user = db.users[targetId];
+                        if (!user || !user.topup_history || user.topup_history.length === 0) {
+                            await bot.sendMessage(msg.chat.id, `User ${targetId} tidak memiliki riwayat topup.`);
+                            return;
+                        }
+                        
+                        let message = `RIWAYAT TOPUP USER ${targetId}\n\n`;
+                        message += `Saldo saat ini: Rp ${(user.credits || 0).toLocaleString()}\n\n`;
+                        
+                        user.topup_history.forEach((item, i) => {
+                            const date = moment(item.date).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm');
+                            message += `${i+1}. Rp ${item.amount.toLocaleString()} (${item.order_id || 'Manual'})\n`;
+                            message += `   Tanggal: ${date} WIB\n\n`;
+                        });
+                        
+                        await bot.sendMessage(msg.chat.id, message);
+                        
+                    } else {
+                        let message = `DAFTAR USER DENGAN SALDO > 0\n\n`;
+                        
+                        const usersWithBalance = Object.entries(db.users || {})
+                            .filter(([_, u]) => (u.credits || 0) > 0)
+                            .sort((a, b) => (b[1].credits || 0) - (a[1].credits || 0));
+                        
+                        if (usersWithBalance.length === 0) {
+                            message += 'Tidak ada user dengan saldo.';
+                        } else {
+                            const totalSaldo = usersWithBalance.reduce((sum, [_, u]) => sum + (u.credits || 0), 0);
+                            message += `Total ${usersWithBalance.length} user | Total Saldo: Rp ${totalSaldo.toLocaleString()}\n\n`;
+                            
+                            usersWithBalance.forEach(([id, u], i) => {
+                                const totalTopup = (u.topup_history || []).reduce((sum, item) => sum + (item.amount || 0), 0);
+                                message += `${i+1}. ${u.username || 'tanpa username'}\n`;
+                                message += `   ID: ${id}\n`;
+                                message += `   Saldo: Rp ${(u.credits || 0).toLocaleString()}\n`;
+                                message += `   Total Topup: Rp ${totalTopup.toLocaleString()} (${(u.topup_history || []).length}x)\n\n`;
+                            });
+                        }
+                        
+                        await bot.sendMessage(msg.chat.id, message);
+                    }
+                } catch (error) {
+                    console.log('Error /listtopup:', error.message);
+                }
+            });
+
+            bot.onText(/\/offinfo/, async (msg) => { 
+                try {
+                    if (msg.chat.type !== 'private') return;
+                    const userId = msg.from.id;
+                    
+                    if (!isAdmin(userId)) {
+                        await bot.sendMessage(msg.chat.id, 'Anda tidak memiliki akses.');
+                        return;
+                    }
+                    
+                    if (!db.feature) db.feature = {};
+                    db.feature.info = false; 
+                    await saveDB(); 
+                    await bot.sendMessage(msg.chat.id, 'Fitur info dinonaktifkan.'); 
+                    console.log(`Fitur info dinonaktifkan oleh admin ${userId}`);
+                    
+                } catch (error) {
+                    console.log('Error /offinfo:', error.message);
+                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan.');
+                }
+            });
+
+            bot.onText(/\/oninfo/, async (msg) => { 
+                try {
+                    if (msg.chat.type !== 'private') return;
+                    const userId = msg.from.id;
+                    
+                    if (!isAdmin(userId)) {
+                        await bot.sendMessage(msg.chat.id, 'Anda tidak memiliki akses.');
+                        return;
+                    }
+                    
+                    if (!db.feature) db.feature = {};
+                    db.feature.info = true; 
+                    await saveDB(); 
+                    await bot.sendMessage(msg.chat.id, 'Fitur info diaktifkan.'); 
+                    console.log(`Fitur info diaktifkan oleh admin ${userId}`);
+                    
+                } catch (error) {
+                    console.log('Error /oninfo:', error.message);
+                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan.');
+                }
+            });
+
+            bot.onText(/\/listbanned/, async (msg) => {
+                try {
+                    if (msg.chat.type !== 'private') return;
+                    if (!isAdmin(msg.from.id)) return;
+                    
+                    let message = `DAFTAR USER BANNED\n\n`;
+                    const bannedList = Object.entries(spamData).filter(([_, d]) => d.banned);
+                    
+                    if (bannedList.length === 0) {
+                        message += 'Tidak ada user yang diblokir.';
+                    } else {
+                        bannedList.forEach(([id, d], i) => {
+                            const date = moment(d.bannedAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm');
+                            message += `${i+1}. ID: ${id}\n`;
+                            message += `   Alasan: ${d.banReason || 'Tidak ada'}\n`;
+                            message += `   Tanggal: ${date} WIB\n\n`;
+                        });
+                    }
+                    
+                    await bot.sendMessage(msg.chat.id, message);
+                } catch (error) {
+                    console.log('Error /listbanned:', error.message);
+                }
+            });
+
+            bot.onText(/\/addban(?:\s+(\d+)(?:\s+(.+))?)?/, async (msg, match) => {
+                try {
+                    if (msg.chat.type !== 'private') return;
+                    if (!isAdmin(msg.from.id)) return;
+                    
+                    if (!match[1]) {
+                        await bot.sendMessage(msg.chat.id, 'Format: /addban ID [alasan]');
+                        return;
+                    }
+                    
+                    const targetId = parseInt(match[1]);
+                    const reason = match[2] || 'Ban manual oleh admin';
+                    
+                    const now = Date.now();
+                    spamData[targetId] = { 
+                        banned: true, 
+                        bannedAt: now, 
+                        banReason: reason, 
+                        infoCount: [] 
+                    };
+                    await saveSpamData();
+                    
+                    await bot.sendMessage(msg.chat.id, `User ${targetId} telah diblokir.\nAlasan: ${reason}`);
+                    
+                    try {
+                        await bot.sendMessage(targetId, 
+                            `AKUN ANDA DIBLOKIR\n\n` +
+                            `Alasan: ${reason}\n` +
+                            `Hubungi admin jika ada kesalahan.`
+                        );
+                    } catch (e) {}
+                    
+                } catch (error) {
+                    console.log('Error /addban:', error.message);
+                }
+            });
+
+            bot.onText(/\/unban (\d+)/, async (msg, match) => {
+                try {
+                    if (msg.chat.type !== 'private') return;
+                    if (!isAdmin(msg.from.id)) return;
+                    
+                    const targetId = parseInt(match[1]);
+                    
+                    if (spamData[targetId]) {
+                        spamData[targetId].banned = false;
+                        spamData[targetId].infoCount = [];
+                        await saveSpamData();
+                        await bot.sendMessage(msg.chat.id, `User ${targetId} telah di-unban.`);
+                        
+                        try {
+                            await bot.sendMessage(targetId, `Akun Anda telah di-unban. Silakan gunakan bot kembali.`);
+                        } catch (e) {}
+                    } else {
+                        await bot.sendMessage(msg.chat.id, `User ${targetId} tidak ditemukan.`);
+                    }
+                } catch (error) {
+                    console.log('Error /unban:', error.message);
+                }
+            });
+
+            bot.onText(/\/addtopup (\d+) (\d+)/, async (msg, match) => {
+                try {
+                    if (msg.chat.type !== 'private') return;
+                    if (!isAdmin(msg.from.id)) return;
+                    
+                    const targetId = parseInt(match[1]);
+                    const amount = parseInt(match[2]);
+                    
+                    if (amount < 1 || amount > 1000000) {
+                        await bot.sendMessage(msg.chat.id, 'Jumlah harus 1-1.000.000.');
+                        return;
+                    }
+                    
+                    const newBalance = await addCredits(targetId, amount, null);
+                    
+                    await bot.sendMessage(msg.chat.id, 
+                        `TOPUP MANUAL BERHASIL\n\n` +
+                        `User: ${targetId}\n` +
+                        `Jumlah: Rp ${amount.toLocaleString()}\n` +
                         `Saldo sekarang: Rp ${newBalance.toLocaleString()}`
                     );
-                } catch (e) {}
-                
-            } catch (error) {
-                console.log('Error /addtopup:', error.message);
-            }
-        });
-
-        bot.on('callback_query', async (cb) => {
-            try {
-                console.log('Callback diterima:', cb.data);
-                
-                const msg = cb.message;
-                if (!msg || msg.chat.type !== 'private') {
-                    await bot.answerCallbackQuery(cb.id, { text: 'Bot hanya di private chat' });
-                    return;
-                }
-                
-                const chatId = msg.chat.id;
-                const userId = cb.from.id;
-                const data = cb.data;
-                const messageId = msg.message_id;
-
-                if (data === 'kembali_ke_menu') {
-                    await editToMainMenu(bot, chatId, messageId, userId);
-                    await bot.answerCallbackQuery(cb.id);
-                    return;
-                }
-
-                if (data === 'topup_menu') {
-                    await editToTopupMenu(bot, chatId, messageId, userId);
-                    await bot.answerCallbackQuery(cb.id);
-                    return;
-                }
-
-                if (data.startsWith('cancel_topup_')) {
-                    const orderId = data.replace('cancel_topup_', '');
-                    
-                    if (db.pending_topups && db.pending_topups[orderId]) {
-                        delete db.pending_topups[orderId];
-                        await saveDB();
-                    }
                     
                     try {
-                        await bot.deleteMessage(chatId, messageId);
+                        await bot.sendMessage(targetId, 
+                            `SALDO DITAMBAH ADMIN\n\n` +
+                            `Saldo Anda bertambah Rp ${amount.toLocaleString()}.\n` +
+                            `Saldo sekarang: Rp ${newBalance.toLocaleString()}`
+                        );
                     } catch (e) {}
                     
-                    await bot.answerCallbackQuery(cb.id, { text: 'Pembayaran dibatalkan' });
-                    return;
+                } catch (error) {
+                    console.log('Error /addtopup:', error.message);
                 }
+            });
 
-                if (data.startsWith('topup_')) {
-                    await bot.answerCallbackQuery(cb.id, { text: 'Memproses topup...' });
+            bot.on('callback_query', async (cb) => {
+                try {
+                    console.log('Callback diterima:', cb.data);
                     
-                    const amount = parseInt(data.replace('topup_', ''));
+                    const msg = cb.message;
+                    if (!msg || msg.chat.type !== 'private') {
+                        await bot.answerCallbackQuery(cb.id, { text: 'Bot hanya di private chat' });
+                        return;
+                    }
                     
-                    const validAmounts = [5000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000];
-                    if (!validAmounts.includes(amount)) {
-                        await bot.editMessageText('Nominal tidak valid.', {
+                    const chatId = msg.chat.id;
+                    const userId = cb.from.id;
+                    const username = cb.from.username || '';
+                    getUserCredits(userId, username);
+                    
+                    const data = cb.data;
+                    const messageId = msg.message_id;
+
+                    if (data === 'kembali_ke_menu') {
+                        await editToMainMenu(bot, chatId, messageId, userId);
+                        await bot.answerCallbackQuery(cb.id);
+                        return;
+                    }
+
+                    if (data === 'topup_menu') {
+                        await editToTopupMenu(bot, chatId, messageId, userId);
+                        await bot.answerCallbackQuery(cb.id);
+                        return;
+                    }
+
+                    if (data.startsWith('cancel_topup_')) {
+                        const orderId = data.replace('cancel_topup_', '');
+                        
+                        if (db.pending_topups && db.pending_topups[orderId]) {
+                            delete db.pending_topups[orderId];
+                            await saveDB();
+                        }
+                        
+                        try {
+                            await bot.deleteMessage(chatId, messageId);
+                        } catch (e) {}
+                        
+                        await bot.answerCallbackQuery(cb.id, { text: 'Pembayaran dibatalkan' });
+                        return;
+                    }
+
+                    if (data.startsWith('topup_')) {
+                        await bot.answerCallbackQuery(cb.id, { text: 'Memproses topup...' });
+                        
+                        const amount = parseInt(data.replace('topup_', ''));
+                        
+                        const validAmounts = [5000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000];
+                        if (!validAmounts.includes(amount)) {
+                            await bot.editMessageText('Nominal tidak valid.', {
+                                chat_id: chatId,
+                                message_id: messageId
+                            });
+                            return;
+                        }
+                        
+                        await bot.editMessageText('Membuat pembayaran...', {
                             chat_id: chatId,
                             message_id: messageId
                         });
-                        return;
-                    }
-                    
-                    await bot.editMessageText('Membuat pembayaran...', {
-                        chat_id: chatId,
-                        message_id: messageId
-                    });
-                    
-                    const username = cb.from.username || '';
-                    const payment = await createPakasirTopup(amount, userId, username);
-                    
-                    if (!payment.success) {
-                        await bot.editMessageText(`Gagal: ${payment.error}`, {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'KEMBALI', callback_data: 'topup_menu' }]
-                                ]
-                            }
-                        });
-                        return;
-                    }
-                    
-                    try {
-                        const qrBuffer = await QRCode.toBuffer(payment.qrString, { 
-                            errorCorrectionLevel: 'L', 
-                            margin: 1, 
-                            width: 256 
-                        });
                         
-                        await bot.deleteMessage(chatId, messageId);
+                        const payment = await createPakasirTopup(amount, userId, username);
                         
-                        const sentMessage = await bot.sendPhoto(chatId, qrBuffer, {
-                            caption: 
-                                `TOP UP SALDO\n\n` +
-                                `Nominal: Rp ${amount.toLocaleString()}\n` +
-                                `Saldo didapat: Rp ${amount.toLocaleString()}\n\n` +
-                                `Order ID: ${payment.orderId}\n` +
-                                `Berlaku sampai: ${payment.expiredAt} WIB\n\n` +
-                                `Scan QR code di atas untuk membayar.\n\n` +
-                                `Saldo akan masuk otomatis begitu pembayaran berhasil`,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'BATALKAN', callback_data: `cancel_topup_${payment.orderId}` }]
-                                ]
-                            }
-                        });
-                        
-                        if (db.pending_topups && db.pending_topups[payment.orderId]) {
-                            // SIMPAN CHAT ID DAN MESSAGE ID UNTUK AUTO DELETE
-                            db.pending_topups[payment.orderId].messageId = sentMessage.message_id;
-                            db.pending_topups[payment.orderId].chatId = chatId;
-                            await saveDB();
-                            console.log(`QR DISIMPAN - Order: ${payment.orderId}, Chat: ${chatId}, Message: ${sentMessage.message_id}`);
-                        }
-                        
-                    } catch (qrError) {
-                        console.log('Error kirim QR:', qrError.message);
-                        await bot.editMessageText(
-                            `TOP UP SALDO\n\n` +
-                            `Nominal: Rp ${amount.toLocaleString()}\n\n` +
-                            `QR Code:\n${payment.qrString}\n\n` +
-                            `Order ID: ${payment.orderId}\n\n` +
-                            `Saldo akan masuk otomatis begitu pembayaran berhasil`,
-                            {
+                        if (!payment.success) {
+                            await bot.editMessageText(`Gagal: ${payment.error}`, {
                                 chat_id: chatId,
                                 message_id: messageId,
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: 'KEMBALI', callback_data: 'topup_menu' }]
+                                    ]
+                                }
+                            });
+                            return;
+                        }
+                        
+                        try {
+                            const qrBuffer = await QRCode.toBuffer(payment.qrString, { 
+                                errorCorrectionLevel: 'L', 
+                                margin: 1, 
+                                width: 256 
+                            });
+                            
+                            await bot.deleteMessage(chatId, messageId);
+                            
+                            const sentMessage = await bot.sendPhoto(chatId, qrBuffer, {
+                                caption: 
+                                    `TOP UP SALDO\n\n` +
+                                    `Nominal: Rp ${amount.toLocaleString()}\n` +
+                                    `Saldo didapat: Rp ${amount.toLocaleString()}\n\n` +
+                                    `Order ID: ${payment.orderId}\n` +
+                                    `Berlaku sampai: ${payment.expiredAt} WIB\n\n` +
+                                    `Scan QR code di atas untuk membayar.\n\n` +
+                                    `Saldo akan masuk otomatis begitu pembayaran berhasil`,
                                 reply_markup: {
                                     inline_keyboard: [
                                         [{ text: 'BATALKAN', callback_data: `cancel_topup_${payment.orderId}` }]
                                     ]
                                 }
+                            });
+                            
+                            if (db.pending_topups && db.pending_topups[payment.orderId]) {
+                                db.pending_topups[payment.orderId].messageId = sentMessage.message_id;
+                                db.pending_topups[payment.orderId].chatId = chatId;
+                                await saveDB();
+                                console.log(`QR DISIMPAN - Order: ${payment.orderId}, Chat: ${chatId}, Message: ${sentMessage.message_id}`);
                             }
-                        );
+                            
+                        } catch (qrError) {
+                            console.log('Error kirim QR:', qrError.message);
+                            await bot.editMessageText(
+                                `TOP UP SALDO\n\n` +
+                                `Nominal: Rp ${amount.toLocaleString()}\n\n` +
+                                `QR Code:\n${payment.qrString}\n\n` +
+                                `Order ID: ${payment.orderId}\n\n` +
+                                `Saldo akan masuk otomatis begitu pembayaran berhasil`,
+                                {
+                                    chat_id: chatId,
+                                    message_id: messageId,
+                                    reply_markup: {
+                                        inline_keyboard: [
+                                            [{ text: 'BATALKAN', callback_data: `cancel_topup_${payment.orderId}` }]
+                                        ]
+                                    }
+                                }
+                            );
+                        }
+                        
+                        return;
                     }
                     
-                    return;
+                    await bot.answerCallbackQuery(cb.id, { text: 'Perintah tidak dikenal' });
+                    
+                } catch (error) {
+                    console.log('Error callback:', error.message);
+                    try {
+                        await bot.answerCallbackQuery(cb.id, { text: 'Terjadi kesalahan' });
+                    } catch (e) {}
                 }
-                
-                await bot.answerCallbackQuery(cb.id, { text: 'Perintah tidak dikenal' });
-                
-            } catch (error) {
-                console.log('Error callback:', error.message);
+            });
+
+            async function editToMainMenu(bot, chatId, messageId, userId) {
                 try {
-                    await bot.answerCallbackQuery(cb.id, { text: 'Terjadi kesalahan' });
-                } catch (e) {}
-            }
-        });
-
-        async function editToMainMenu(bot, chatId, messageId, userId) {
-            try {
-                await loadDB();
-                
-                const credits = getUserCredits(userId);
-                
-                let message = `MENU UTAMA\n\n`;
-                message += `User ID: ${userId}\n`;
-                message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
-                message += `DAFTAR PERINTAH:\n`;
-                message += `/info ID SERVER - Info akun\n`;
-                message += `/cek ID SERVER - Detail akun (Rp 5.000)\n`;
-                message += `/find NICKNAME SERVER (Rp 5.000) \n`;
-                
-                if (isAdmin(userId)) {
-                    message += `\nADMIN MENU\n`;
-                    message += `/offinfo - Nonaktifkan fitur\n`;
-                    message += `/oninfo - Aktifkan fitur\n`;
-                    message += `/listbanned - Daftar banned\n`;
-                    message += `/listtopup - Daftar saldo > 0\n`;
-                    message += `/addban ID - Blokir user\n`;
-                    message += `/unban ID - Buka blokir\n`;
-                    message += `/addtopup ID JUMLAH - Tambah saldo\n`;
-                }
-                
-                const replyMarkup = {
-                    inline_keyboard: [
-                        [{ text: 'TOP UP', callback_data: 'topup_menu' }]
-                    ]
-                };
-                
-                await bot.editMessageText(message, {
-                    chat_id: chatId,
-                    message_id: messageId,
-                    reply_markup: replyMarkup
-                });
-            } catch (error) {
-                console.log('Error editToMainMenu:', error.message);
-            }
-        }
-
-        async function editToTopupMenu(bot, chatId, messageId, userId) {
-            try {
-                const credits = getUserCredits(userId);
-                
-                const message = 
-                    `TOP UP SALDO\n\n` +
-                    `Saldo Anda: Rp ${credits.toLocaleString()}\n\n` +
-                    `Pilih nominal top up:\n\n` +
-                    `Saldo akan masuk otomatis begitu pembayaran berhasil`;
-                
-                const replyMarkup = {
-                    inline_keyboard: [
-                        [
-                            { text: 'Rp 5.000', callback_data: 'topup_5000' },
-                            { text: 'Rp 10.000', callback_data: 'topup_10000' }
-                        ],
-                        [
-                            { text: 'Rp 25.000', callback_data: 'topup_25000' },
-                            { text: 'Rp 50.000', callback_data: 'topup_50000' }
-                        ],
-                        [
-                            { text: 'Rp 100.000', callback_data: 'topup_100000' },
-                            { text: 'Rp 200.000', callback_data: 'topup_200000' }
-                        ],
-                        [
-                            { text: 'Rp 500.000', callback_data: 'topup_500000' },
-                            { text: 'Rp 1.000.000', callback_data: 'topup_1000000' }
-                        ],
-                        [
-                            { text: 'KEMBALI KE MENU', callback_data: 'kembali_ke_menu' }
+                    await loadDB();
+                    
+                    const credits = getUserCredits(userId);
+                    
+                    let message = `MENU UTAMA\n\n`;
+                    message += `User ID: ${userId}\n`;
+                    message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
+                    message += `DAFTAR PERINTAH:\n`;
+                    message += `/info ID SERVER - Info akun\n`;
+                    message += `/cek ID SERVER - Detail akun (Rp 5.000)\n`;
+                    message += `/find NICKNAME SERVER (Rp 5.000) \n`;
+                    
+                    if (isAdmin(userId)) {
+                        message += `\nADMIN MENU\n`;
+                        message += `/offinfo - Nonaktifkan fitur\n`;
+                        message += `/oninfo - Aktifkan fitur\n`;
+                        message += `/listbanned - Daftar banned\n`;
+                        message += `/listtopup - Daftar saldo > 0\n`;
+                        message += `/addban ID - Blokir user\n`;
+                        message += `/unban ID - Buka blokir\n`;
+                        message += `/addtopup ID JUMLAH - Tambah saldo\n`;
+                    }
+                    
+                    const replyMarkup = {
+                        inline_keyboard: [
+                            [{ text: 'TOP UP', callback_data: 'topup_menu' }]
                         ]
-                    ]
-                };
-                
-                await bot.editMessageText(message, {
-                    chat_id: chatId,
-                    message_id: messageId,
-                    reply_markup: replyMarkup
-                });
-            } catch (error) {
-                console.log('Error editToTopupMenu:', error.message);
+                    };
+                    
+                    await bot.editMessageText(message, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: replyMarkup
+                    });
+                } catch (error) {
+                    console.log('Error editToMainMenu:', error.message);
+                }
             }
-        }
 
-        console.log('Bot started, Admin IDs:', ADMIN_IDS);
-        
-    } catch (error) {
-        console.log('FATAL ERROR:', error.message);
-        console.log('Bot failed to start. Check your configuration.');
+            async function editToTopupMenu(bot, chatId, messageId, userId) {
+                try {
+                    const credits = getUserCredits(userId);
+                    
+                    const message = 
+                        `TOP UP SALDO\n\n` +
+                        `Saldo Anda: Rp ${credits.toLocaleString()}\n\n` +
+                        `Pilih nominal top up:\n\n` +
+                        `Saldo akan masuk otomatis begitu pembayaran berhasil`;
+                    
+                    const replyMarkup = {
+                        inline_keyboard: [
+                            [
+                                { text: 'Rp 5.000', callback_data: 'topup_5000' },
+                                { text: 'Rp 10.000', callback_data: 'topup_10000' }
+                            ],
+                            [
+                                { text: 'Rp 25.000', callback_data: 'topup_25000' },
+                                { text: 'Rp 50.000', callback_data: 'topup_50000' }
+                            ],
+                            [
+                                { text: 'Rp 100.000', callback_data: 'topup_100000' },
+                                { text: 'Rp 200.000', callback_data: 'topup_200000' }
+                            ],
+                            [
+                                { text: 'Rp 500.000', callback_data: 'topup_500000' },
+                                { text: 'Rp 1.000.000', callback_data: 'topup_1000000' }
+                            ],
+                            [
+                                { text: 'KEMBALI KE MENU', callback_data: 'kembali_ke_menu' }
+                            ]
+                        ]
+                    };
+                    
+                    await bot.editMessageText(message, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: replyMarkup
+                    });
+                } catch (error) {
+                    console.log('Error editToTopupMenu:', error.message);
+                }
+            }
+
+            console.log('Bot started, Admin IDs:', ADMIN_IDS);
+
+            // Pembersihan pending_requests kadaluarsa (opsional)
+            setInterval(() => {
+                const now = Date.now();
+                let changed = false;
+                if (db.pending_requests) {
+                    for (const key in db.pending_requests) {
+                        if (now - db.pending_requests[key].timestamp > 300000) { // 5 menit
+                            delete db.pending_requests[key];
+                            changed = true;
+                        }
+                    }
+                }
+                if (changed) saveDB().catch(console.log);
+            }, 60000);
+            
+        } catch (error) {
+            console.log('FATAL ERROR:', error.message);
+            console.log('Bot failed to start. Check your configuration.');
+        }
     }
-}
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
