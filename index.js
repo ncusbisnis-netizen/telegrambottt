@@ -1215,9 +1215,9 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             if (!searchSuccess) {
                 let failMsg = 'Gagal mengambil data. Saldo Anda tidak terpotong.\n\nSilakan coba lagi nanti.';
                 if (!isRoleIdSearch) {
-                    failMsg = `Tidak ditemukan akun dengan nickname "${nickname}" dan server ${serverFilter}. Saldo tidak terpotong.`;
+                    failMsg = `Gagal mengambil data.`;
                 } else {
-                    failMsg = `Tidak ditemukan akun dengan Role ID ${nickname}. Saldo tidak terpotong.`;
+                    failMsg = `Gagal mengambil data.`;
                 }
                 await bot.editMessageText(failMsg, {
                     chat_id: chatId,
