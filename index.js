@@ -938,12 +938,14 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             output += `• Last Login: ${d.last_login || '-'}\n`;
             output += `• Achievement Points: ${d.achievement_points?.toLocaleString() || 0}\n`;
             
-            // Tambahan last_country_logged
-            if (d.last_country_logged) {
-                output += `• Last Country: ${d.last_country_logged}\n`;
-            }
-            if (d.created_country) {
-                output += `• Created Country: ${d.created_country}\n`;
+            // LAST COUNTRY & CREATED COUNTRY
+            if (d.last_country_logged || d.created_country) {
+                if (d.last_country_logged) {
+                    output += `• Last Country: ${d.last_country_logged}\n`;
+                }
+                if (d.created_country) {
+                    output += `• Created Country: ${d.created_country}\n`;
+                }
             }
             output += `\n`;
             
@@ -981,6 +983,7 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 output += `• ${d.affinity_list.join('\n• ')}\n\n`;
             }
             
+            // LOCATIONS
             if (d.locations_logged && d.locations_logged.length > 0) {
                 output += `LOCATIONS\n`;
                 output += `• ${d.locations_logged.join('\n• ')}\n\n`;
@@ -1031,7 +1034,7 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 output += `\n`;
             }
             
-            // SQUAD SECTION (yang Anda minta)
+            // SQUAD SECTION
             if (d.squad_name || d.squad_id) {
                 output += `SQUAD\n`;
                 if (d.squad_name) {
@@ -1100,189 +1103,192 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
 });
 
         // ========== /FIND ==========
-        bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                
-                if (!match || !match[1]) {
-                    await bot.sendMessage(chatId,
-                        `PENCARIAN AKUN\n\n` +
-                        `Format yang tersedia:\n` +
-                        `1. Cari via Nickname + Server:\n` +
-                        `   /find NICKNAME SERVER\n` +
-                        `   Contoh: /find Nama Pemain 1234\n\n` +
-                        `2. Cari via Role ID:\n` +
-                        `   /find ID\n` +
-                        `   Contoh: /find 643461181\n\n` +
-                        `Biaya: Rp 5.000`
-                    );
-                    return;
-                }
-                
-                const input = match[1].trim();
-                const parts = input.split(/\s+/);
-                
-                let nickname, serverFilter = null;
-                let isRoleIdSearch = false;
-                
-                if (parts.length === 1) {
-                    const single = parts[0];
-                    if (/^\d+$/.test(single)) {
-                        isRoleIdSearch = true;
-                        nickname = single;
-                    } else {
-                        await bot.sendMessage(chatId,
-                            `Format salah.\n\n` +
-                            `Jika ingin mencari berdasarkan nickname, Anda WAJIB menyertakan server.\n` +
-                            `Contoh: /find Nama Pemain 1234\n\n` +
-                            `Atau cari langsung via Role ID: /find 643461181`
-                        );
-                        return;
-                    }
-                } else {
-                    const lastPart = parts[parts.length - 1];
-                    if (/^\d+$/.test(lastPart)) {
-                        serverFilter = lastPart;
-                        nickname = parts.slice(0, -1).join(' ');
-                    } else {
-                        await bot.sendMessage(chatId,
-                            `Format salah.\n\n` +
-                            `Server harus berupa angka.\n` +
-                            `Contoh: /find Nama Pemain 1234`
-                        );
-                        return;
-                    }
-                }
-                
-                const joined = await checkJoin(bot, userId);
-                
-                if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-                    let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`;
-                    
-                    const buttons = [];
-                    if (!joined.channel) {
-                        buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
-                    }
-                    if (!joined.group) {
-                        buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
-                    }
-                    
-                    await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
-                    return;
-                }
-                
-                const credits = getUserCredits(userId, msg.from.username || '');
-                if (credits < 5000 && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId,
-                        `SALDO TIDAK CUKUP\n\n` +
-                        `Saldo Anda: Rp ${credits.toLocaleString()}\n` +
-                        `Biaya /find: Rp 5.000\n` +
-                        `Kekurangan: Rp ${(5000 - credits).toLocaleString()}\n\n` +
-                        `Silakan isi saldo terlebih dahulu:`,
-                        {
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'TOP UP', callback_data: 'topup_menu' }]
-                                ]
-                            }
-                        }
-                    );
-                    return;
-                }
-                
-                // Tidak ada userProcessing
-                const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
-                
-                try {
-                    let results = null;
-                    
-                    if (isRoleIdSearch) {
-                        results = await getPlayerByRoleId(nickname);
-                    } else {
-                        results = await findPlayerByName(nickname);
-                        if (results && results.length > 0) {
-                            results = results.filter(r => r.zone_id == serverFilter);
-                        }
-                    }
-                    
-                    const searchSuccess = results && results.length > 0;
-                    
-                    if (!searchSuccess) {
-                        let failMsg = 'Gagal mengambil data. Saldo Anda tidak terpotong.\n\nSilakan coba lagi nanti.';
-                        if (!isRoleIdSearch) {
-                            failMsg = `Tidak ditemukan akun dengan nickname "${nickname}" dan server ${serverFilter}. Saldo tidak terpotong.`;
-                        } else {
-                            failMsg = `Tidak ditemukan akun dengan Role ID ${nickname}. Saldo tidak terpotong.`;
-                        }
-                        await bot.editMessageText(failMsg, {
-                            chat_id: chatId,
-                            message_id: loadingMsg.message_id
-                        });
-                        console.log(`SALDO TIDAK DIPOTONG: User ${userId} | Command: find | Alasan: Data null`);
-                        return;
-                    }
-                    
-                    if (!isAdmin(userId)) {
-                        const sebelum = db.users[userId].credits;
-                        db.users[userId].credits -= 5000;
-                        await saveDB();
-                        console.log(`SALDO DIPOTONG: User ${userId} | Sebelum: ${sebelum} | Sesudah: ${db.users[userId].credits} | Command: find | Status: SUKSES`);
-                    }
-                    
-                    let output = '';
-                    if (isRoleIdSearch) {
-                        output = `HASIL PENCARIAN ROLE ID: ${nickname}\n\n`;
-                    } else {
-                        output = `HASIL PENCARIAN: ${nickname} (Server: ${serverFilter})\n\n`;
-                    }
-                    
-                    results.forEach((item, index) => {
-                        if (!isRoleIdSearch && results.length > 1) {
-                            output += `[${index + 1}] `;
-                        }
-                        output += `${item.name || item.nickname || 'Unknown'}\n`;
-                        output += `ID: ${item.role_id || '-'} | Server: ${item.zone_id || '-'}\n`;
-                        output += `Level: ${item.level || '-'}\n`;
-                        
-                        if (item.last_login) {
-                            output += `Last Login: ${item.last_login}\n`;
-                        }
-                        
-                        if (item.locations_logged && Array.isArray(item.locations_logged)) {
-                            const locations = formatLocations(item.locations_logged, 5);
-                            if (locations) {
-                                output += `Lokasi: ${locations}\n`;
-                            }
-                        }
-                        
-                        output += `--------------------\n`;
-                    });
-                    
-                    output += `\nSisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
-                    
-                    await bot.editMessageText(output, {
-                        chat_id: chatId,
-                        message_id: loadingMsg.message_id
-                    });
-                    
-                } catch (error) {
-                    console.log('Error saat mencari data:', error.message);
-                    await bot.editMessageText('Terjadi kesalahan saat mencari data.', {
-                        chat_id: chatId,
-                        message_id: loadingMsg.message_id
-                    });
-                }
-                
-            } catch (error) {
-                console.log('Error /find:', error.message);
-                try {
-                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
-                } catch (e) {}
+bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
+    try {
+        if (msg.chat.type !== 'private') return;
+        
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        
+        if (!match || !match[1]) {
+            await bot.sendMessage(chatId,
+                `PENCARIAN AKUN\n\n` +
+                `Format yang tersedia:\n` +
+                `1. Cari via Nickname + Server:\n` +
+                `   /find NICKNAME SERVER\n` +
+                `   Contoh: /find Nama Pemain 1234\n\n` +
+                `2. Cari via Role ID:\n` +
+                `   /find ID\n` +
+                `   Contoh: /find 643461181\n\n` +
+                `Biaya: Rp 5.000`
+            );
+            return;
+        }
+        
+        const input = match[1].trim();
+        const parts = input.split(/\s+/);
+        
+        let nickname, serverFilter = null;
+        let isRoleIdSearch = false;
+        
+        if (parts.length === 1) {
+            const single = parts[0];
+            if (/^\d+$/.test(single)) {
+                isRoleIdSearch = true;
+                nickname = single;
+            } else {
+                await bot.sendMessage(chatId,
+                    `Format salah.\n\n` +
+                    `Jika ingin mencari berdasarkan nickname, Anda WAJIB menyertakan server.\n` +
+                    `Contoh: /find Nama Pemain 1234\n\n` +
+                    `Atau cari langsung via Role ID: /find 643461181`
+                );
+                return;
             }
-        });
+        } else {
+            const lastPart = parts[parts.length - 1];
+            if (/^\d+$/.test(lastPart)) {
+                serverFilter = lastPart;
+                nickname = parts.slice(0, -1).join(' ');
+            } else {
+                await bot.sendMessage(chatId,
+                    `Format salah.\n\n` +
+                    `Server harus berupa angka.\n` +
+                    `Contoh: /find Nama Pemain 1234`
+                );
+                return;
+            }
+        }
+        
+        const joined = await checkJoin(bot, userId);
+        
+        if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
+            let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`;
+            
+            const buttons = [];
+            if (!joined.channel) {
+                buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
+            }
+            if (!joined.group) {
+                buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
+            }
+            
+            await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
+            return;
+        }
+        
+        const credits = getUserCredits(userId, msg.from.username || '');
+        if (credits < 5000 && !isAdmin(userId)) {
+            await bot.sendMessage(chatId,
+                `SALDO TIDAK CUKUP\n\n` +
+                `Saldo Anda: Rp ${credits.toLocaleString()}\n` +
+                `Biaya /find: Rp 5.000\n` +
+                `Kekurangan: Rp ${(5000 - credits).toLocaleString()}\n\n` +
+                `Silakan isi saldo terlebih dahulu:`,
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: 'TOP UP', callback_data: 'topup_menu' }]
+                        ]
+                    }
+                }
+            );
+            return;
+        }
+        
+        const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
+        
+        try {
+            let results = null;
+            
+            if (isRoleIdSearch) {
+                results = await getPlayerByRoleId(nickname);
+            } else {
+                results = await findPlayerByName(nickname);
+                if (results && results.length > 0) {
+                    results = results.filter(r => r.zone_id == serverFilter);
+                }
+            }
+            
+            const searchSuccess = results && results.length > 0;
+            
+            if (!searchSuccess) {
+                let failMsg = 'Gagal mengambil data. Saldo Anda tidak terpotong.\n\nSilakan coba lagi nanti.';
+                if (!isRoleIdSearch) {
+                    failMsg = `Tidak ditemukan akun dengan nickname "${nickname}" dan server ${serverFilter}. Saldo tidak terpotong.`;
+                } else {
+                    failMsg = `Tidak ditemukan akun dengan Role ID ${nickname}. Saldo tidak terpotong.`;
+                }
+                await bot.editMessageText(failMsg, {
+                    chat_id: chatId,
+                    message_id: loadingMsg.message_id
+                });
+                console.log(`SALDO TIDAK DIPOTONG: User ${userId} | Command: find | Alasan: Data null`);
+                return;
+            }
+            
+            if (!isAdmin(userId)) {
+                const sebelum = db.users[userId].credits;
+                db.users[userId].credits -= 5000;
+                await saveDB();
+                console.log(`SALDO DIPOTONG: User ${userId} | Sebelum: ${sebelum} | Sesudah: ${db.users[userId].credits} | Command: find | Status: SUKSES`);
+            }
+            
+            let output = '';
+            if (isRoleIdSearch) {
+                output = `HASIL PENCARIAN ROLE ID: ${nickname}\n\n`;
+            } else {
+                output = `HASIL PENCARIAN: ${nickname} (Server: ${serverFilter})\n\n`;
+            }
+            
+            results.forEach((item, index) => {
+                if (!isRoleIdSearch && results.length > 1) {
+                    output += `[${index + 1}] `;
+                }
+                output += `${item.name || item.nickname || 'Unknown'}\n`;
+                output += `ID: ${item.role_id || '-'} | Server: ${item.zone_id || '-'}\n`;
+                output += `Level: ${item.level || '-'}\n`;
+                
+                if (item.last_login) {
+                    output += `Last Login: ${item.last_login}\n`;
+                }
+                
+                if (item.locations_logged && Array.isArray(item.locations_logged)) {
+                    const locations = formatLocations(item.locations_logged, 5);
+                    if (locations) {
+                        output += `Lokasi: ${locations}\n`;
+                    }
+                }
+                
+                output += `--------------------\n`;
+            });
+            
+            output += `\nSisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
+            
+            // TAMBAHKAN TOMBOL STOK ADMIN
+            await bot.editMessageText(output, {
+                chat_id: chatId,
+                message_id: loadingMsg.message_id,
+                reply_markup: { 
+                    inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
+                }
+            });
+            
+        } catch (error) {
+            console.log('Error saat mencari data:', error.message);
+            await bot.editMessageText('Terjadi kesalahan saat mencari data.', {
+                chat_id: ChatId,
+                message_id: loadingMsg.message_id
+            });
+        }
+        
+    } catch (error) {
+        console.log('Error /find:', error.message);
+        try {
+            await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
+        } catch (e) {}
+    }
+});
 
         // ========== /LISTTOPUP ==========
         bot.onText(/\/listtopup(?:\s+(\d+))?/, async (msg, match) => {
