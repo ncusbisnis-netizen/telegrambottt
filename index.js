@@ -1729,6 +1729,16 @@ if (IS_WORKER) {
                 message += `/info ID SERVER - Info akun\n`;
                 message += `/cek ID SERVER - Detail akun (Rp 5.000)\n`;
                 message += `/find NICKNAME SERVER - Cari akun (Rp 5.000)\n`;
+                
+                if (isAdmin(userId)) {
+                    message += `\nADMIN MENU\n`;
+                    message += `/offinfo - Nonaktifkan fitur\n`;
+                    message += `/oninfo - Aktifkan fitur\n`;
+                    message += `/listbanned - Daftar banned\n`;
+                    message += `/listtopup - Daftar saldo > 0\n`;
+                    message += `/addban ID - Blokir user\n`;
+                    message += `/unban ID - Buka blokir\n`;
+                    message += `/addtopup ID JUMLAH - Tambah saldo\n`;
                 }
                 
                 const replyMarkup = {
