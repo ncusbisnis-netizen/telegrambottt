@@ -728,9 +728,9 @@ if (IS_WORKER) {
                 message += `User ID: ${userId}\n`;
                 message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
                 message += `DAFTAR PERINTAH:\n`;
-                message += `/info ID SERVER - Info akun ( GRATIS )\n`;
-                message += `/cek ID SERVER - Detail akun (Rp 5.000)\n`;
-                message += `/find NICKNAME SERVER - Cari akun (Rp 5.000)\n\n`;
+                message += `/info - Info akun terhubung ( GRATIS )\n`;
+                message += `/cek - Detail lengkap akun (Rp 5.000)\n`;
+                message += `/find - Cari ID via nickname(Rp 5.000)\n\n`;
                 
                 if (isAdmin(userId)) {
                     message += `ADMIN:\n`;
@@ -1579,9 +1579,9 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
                 message += `User ID: ${userId}\n`;
                 message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
                 message += `DAFTAR PERINTAH:\n`;
-                message += `/info ID SERVER - Info akun\n`;
-                message += `/cek ID SERVER - Detail akun (Rp 5.000)\n`;
-                message += `/find NICKNAME SERVER - Cari akun (Rp 5.000)\n`;
+                message += `/info - Info akun terhubung ( GRATIS )\n`;
+                message += `/cek  - Detail lengkap akun (Rp 5.000)\n`;
+                message += `/find - Cari ID via nickname (Rp 5.000)\n`;
                 
                 if (isAdmin(userId)) {
                     message += `\nADMIN MENU\n`;
