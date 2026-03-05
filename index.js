@@ -923,57 +923,82 @@ if (IS_WORKER) {
                     }
 
                     const d = data;
-                    let output = `DETAIL AKUN\n\n`;
-                    output += `ID: ${d.role_id || targetId}\n`;
-                    output += `Server: ${d.zone_id || serverId}\n`;
-                    output += `Nickname: ${d.name || '-'}\n`;
-                    output += `Level: ${d.level || '-'}\n`;
-                    output += `TTL: ${d.ttl || '-'}\n\n`;
-                    
-                    output += `RANK & TIER\n`;
-                    output += `Current: ${d.current_tier || '-'}\n`;
-                    output += `Max: ${d.max_tier || '-'}\n`;
-                    output += `Achievement Points: ${d.achievement_points?.toLocaleString() || '-'}\n\n`;
-                    
-                    output += `KOLEKSI SKIN\n`;
-                    output += `Total: ${d.skin_count || 0}\n`;
-                    output += `Supreme: ${d.supreme_skins || 0} | Grand: ${d.grand_skins || 0}\n`;
-                    output += `Exquisite: ${d.exquisite_skins || 0} | Deluxe: ${d.deluxe_skins || 0}\n`;
-                    output += `Exceptional: ${d.exceptional_skins || 0} | Common: ${d.common_skins || 0}\n\n`;
-                    
-                    if (d.top_3_hero_details && d.top_3_hero_details.length > 0) {
-                        output += `TOP 3 HERO\n`;
-                        d.top_3_hero_details.forEach((h, i) => {
-                            output += `${i+1}. ${h.hero || '-'}\n`;
-                            output += `   Matches: ${h.matches || 0} | WR: ${h.win_rate || '0%'}\n`;
-                            output += `   Power: ${h.power || 0}\n`;
-                        });
-                        output += `\n`;
-                    }
-                    
-                    output += `STATISTIK\n`;
-                    output += `Total Match: ${d.total_match_played?.toLocaleString() || 0}\n`;
-                    output += `Win Rate: ${d.overall_win_rate || '0%'}\n`;
-                    output += `KDA: ${d.kda || '-'}\n`;
-                    output += `MVP: ${d.total_mvp || 0}\n`;
-                    output += `Savage: ${d.savage_kill || 0} | Maniac: ${d.maniac_kill || 0}\n`;
-                    output += `Legendary: ${d.legendary_kill || 0}\n\n`;
-                    
-                    if (d.squad_name) {
-                        output += `SQUAD\n`;
-                        output += `Name: ${d.squad_name}\n`;
-                        output += `Prefix: ${d.squad_prefix || '-'}\n`;
-                        output += `ID: ${d.squad_id || '-'}\n\n`;
-                    }
-                    
-                    if (d.last_match_data) {
-                        output += `LAST MATCH\n`;
-                        output += `Hero: ${d.last_match_data.hero_name || '-'}\n`;
-                        output += `K/D/A: ${d.last_match_data.kills || 0}/${d.last_match_data.deaths || 0}/${d.last_match_data.assists || 0}\n`;
-                        output += `Gold: ${d.last_match_data.gold?.toLocaleString() || 0}\n`;
-                        output += `Damage: ${d.last_match_data.hero_damage?.toLocaleString() || 0}\n`;
-                        output += `Duration: ${d.last_match_duration || '-'}\n`;
-                        output += `Date: ${d.last_match_date || '-'}\n`;
+                    let output = `PLAYER PROFILE\n\n`;
+            
+            output += `• ID Server: ${d.role_id || targetId} (${d.zone_id || serverId})\n`;
+            output += `• Name: ${d.name || '-'}\n`;
+            output += `• Level: ${d.level || '-'}\n`;
+            output += `• Created: ${createdDate}\n`;
+            output += `• Last Login: ${d.last_login || '-'}\n\n`;
+            
+            output += `RANK INFO\n`;
+            output += `• Current Tier: ${d.current_tier || '-'}\n`;
+            output += `• Highest Tier: ${d.max_tier || '-'}\n`;
+            output += `• Overall WR: ${d.overall_win_rate || '0%'}\n`;
+            output += `• KDA: ${d.kda || '-'}\n`;
+            output += `• Team Participation: ${d.team_participation || '-'}\n\n`;
+            
+            if (d.collector_level || d.collector_title) {
+                output += `COLLECTOR\n`;
+                output += `• Level: ${d.collector_level || 0}\n`;
+                output += `• Title: ${d.collector_title || '-'}\n\n`;
+            }
+            
+            output += `HERO & SKIN\n`;
+            output += `• Heroes: ${d.hero_count || 0}\n`;
+            output += `• Skins: ${d.skin_count || 0}\n`;
+            output += `• Grand: ${d.grand_skins || 0}\n`;
+            output += `• Exquisite: ${d.exquisite_skins || 0}\n`;
+            output += `• Deluxe: ${d.deluxe_skins || 0}\n`;
+            output += `• Exceptional: ${d.exceptional_skins || 0}\n`;
+            output += `• Common: ${d.common_skins || 0}\n`;
+            if (d.latest_skin_purchase_date) {
+                output += `• Latest Skin Purchase: ${d.latest_skin_purchase_date}\n`;
+            }
+            output += `\n`;
+            
+            if (d.top_3_hero_details && d.top_3_hero_details.length > 0) {
+                output += `TOP 3 HERO\n`;
+                d.top_3_hero_details.forEach((h) => {
+                    output += `• ${h.hero || '-'} — ${h.matches || 0} Match (WR ${h.win_rate || '0%'})\n`;
+                });
+                output += `\n`;
+            }
+            
+            output += `MATCH STATS\n`;
+            output += `• Total Match: ${d.total_match_played?.toLocaleString() || 0}\n`;
+            output += `• Total Win: ${d.total_wins || 0}\n`;
+            output += `• MVP: ${d.total_mvp || 0} (Lose ${d.mvp_loss || 0})\n`;
+            output += `• Savage: ${d.savage_kill || 0}\n`;
+            output += `• Maniac: ${d.maniac_kill || 0}\n`;
+            output += `• Legendary: ${d.legendary_kill || 0}\n`;
+            output += `• Longest Win Streak: ${d.longest_win_streak || 0}\n\n`;
+            
+            if (d.last_match_data) {
+                output += `LAST MATCH\n`;
+                output += `• Hero: ${d.last_match_data.hero_name || '-'}\n`;
+                output += `• KDA: ${d.last_match_data.kills || 0}/${d.last_match_data.deaths || 0}/${d.last_match_data.assists || 0}\n`;
+                output += `• Gold: ${d.last_match_data.gold?.toLocaleString() || 0}\n`;
+                output += `• Hero Damage: ${d.last_match_data.hero_damage?.toLocaleString() || 0}\n`;
+                output += `• Damage Taken: ${d.last_match_data.damage_taken?.toLocaleString() || 0}\n`;
+                output += `• Duration: ${d.last_match_duration || '-'}\n`;
+                output += `• Date: ${d.last_match_date || '-'}\n\n`;
+            }
+            
+            if (d.squad_name) {
+                output += `SQUAD\n`;
+                output += `• Name: ${d.squad_name}\n`;
+                if (d.squad_prefix) {
+                    output += `• Prefix: ${d.squad_prefix}\n`;
+                }
+                output += `• Squad ID: ${d.squad_id || '-'}\n\n`;
+            }
+            
+            output += `SOCIAL\n`;
+            output += `• Followers: ${d.followers || 0}\n`;
+            output += `• Likes: ${d.total_likes || 0}\n`;
+            output += `• Popularity: ${d.popularity || 0}\n`;
+            output += `• Credit Score: ${d.credits_score || 0}\n\n`;
                     }
 
                     output += `\nSisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
