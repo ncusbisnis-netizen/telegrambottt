@@ -775,56 +775,21 @@ if (IS_WORKER) {
         });
 
         bot.on('message', async (msg) => {
-            try {
-                const chatId = msg.chat.id, userId = msg.from.id, text = msg.text, chatType = msg.chat.type;
-                
-                if (!text) return;
-                if (chatType !== 'private') return;
-                if (isAdmin(userId)) return;
-                
-                if (!msg.from.username) {
-                    await bot.sendMessage(chatId, 
-                        `USERNAME DIPERLUKAN\n\n` +
-                        `Anda harus memiliki username Telegram untuk menggunakan bot ini.\n\n` +
-                        `Cara membuat username:\n` +
-                        `1. Buka Settings\n` +
-                        `2. Pilih Username\n` +
-                        `3. Buat username baru\n` +
-                        `4. Simpan`
-                    );
-                    return;
-                }
-                
-                const publicCommands = ['/start', '/info', '/cek', '/find', '/offinfo', '/oninfo', '/listbanned', '/listtopup', '/addban', '/unban', '/addtopup'];
-                if (publicCommands.includes(text.split(' ')[0])) return;
-            } catch (error) {
-                console.log('Middleware error:', error.message);
-            }
-        });
+    try {
+        const chatId = msg.chat.id, userId = msg.from.id, text = msg.text, chatType = msg.chat.type;
+        
+        if (!text) return;
+        if (chatType !== 'private') return;
+        if (isAdmin(userId)) return;
+        
+        const publicCommands = ['/start', '/info', '/cek', '/find', '/offinfo', '/oninfo', '/listbanned', '/listtopup', '/addban', '/unban', '/addtopup'];
+        if (publicCommands.includes(text.split(' ')[0])) return;
+    } catch (error) {
+        console.log('Middleware error:', error.message);
+    }
+});
 
-        bot.onText(/\/start/, async (msg) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const username = msg.from.username;
-                
-                if (!username && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 
-                        `USERNAME DIPERLUKAN\n\n` +
-                        `Anda harus memiliki username Telegram untuk menggunakan bot ini.\n\n` +
-                        `Cara membuat username:\n` +
-                        `1. Buka Settings\n` +
-                        `2. Pilih Username\n` +
-                        `3. Buat username baru\n` +
-                        `4. Simpan`
-                    );
-                    return;
-                }
-                
-                await loadDB();
-                
+        
                 const credits = getUserCredits(userId, username || '');
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
