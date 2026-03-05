@@ -49,8 +49,6 @@ let db = {
     feature: { info: true },
     pending_topups: {} 
 };
-let spamData = {};
-let userProcessing = {};
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -110,6 +108,12 @@ async function saveDB() {
             ['database', db]
         );
         console.log('Database tersimpan di Postgres');
+        
+        // Kirim notifikasi ke semua listener bahwa database telah berubah
+        pool.query("SELECT pg_notify('db_updated', 'reload')").catch(err => {
+            console.log('Gagal mengirim NOTIFY:', err.message);
+        });
+        
         return true;
     } catch (error) {
         console.log('Gagal save database:', error.message);
@@ -121,38 +125,8 @@ async function saveDB() {
     }
 }
 
-async function loadSpamData() {
-    try {
-        const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['spam']);
-        if (res.rows.length > 0) {
-            spamData = res.rows[0].value;
-            console.log('Load spam data dari Postgres');
-        }
-    } catch (error) {
-        console.log('Gagal load spam:', error.message);
-    }
-}
-
-async function saveSpamData() {
-    try {
-        await pool.query(
-            `INSERT INTO bot_data (key, value, updated_at) 
-             VALUES ($1, $2, NOW())
-             ON CONFLICT (key) DO UPDATE 
-             SET value = $2, updated_at = NOW()`,
-            ['spam', spamData]
-        );
-    } catch (error) {
-        console.log('Gagal save spam:', error.message);
-        try {
-            fs.writeFileSync('spam.json', JSON.stringify(spamData, null, 2));
-        } catch (e) {}
-    }
-}
-
 initDB().then(async () => {
     await loadDB();
-    await loadSpamData();
 });
 
 let redisClient = null;
@@ -172,7 +146,7 @@ if (REDIS_URL) {
         });
         
         redisClient.on('error', (err) => console.log('Redis Client Error', err));
-        redisClient.on('connect', () => console.log('Redis connected for relay communication'));
+        redisClient.on('connect', () => console.log('Redis connected for relay'));
         
         redisClient.connect().catch(err => {
             console.log('Redis connection failed:', err.message);
@@ -260,59 +234,6 @@ function formatRupiah(amount) {
         return 'Rp ' + amount.toLocaleString();
     } catch {
         return 'Rp ' + amount;
-    }
-}
-
-function isBanned(userId) { 
-    return spamData[userId]?.banned === true; 
-}
-
-async function recordInfoActivity(userId) {
-    try {
-        const now = Date.now();
-        if (!spamData[userId]) spamData[userId] = { banned: false, infoCount: [] };
-        if (spamData[userId].banned) return false;
-        spamData[userId].infoCount.push(now);
-        spamData[userId].infoCount = spamData[userId].infoCount.filter(t => now - t < 60000);
-        if (spamData[userId].infoCount.length > 10) {
-            spamData[userId].banned = true;
-            spamData[userId].bannedAt = now;
-            spamData[userId].banReason = 'Spam 10x dalam 1 menit';
-            spamData[userId].infoCount = [];
-            await saveSpamData();
-            return true;
-        }
-        await saveSpamData();
-        return false;
-    } catch (error) {
-        console.log('Error recordInfoActivity:', error.message);
-        return false;
-    }
-}
-
-async function unbanUser(userId) {
-    try {
-        if (spamData[userId]) {
-            spamData[userId].banned = false;
-            spamData[userId].infoCount = [];
-            await saveSpamData();
-            return true;
-        }
-        return false;
-    } catch (error) {
-        console.log('Error unbanUser:', error.message);
-        return false;
-    }
-}
-
-async function addBan(userId, reason = 'Ban manual oleh admin') {
-    try {
-        spamData[userId] = { banned: true, bannedAt: Date.now(), banReason: reason, infoCount: [] };
-        await saveSpamData();
-        return true;
-    } catch (error) {
-        console.log('Error addBan:', error.message);
-        return false;
     }
 }
 
@@ -774,6 +695,7 @@ if (IS_WORKER) {
             console.log('Polling error:', error.message);
         });
 
+        // ========== MIDDLEWARE MESSAGE ==========
         bot.on('message', async (msg) => {
             try {
                 const chatId = msg.chat.id, userId = msg.from.id, text = msg.text, chatType = msg.chat.type;
@@ -782,26 +704,14 @@ if (IS_WORKER) {
                 if (chatType !== 'private') return;
                 if (isAdmin(userId)) return;
                 
-                if (!msg.from.username) {
-                    await bot.sendMessage(chatId, 
-                        `USERNAME DIPERLUKAN\n\n` +
-                        `Anda harus memiliki username Telegram untuk menggunakan bot ini.\n\n` +
-                        `Cara membuat username:\n` +
-                        `1. Buka Settings\n` +
-                        `2. Pilih Username\n` +
-                        `3. Buat username baru\n` +
-                        `4. Simpan`
-                    );
-                    return;
-                }
-                
-                const publicCommands = ['/start', '/info', '/cek', '/find', '/offinfo', '/oninfo', '/listbanned', '/listtopup', '/addban', '/unban', '/addtopup'];
+                const publicCommands = ['/start', '/info', '/cek', '/find', '/offinfo', '/oninfo', '/listtopup', '/addtopup'];
                 if (publicCommands.includes(text.split(' ')[0])) return;
             } catch (error) {
                 console.log('Middleware error:', error.message);
             }
         });
 
+        // ========== /START ==========
         bot.onText(/\/start/, async (msg) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -809,19 +719,6 @@ if (IS_WORKER) {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 const username = msg.from.username;
-                
-                if (!username && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 
-                        `USERNAME DIPERLUKAN\n\n` +
-                        `Anda harus memiliki username Telegram untuk menggunakan bot ini.\n\n` +
-                        `Cara membuat username:\n` +
-                        `1. Buka Settings\n` +
-                        `2. Pilih Username\n` +
-                        `3. Buat username baru\n` +
-                        `4. Simpan`
-                    );
-                    return;
-                }
                 
                 await loadDB();
                 
@@ -839,10 +736,7 @@ if (IS_WORKER) {
                     message += `ADMIN:\n`;
                     message += `/offinfo - Nonaktifkan fitur\n`;
                     message += `/oninfo - Aktifkan fitur\n`;
-                    message += `/listbanned - Daftar banned\n`;
                     message += `/listtopup - Daftar topup\n`;
-                    message += `/addban ID - Blokir user\n`;
-                    message += `/unban ID - Buka blokir\n`;
                     message += `/addtopup ID JUMLAH - Tambah saldo user\n`;
                 }
                 
@@ -861,6 +755,7 @@ if (IS_WORKER) {
             }
         });
 
+        // ========== /INFO ==========
         bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -868,22 +763,12 @@ if (IS_WORKER) {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 
-                if (userProcessing[userId]) {
-                    await bot.sendMessage(chatId, 'Permintaan Anda sedang diproses. Silakan tunggu dan coba lagi.');
-                    return;
-                }
-                
                 if (!match || !match[1]) {
                     await bot.sendMessage(chatId,
                         `INFORMASI AKUN\n\n` +
                         `Format: /info ID_USER ID_SERVER\n` +
                         `Contoh: /info 643461181 8554`
                     );
-                    return;
-                }
-                
-                if (isBanned(userId) && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
                     return;
                 }
                 
@@ -913,12 +798,6 @@ if (IS_WORKER) {
                     return;
                 }
                 
-                const banned = await recordInfoActivity(userId);
-                if (banned) {
-                    await bot.sendMessage(chatId, 'Anda telah dibanned karena spam.');
-                    return;
-                }
-                
                 const args = match[1].trim().split(/\s+/);
                 if (args.length < 2) {
                     await bot.sendMessage(chatId, `Format: /info ID_USER ID_SERVER`);
@@ -933,47 +812,35 @@ if (IS_WORKER) {
                     return;
                 }
                 
-                userProcessing[userId] = true;
+                // Tidak ada pengecekan userProcessing
                 
-                try {
-                    const sent = await sendRequestToRelay(chatId, targetId, serverId);
-                    
-                    if (!sent) {
-                        await bot.sendMessage(chatId, 'Gagal terhubung ke relay. Coba lagi nanti.');
-                        return;
-                    }
-                    
-                    getUserCredits(userId, msg.from.username || '');
-                    db.users[userId].success += 1;
-                    db.total_success += 1;
-                    await saveDB();
-                    
-                } finally {
-                    setTimeout(() => {
-                        delete userProcessing[userId];
-                    }, 30000);
+                const sent = await sendRequestToRelay(chatId, targetId, serverId);
+                
+                if (!sent) {
+                    await bot.sendMessage(chatId, 'Gagal terhubung ke relay. Coba lagi nanti.');
+                    return;
                 }
+                
+                getUserCredits(userId, msg.from.username || '');
+                db.users[userId].success += 1;
+                db.total_success += 1;
+                await saveDB();
                 
             } catch (error) {
                 console.log('Error /info:', error.message);
-                delete userProcessing[userId];
                 try {
                     await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
                 } catch (e) {}
             }
         });
 
+        // ========== /CEK ==========
         bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
                 
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
-                
-                if (userProcessing[userId]) {
-                    await bot.sendMessage(chatId, 'Permintaan Anda sedang diproses. Silakan tunggu dan coba lagi.');
-                    return;
-                }
                 
                 if (!match || !match[1]) {
                     await bot.sendMessage(chatId, 
@@ -982,11 +849,6 @@ if (IS_WORKER) {
                         `Contoh: /cek 643461181 8554\n\n` +
                         `Biaya: Rp 5.000`
                     );
-                    return;
-                }
-                
-                if (isBanned(userId) && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
                     return;
                 }
                 
@@ -1023,12 +885,6 @@ if (IS_WORKER) {
                     return;
                 }
                 
-                const banned = await recordInfoActivity(userId);
-                if (banned) {
-                    await bot.sendMessage(chatId, 'Anda telah dibanned karena spam.');
-                    return;
-                }
-                
                 const credits = getUserCredits(userId, msg.from.username || '');
                 if (credits < 5000 && !isAdmin(userId)) {
                     await bot.sendMessage(chatId,
@@ -1048,7 +904,7 @@ if (IS_WORKER) {
                     return;
                 }
                 
-                userProcessing[userId] = true;
+                // Tidak ada userProcessing
                 
                 const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data detail...');
                 
@@ -1132,22 +988,23 @@ if (IS_WORKER) {
                         }
                     });
                     
-                } finally {
-                    setTimeout(() => {
-                        delete userProcessing[userId];
-                    }, 30000);
+                } catch (error) {
+                    console.log('Error saat mengambil data:', error.message);
+                    await bot.editMessageText('Terjadi kesalahan saat mengambil data.', {
+                        chat_id: chatId,
+                        message_id: loadingMsg.message_id
+                    });
                 }
 
             } catch (error) {
                 console.log('Error /cek:', error.message);
-                delete userProcessing[userId];
                 try {
                     await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
                 } catch (e) {}
             }
         });
 
-        // ========== /FIND - UPDATE HANYA TERIMA NICKNAME+SERVER ATAU ROLE ID ==========
+        // ========== /FIND ==========
         bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1155,7 +1012,6 @@ if (IS_WORKER) {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 
-                // Tampilkan panduan jika tidak ada argumen
                 if (!match || !match[1]) {
                     await bot.sendMessage(chatId,
                         `PENCARIAN AKUN\n\n` +
@@ -1177,15 +1033,12 @@ if (IS_WORKER) {
                 let nickname, serverFilter = null;
                 let isRoleIdSearch = false;
                 
-                // Kasus 1 kata
                 if (parts.length === 1) {
                     const single = parts[0];
                     if (/^\d+$/.test(single)) {
-                        // Role ID
                         isRoleIdSearch = true;
-                        nickname = single; // untuk dipakai di getPlayerByRoleId
+                        nickname = single;
                     } else {
-                        // Nickname saja tanpa server -> tolak
                         await bot.sendMessage(chatId,
                             `Format salah.\n\n` +
                             `Jika ingin mencari berdasarkan nickname, Anda WAJIB menyertakan server.\n` +
@@ -1194,15 +1047,12 @@ if (IS_WORKER) {
                         );
                         return;
                     }
-                } 
-                // Kasus lebih dari 1 kata
-                else {
+                } else {
                     const lastPart = parts[parts.length - 1];
                     if (/^\d+$/.test(lastPart)) {
                         serverFilter = lastPart;
                         nickname = parts.slice(0, -1).join(' ');
                     } else {
-                        // Kata terakhir bukan angka
                         await bot.sendMessage(chatId,
                             `Format salah.\n\n` +
                             `Server harus berupa angka.\n` +
@@ -1212,13 +1062,8 @@ if (IS_WORKER) {
                     }
                 }
                 
-                // ===== Pengecekan akses (banned, join, saldo, spam) =====
-                if (isBanned(userId) && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 'Anda telah diblokir. Hubungi admin.');
-                    return;
-                }
-                
                 const joined = await checkJoin(bot, userId);
+                
                 if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
                     let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung dengan:\n`;
                     if (!joined.channel) message += `• ${CHANNEL}\n`;
@@ -1255,23 +1100,15 @@ if (IS_WORKER) {
                     return;
                 }
                 
-                const banned = await recordInfoActivity(userId);
-                if (banned) {
-                    await bot.sendMessage(chatId, 'Anda telah dibanned karena spam.');
-                    return;
-                }
-                
-                userProcessing[userId] = true;
+                // Tidak ada userProcessing
                 const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
                 
                 try {
                     let results = null;
                     
                     if (isRoleIdSearch) {
-                        // Pencarian via Role ID
                         results = await getPlayerByRoleId(nickname);
                     } else {
-                        // Pencarian via nickname, lalu filter server
                         results = await findPlayerByName(nickname);
                         if (results && results.length > 0) {
                             results = results.filter(r => r.zone_id == serverFilter);
@@ -1295,7 +1132,6 @@ if (IS_WORKER) {
                         return;
                     }
                     
-                    // Potong saldo jika sukses dan bukan admin
                     if (!isAdmin(userId)) {
                         const sebelum = db.users[userId].credits;
                         db.users[userId].credits -= 5000;
@@ -1303,7 +1139,6 @@ if (IS_WORKER) {
                         console.log(`SALDO DIPOTONG: User ${userId} | Sebelum: ${sebelum} | Sesudah: ${db.users[userId].credits} | Command: find | Status: SUKSES`);
                     }
                     
-                    // Bangun output
                     let output = '';
                     if (isRoleIdSearch) {
                         output = `HASIL PENCARIAN ROLE ID: ${nickname}\n\n`;
@@ -1340,22 +1175,23 @@ if (IS_WORKER) {
                         message_id: loadingMsg.message_id
                     });
                     
-                } finally {
-                    setTimeout(() => {
-                        delete userProcessing[userId];
-                    }, 30000);
+                } catch (error) {
+                    console.log('Error saat mencari data:', error.message);
+                    await bot.editMessageText('Terjadi kesalahan saat mencari data.', {
+                        chat_id: chatId,
+                        message_id: loadingMsg.message_id
+                    });
                 }
                 
             } catch (error) {
                 console.log('Error /find:', error.message);
-                delete userProcessing[userId];
                 try {
                     await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
                 } catch (e) {}
             }
         });
-        // ========== END /FIND ==========
 
+        // ========== /LISTTOPUP ==========
         bot.onText(/\/listtopup(?:\s+(\d+))?/, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1410,6 +1246,7 @@ if (IS_WORKER) {
             }
         });
 
+        // ========== /OFFINFO ==========
         bot.onText(/\/offinfo/, async (msg) => { 
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1432,6 +1269,7 @@ if (IS_WORKER) {
             }
         });
 
+        // ========== /ONINFO ==========
         bot.onText(/\/oninfo/, async (msg) => { 
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1454,92 +1292,7 @@ if (IS_WORKER) {
             }
         });
 
-        bot.onText(/\/listbanned/, async (msg) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                if (!isAdmin(msg.from.id)) return;
-                
-                let message = `DAFTAR USER BANNED\n\n`;
-                const bannedList = Object.entries(spamData).filter(([_, d]) => d.banned);
-                
-                if (bannedList.length === 0) {
-                    message += 'Tidak ada user yang diblokir.';
-                } else {
-                    bannedList.forEach(([id, d], i) => {
-                        const date = moment(d.bannedAt).tz('Asia/Jakarta').format('DD/MM/YYYY HH:mm');
-                        message += `${i+1}. ID: ${id}\n`;
-                        message += `   Alasan: ${d.banReason || 'Tidak ada'}\n`;
-                        message += `   Tanggal: ${date} WIB\n\n`;
-                    });
-                }
-                
-                await bot.sendMessage(msg.chat.id, message);
-            } catch (error) {
-                console.log('Error /listbanned:', error.message);
-            }
-        });
-
-        bot.onText(/\/addban(?:\s+(\d+)(?:\s+(.+))?)?/, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                if (!isAdmin(msg.from.id)) return;
-                
-                if (!match[1]) {
-                    await bot.sendMessage(msg.chat.id, 'Format: /addban ID [alasan]');
-                    return;
-                }
-                
-                const targetId = parseInt(match[1]);
-                const reason = match[2] || 'Ban manual oleh admin';
-                
-                const now = Date.now();
-                spamData[targetId] = { 
-                    banned: true, 
-                    bannedAt: now, 
-                    banReason: reason, 
-                    infoCount: [] 
-                };
-                await saveSpamData();
-                
-                await bot.sendMessage(msg.chat.id, `User ${targetId} telah diblokir.\nAlasan: ${reason}`);
-                
-                try {
-                    await bot.sendMessage(targetId, 
-                        `AKUN ANDA DIBLOKIR\n\n` +
-                        `Alasan: ${reason}\n` +
-                        `Hubungi admin jika ada kesalahan.`
-                    );
-                } catch (e) {}
-                
-            } catch (error) {
-                console.log('Error /addban:', error.message);
-            }
-        });
-
-        bot.onText(/\/unban (\d+)/, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                if (!isAdmin(msg.from.id)) return;
-                
-                const targetId = parseInt(match[1]);
-                
-                if (spamData[targetId]) {
-                    spamData[targetId].banned = false;
-                    spamData[targetId].infoCount = [];
-                    await saveSpamData();
-                    await bot.sendMessage(msg.chat.id, `User ${targetId} telah di-unban.`);
-                    
-                    try {
-                        await bot.sendMessage(targetId, `Akun Anda telah di-unban. Silakan gunakan bot kembali.`);
-                    } catch (e) {}
-                } else {
-                    await bot.sendMessage(msg.chat.id, `User ${targetId} tidak ditemukan.`);
-                }
-            } catch (error) {
-                console.log('Error /unban:', error.message);
-            }
-        });
-
+        // ========== /ADDTOPUP ==========
         bot.onText(/\/addtopup (\d+) (\d+)/, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
@@ -1575,6 +1328,7 @@ if (IS_WORKER) {
             }
         });
 
+        // ========== CALLBACK QUERY ==========
         bot.on('callback_query', async (cb) => {
             try {
                 console.log('Callback diterima:', cb.data);
@@ -1734,10 +1488,7 @@ if (IS_WORKER) {
                     message += `\nADMIN MENU\n`;
                     message += `/offinfo - Nonaktifkan fitur\n`;
                     message += `/oninfo - Aktifkan fitur\n`;
-                    message += `/listbanned - Daftar banned\n`;
                     message += `/listtopup - Daftar saldo > 0\n`;
-                    message += `/addban ID - Blokir user\n`;
-                    message += `/unban ID - Buka blokir\n`;
                     message += `/addtopup ID JUMLAH - Tambah saldo\n`;
                 }
                 
@@ -1800,6 +1551,25 @@ if (IS_WORKER) {
             }
         }
 
+        // ========== LISTENER NOTIFY DARI POSTGRES ==========
+        const listenerPool = new Pool({
+            connectionString: process.env.DATABASE_URL,
+            ssl: { rejectUnauthorized: false }
+        });
+        
+        listenerPool.connect((err, client, done) => {
+            if (err) {
+                console.log('Gagal konek listener:', err.message);
+                return;
+            }
+            client.on('notification', (msg) => {
+                console.log('NOTIFY diterima, reload database');
+                loadDB().catch(e => console.log('Reload error:', e.message));
+            });
+            client.query('LISTEN db_updated');
+            console.log('Listener PostgreSQL aktif untuk channel db_updated');
+        });
+
         console.log('Bot started, Admin IDs:', ADMIN_IDS);
         
     } catch (error) {
@@ -1812,4 +1582,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
-
