@@ -928,20 +928,23 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 }
             }
             
+            // OUTPUT LENGKAP DENGAN SEMUA FIELD
             let output = `PLAYER PROFILE\n\n`;
             
             output += `• ID Server: ${d.role_id || targetId} (${d.zone_id || serverId})\n`;
             output += `• Name: ${d.name || '-'}\n`;
             output += `• Level: ${d.level || '-'}\n`;
             output += `• Created: ${createdDate}\n`;
-            output += `• Last Login: ${d.last_login || '-'}\n\n`;
+            output += `• Last Login: ${d.last_login || '-'}\n`;
+            output += `• Achievement Points: ${d.achievement_points?.toLocaleString() || 0}\n\n`;
             
             output += `RANK INFO\n`;
             output += `• Current Tier: ${d.current_tier || '-'}\n`;
             output += `• Highest Tier: ${d.max_tier || '-'}\n`;
             output += `• Overall WR: ${d.overall_win_rate || '0%'}\n`;
             output += `• KDA: ${d.kda || '-'}\n`;
-            output += `• Team Participation: ${d.team_participation || '-'}\n\n`;
+            output += `• Team Participation: ${d.team_participation || '-'}\n`;
+            output += `• Flags Percentage: ${d.flags_percentage || '-'}\n\n`;
             
             if (d.collector_level || d.collector_title) {
                 output += `COLLECTOR\n`;
@@ -952,6 +955,7 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             output += `HERO & SKIN\n`;
             output += `• Heroes: ${d.hero_count || 0}\n`;
             output += `• Skins: ${d.skin_count || 0}\n`;
+            output += `• Supreme: ${d.supreme_skins || 0}\n`;
             output += `• Grand: ${d.grand_skins || 0}\n`;
             output += `• Exquisite: ${d.exquisite_skins || 0}\n`;
             output += `• Deluxe: ${d.deluxe_skins || 0}\n`;
@@ -960,12 +964,25 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             if (d.latest_skin_purchase_date) {
                 output += `• Latest Skin Purchase: ${d.latest_skin_purchase_date}\n`;
             }
-            output += `\n`;
+            output += `• Last Hero Purchase: ${d.last_hero_purchase || '-'}\n`;
+            output += `• Top 3 Most Used: ${d.top3_most_used_heroes || '-'}\n\n`;
+            
+            if (d.affinity_list && d.affinity_list.length > 0) {
+                output += `AFFINITY\n`;
+                output += `• ${d.affinity_list.join('\n• ')}\n\n`;
+            }
+            
+            if (d.locations_logged && d.locations_logged.length > 0) {
+                output += `LOCATIONS\n`;
+                output += `• ${d.locations_logged.join('\n• ')}\n\n`;
+            }
             
             if (d.top_3_hero_details && d.top_3_hero_details.length > 0) {
                 output += `TOP 3 HERO\n`;
                 d.top_3_hero_details.forEach((h) => {
-                    output += `• ${h.hero || '-'} — ${h.matches || 0} Match (WR ${h.win_rate || '0%'})\n`;
+                    output += `• ${h.hero || '-'}\n`;
+                    output += `  Matches: ${h.matches || 0} | WR: ${h.win_rate || '0%'}\n`;
+                    output += `  Power: ${h.power || 0}\n`;
                 });
                 output += `\n`;
             }
@@ -977,7 +994,17 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             output += `• Savage: ${d.savage_kill || 0}\n`;
             output += `• Maniac: ${d.maniac_kill || 0}\n`;
             output += `• Legendary: ${d.legendary_kill || 0}\n`;
-            output += `• Longest Win Streak: ${d.longest_win_streak || 0}\n\n`;
+            output += `• Double Kill: ${d.double_kill || 0}\n`;
+            output += `• Triple Kill: ${d.triple_kill || 0}\n`;
+            output += `• Longest Win Streak: ${d.longest_win_streak || 0}\n`;
+            output += `• Most Kills: ${d.most_kills || 0}\n`;
+            output += `• Most Assists: ${d.most_assists || 0}\n`;
+            output += `• Highest Damage: ${d.highest_dmg?.toLocaleString() || 0}\n`;
+            output += `• Highest Damage Taken: ${d.highest_dmg_taken?.toLocaleString() || 0}\n`;
+            output += `• Highest Gold: ${d.highest_gold?.toLocaleString() || 0}\n`;
+            output += `• Min Gold: ${d.min_gold || 0}\n`;
+            output += `• Min Hero Damage: ${d.min_hero_damage || 0}\n`;
+            output += `• Turret Damage/Match: ${d.turret_dmg_match || 0}\n\n`;
             
             if (d.last_match_data) {
                 output += `LAST MATCH\n`;
@@ -986,8 +1013,13 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 output += `• Gold: ${d.last_match_data.gold?.toLocaleString() || 0}\n`;
                 output += `• Hero Damage: ${d.last_match_data.hero_damage?.toLocaleString() || 0}\n`;
                 output += `• Damage Taken: ${d.last_match_data.damage_taken?.toLocaleString() || 0}\n`;
+                output += `• Turret Damage: ${d.last_match_data.turret_damage?.toLocaleString() || 0}\n`;
                 output += `• Duration: ${d.last_match_duration || '-'}\n`;
-                output += `• Date: ${d.last_match_date || '-'}\n\n`;
+                output += `• Date: ${d.last_match_date || '-'}\n`;
+                if (d.last_match_heroes) {
+                    output += `• All Heroes: ${d.last_match_heroes}\n`;
+                }
+                output += `\n`;
             }
             
             if (d.squad_name) {
@@ -1007,14 +1039,34 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             
             output += `Sisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
 
-            await bot.editMessageText(output, {
-                chat_id: chatId,
-                message_id: loadingMsg.message_id,
-                parse_mode: 'Markdown',
-                reply_markup: { 
-                    inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
-                }
-            });
+            // Cek panjang pesan, jika terlalu panjang bagi menjadi 2
+            if (output.length > 4000) {
+                // Kirim pesan pertama (sampai sebelum SOCIAL)
+                let part1 = output.substring(0, output.indexOf('SOCIAL'));
+                part1 += `\n\n[Lanjutan di pesan berikutnya...]`;
+                
+                await bot.editMessageText(part1, {
+                    chat_id: chatId,
+                    message_id: loadingMsg.message_id,
+                    reply_markup: { 
+                        inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
+                    }
+                });
+                
+                // Kirim pesan kedua (SOCIAL dan sisanya)
+                let part2 = output.substring(output.indexOf('SOCIAL'));
+                await bot.sendMessage(chatId, part2);
+                
+            } else {
+                // Jika tidak terlalu panjang, kirim satu pesan
+                await bot.editMessageText(output, {
+                    chat_id: chatId,
+                    message_id: loadingMsg.message_id,
+                    reply_markup: { 
+                        inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
+                    }
+                });
+            }
             
         } catch (error) {
             console.log('Error saat mengambil data:', error.message);
