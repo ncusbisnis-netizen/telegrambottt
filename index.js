@@ -936,7 +936,16 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             output += `• Level: ${d.level || '-'}\n`;
             output += `• Created: ${createdDate}\n`;
             output += `• Last Login: ${d.last_login || '-'}\n`;
-            output += `• Achievement Points: ${d.achievement_points?.toLocaleString() || 0}\n\n`;
+            output += `• Achievement Points: ${d.achievement_points?.toLocaleString() || 0}\n`;
+            
+            // Tambahan last_country_logged
+            if (d.last_country_logged) {
+                output += `• Last Country: ${d.last_country_logged}\n`;
+            }
+            if (d.created_country) {
+                output += `• Created Country: ${d.created_country}\n`;
+            }
+            output += `\n`;
             
             output += `RANK INFO\n`;
             output += `• Current Tier: ${d.current_tier || '-'}\n`;
@@ -1022,13 +1031,19 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 output += `\n`;
             }
             
-            if (d.squad_name) {
+            // SQUAD SECTION (yang Anda minta)
+            if (d.squad_name || d.squad_id) {
                 output += `SQUAD\n`;
-                output += `• Name: ${d.squad_name}\n`;
+                if (d.squad_name) {
+                    output += `• Name: ${d.squad_name}\n`;
+                }
                 if (d.squad_prefix) {
                     output += `• Prefix: ${d.squad_prefix}\n`;
                 }
-                output += `• Squad ID: ${d.squad_id || '-'}\n\n`;
+                if (d.squad_id) {
+                    output += `• Squad ID: ${d.squad_id}\n`;
+                }
+                output += `\n`;
             }
             
             output += `SOCIAL\n`;
