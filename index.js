@@ -292,7 +292,7 @@ async function getMLBBData(userId, serverId, type = 'lookup') {
                 "Content-Type": "application/json",
                 "x-api-key": API_KEY_CHECKTON
             },
-            timeout: 45000
+            timeout: 60000
         });
         
         console.log(`Checkton response status: ${response.status}`);
@@ -330,7 +330,7 @@ async function findPlayerByName(name) {
                 "Content-Type": "application/json",
                 "x-api-key": API_KEY_CHECKTON
             },
-            timeout: 45000
+            timeout: 60000
         });
         
         if (response.data) {
@@ -374,7 +374,7 @@ async function getPlayerByRoleId(roleId) {
                 "Content-Type": "application/json",
                 "x-api-key": API_KEY_CHECKTON
             },
-            timeout: 45000
+            timeout: 60000
         });
         
         if (response.data) {
