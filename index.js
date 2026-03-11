@@ -1253,6 +1253,15 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
                     output += `Last Login: ${item.last_login}\n`;
                 }
                 
+                // TAMBAHKAN COUNTRY DAN LAST COUNTRY (langsung dari API)
+                if (item.country) {
+                    output += `Country: ${item.country}\n`;
+                }
+                
+                if (item.last_country) {
+                    output += `Last Country: ${item.last_country}\n`;
+                }
+                
                 if (item.locations_logged && Array.isArray(item.locations_logged)) {
                     const locations = formatLocations(item.locations_logged, 5);
                     if (locations) {
@@ -1265,7 +1274,6 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             
             output += `\nSisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
             
-            // TAMBAHKAN TOMBOL STOK ADMIN
             await bot.editMessageText(output, {
                 chat_id: chatId,
                 message_id: loadingMsg.message_id,
@@ -1277,7 +1285,7 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
         } catch (error) {
             console.log('Error saat mencari data:', error.message);
             await bot.editMessageText('Terjadi kesalahan saat mencari data.', {
-                chat_id: ChatId,
+                chat_id: chatId,
                 message_id: loadingMsg.message_id
             });
         }
