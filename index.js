@@ -777,6 +777,7 @@ bot.onText(/\/cekinfo(?:\s+(.+))?/i, async (msg, match) => {
 
         // Cek apakah grup terdaftar
         if (!isGroupAllowed(chatId)) {
+            // Tetap kasih pesan karena ini error validasi
             await bot.sendMessage(chatId, 
                 'Grup ini belum terdaftar. Silakan minta izin ke @ncus999 untuk mendaftarkan grup ini.',
                 { reply_to_message_id: messageId }
@@ -819,27 +820,29 @@ bot.onText(/\/cekinfo(?:\s+(.+))?/i, async (msg, match) => {
             return;
         }
         
+        // Kirim ke relay - TANPA PESAN APAPUN
         const sent = await sendRequestToRelay(chatId, targetId, serverId);
         
         if (!sent) {
-            await bot.sendMessage(chatId, 'Gagal terhubung ke relay. Coba lagi nanti.',
+            // Hanya kasih pesan jika relay benar-benar gagal
+            await bot.sendMessage(chatId, 'Terjadi kesalahan. Silakan coba lagi.',
                 { reply_to_message_id: messageId }
             );
             return;
         }
         
+        // DIAM SAJA - tidak ada notifikasi sukses
+        // Relay yang akan mengirim hasilnya nanti
+        
+        // Tetap catat statistik
         getUserCredits(userId, msg.from.username || '');
         db.users[userId].success += 1;
         db.total_success += 1;
         await saveDB();
         
-        // Kasih notifikasi sukses
-        await bot.sendMessage(chatId, '✅ Request sedang diproses...', 
-            { reply_to_message_id: messageId }
-        );
-        
     } catch (error) {
         console.log('Error /cekinfo:', error.message);
+        // Error sistem tetap kasih tahu
         try {
             await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.',
                 { reply_to_message_id: msg.message_id }
@@ -908,7 +911,7 @@ bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
         const sent = await sendRequestToRelay(chatId, targetId, serverId);
         
         if (!sent) {
-            await bot.sendMessage(chatId, 'Terjadi kesalahan. Silakan coba lagi.');
+            await bot.sendMessage(chatId, 'Gagal terhubung ke relay. Coba lagi nanti.');
             return;
         }
         
