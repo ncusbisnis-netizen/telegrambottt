@@ -492,29 +492,37 @@ async function createPakasirTopup(amount, userId, username = '') {
     }
 }
 
-async function sendRequestToRelay(chatId, userId, serverId) {
+// ========== FUNGSI KIRIM KE RELAY (YANG SUDAH DIPERBAIKI) ==========
+async function sendRequestToRelay(chatId, userId, serverId, command, messageId) {
     try {
         if (!redisClient || !redisClient.isReady) {
-            console.log('Redis not connected');
+            console.log('❌ Redis not connected');
             return false;
         }
         
-        const requestId = `req:${chatId}:${chatId}:${Date.now()}`;
+        // Buat request ID UNIK dengan format yang benar
+        const timestamp = Date.now();
+        const randomStr = Math.random().toString(36).substring(2, 8);
+        const requestId = `req:${chatId}:${timestamp}:${randomStr}`;
+        
         const requestData = {
-            user_id: chatId,
-            chat_id: chatId,
-            command: '/info',
-            args: [String(userId), String(serverId)],
+            chat_id: chatId,              // ID grup (bisa negatif)
+            user_id: userId,               // ID user asli yang menggunakan command
+            message_id: messageId,          // ID pesan user untuk di-reply
+            command: command,               // '/cekinfo' atau '/info'
+            args: [String(userId), String(serverId)], // Args untuk Bot A
             time: Date.now() / 1000
         };
+        
+        console.log(`📤 Menyimpan request ke Redis:`, JSON.stringify(requestData));
         
         await redisClient.setEx(requestId, 300, JSON.stringify(requestData));
         await redisClient.rPush('pending_requests', requestId);
         
-        console.log(`Request sent to relay: ${requestId}`);
+        console.log(`✅ Request sent to relay: ${requestId}`);
         return true;
     } catch (error) {
-        console.log('Error sending to relay:', error.message);
+        console.log('❌ Error sending to relay:', error.message);
         return false;
     }
 }
@@ -720,7 +728,6 @@ if (IS_WORKER) {
         // ========== /START (HANYA PRIVATE CHAT) ==========
         bot.onText(/\/start/, async (msg) => {
             try {
-                // Hanya respon di private chat, di grup DIAM SAJA
                 if (msg.chat.type !== 'private') return;
                 
                 const chatId = msg.chat.id;
@@ -766,29 +773,27 @@ if (IS_WORKER) {
         });
 
         // ========== /IDGRUP (HANYA UNTUK ADMIN BOT) ==========
-bot.onText(/\/idgrup/, async (msg) => {
-    try {
-        const chatId = msg.chat.id;
-        const userId = msg.from.id;
-        const chatType = msg.chat.type;
+        bot.onText(/\/idgrup/, async (msg) => {
+            try {
+                const chatId = msg.chat.id;
+                const userId = msg.from.id;
+                const chatType = msg.chat.type;
 
-        // Hanya bisa digunakan di grup
-        if (chatType !== 'group' && chatType !== 'supergroup') {
-            await bot.sendMessage(chatId, 'Perintah ini hanya dapat digunakan di dalam grup.');
-            return;
-        }
+                if (chatType !== 'group' && chatType !== 'supergroup') {
+                    await bot.sendMessage(chatId, 'Perintah ini hanya dapat digunakan di dalam grup.');
+                    return;
+                }
 
-        // Cek apakah user adalah ADMIN BOT
-        if (!isAdmin(userId)) {
-            await bot.sendMessage(chatId, 'Hanya admin bot yang dapat menggunakan perintah ini.');
-            return;
-        }
+                if (!isAdmin(userId)) {
+                    await bot.sendMessage(chatId, 'Hanya admin bot yang dapat menggunakan perintah ini.');
+                    return;
+                }
 
-        await bot.sendMessage(chatId, `ID Grup ini adalah: \`${chatId}\``, { parse_mode: 'Markdown' });
-    } catch (error) {
-        console.log('Error /idgrup:', error.message);
-    }
-});
+                await bot.sendMessage(chatId, `ID Grup ini adalah: \`${chatId}\``, { parse_mode: 'Markdown' });
+            } catch (error) {
+                console.log('Error /idgrup:', error.message);
+            }
+        });
 
         // ========== /ADDGROUP ==========
         bot.onText(/\/addgroup (\-?\d+)/, async (msg, match) => {
@@ -857,15 +862,17 @@ bot.onText(/\/idgrup/, async (msg) => {
             }
         });
 
-        // ========== /CEKINFO (KHUSUS GRUP - GRATIS) ==========
+        // ========== /CEKINFO (HANYA DI GRUP) ==========
         bot.onText(/\/cekinfo(?:\s+(.+))?/i, async (msg, match) => {
             try {
-                // Hanya untuk grup
-                if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') return;
+                // Hanya proses jika di GRUP
+                if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
+                    return; // DIAM SAJA, tidak ada response
+                }
                 
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
-                const messageId = msg.message_id;
+                const messageId = msg.message_id; // ID PESAN USER PENTING!
 
                 // Cek apakah grup terdaftar
                 if (!isGroupAllowed(chatId)) {
@@ -911,8 +918,8 @@ bot.onText(/\/idgrup/, async (msg) => {
                     return;
                 }
                 
-                // Kirim ke relay - TANPA PESAN APAPUN
-                const sent = await sendRequestToRelay(chatId, targetId, serverId);
+                // Kirim ke relay dengan command '/cekinfo' dan messageId
+                const sent = await sendRequestToRelay(chatId, targetId, serverId, '/cekinfo', messageId);
                 
                 if (!sent) {
                     await bot.sendMessage(chatId, 'Terjadi kesalahan. Silakan coba lagi.',
@@ -921,10 +928,7 @@ bot.onText(/\/idgrup/, async (msg) => {
                     return;
                 }
                 
-                // DIAM SAJA - tidak ada notifikasi sukses
-                // Relay yang akan mengirim hasilnya nanti
-                
-                // Tetap catat statistik
+                // Catat statistik
                 getUserCredits(userId, msg.from.username || '');
                 db.users[userId].success += 1;
                 db.total_success += 1;
@@ -940,7 +944,7 @@ bot.onText(/\/idgrup/, async (msg) => {
             }
         });
 
-        // ========== /INFO (KHUSUS PRIVATE CHAT - GRATIS) ==========
+        // ========== /INFO (HANYA DI PRIVATE CHAT) ==========
         bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 // Hanya private chat
@@ -948,6 +952,7 @@ bot.onText(/\/idgrup/, async (msg) => {
                 
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
+                const messageId = msg.message_id;
                 
                 if (!match || !match[1]) {
                     await bot.sendMessage(chatId,
@@ -997,7 +1002,8 @@ bot.onText(/\/idgrup/, async (msg) => {
                     return;
                 }
                 
-                const sent = await sendRequestToRelay(chatId, targetId, serverId);
+                // Kirim ke relay dengan command '/info' (messageId tetap dikirim)
+                const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', messageId);
                 
                 if (!sent) {
                     await bot.sendMessage(chatId, 'Terjadi kesalahan. Silakan coba lagi.');
@@ -1017,10 +1023,9 @@ bot.onText(/\/idgrup/, async (msg) => {
             }
         });
 
-        // ========== /CEK (KHUSUS PRIVATE CHAT - BERBAYAR) ==========
+        // ========== /CEK (HANYA PRIVATE CHAT - BERBAYAR) ==========
         bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             try {
-                // Hanya private chat
                 if (msg.chat.type !== 'private') return;
                 
                 const chatId = msg.chat.id;
@@ -1036,7 +1041,6 @@ bot.onText(/\/idgrup/, async (msg) => {
                     return;
                 }
                 
-                // CEK JOIN (PRIVATE CHAT WAJIB JOIN)
                 const joined = await checkJoin(bot, userId);
                 if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
                     let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`;
@@ -1237,10 +1241,8 @@ bot.onText(/\/idgrup/, async (msg) => {
                     
                     output += `Sisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
 
-                    // Hapus pesan loading
                     await bot.deleteMessage(chatId, loadingMsg.message_id);
                     
-                    // Kirim hasil
                     if (output.length > 4000) {
                         let part1 = output.substring(0, output.indexOf('SOCIAL'));
                         part1 += `\n\n[Lanjutan di pesan berikutnya...]`;
@@ -1278,10 +1280,9 @@ bot.onText(/\/idgrup/, async (msg) => {
             }
         });
 
-        // ========== /FIND (KHUSUS PRIVATE CHAT - BERBAYAR) ==========
+        // ========== /FIND (HANYA PRIVATE CHAT - BERBAYAR) ==========
         bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             try {
-                // Hanya private chat
                 if (msg.chat.type !== 'private') return;
                 
                 const chatId = msg.chat.id;
@@ -1337,7 +1338,6 @@ bot.onText(/\/idgrup/, async (msg) => {
                     }
                 }
                 
-                // CEK JOIN (PRIVATE CHAT WAJIB JOIN)
                 const joined = await checkJoin(bot, userId);
                 
                 if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
@@ -1446,10 +1446,8 @@ bot.onText(/\/idgrup/, async (msg) => {
                     
                     output += `\nSisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
                     
-                    // Hapus pesan loading
                     await bot.deleteMessage(chatId, loadingMsg.message_id);
                     
-                    // Kirim hasil
                     await bot.sendMessage(chatId, output, {
                         reply_markup: { 
                             inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
