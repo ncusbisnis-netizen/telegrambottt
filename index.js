@@ -1255,11 +1255,11 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
                 
                 // TAMBAHKAN COUNTRY DAN LAST COUNTRY (langsung dari API)
                 if (item.country) {
-                    output += `Country: ${item.country}\n`;
+                    output += `Region: ${item.country}\n`;
                 }
                 
                 if (item.last_country) {
-                    output += `Last Country: ${item.last_country}\n`;
+                    output += `Last login region: ${item.last_country}\n`;
                 }
                 
                 if (item.locations_logged && Array.isArray(item.locations_logged)) {
