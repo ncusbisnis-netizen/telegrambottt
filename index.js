@@ -493,26 +493,29 @@ async function createPakasirTopup(amount, userId, username = '') {
 }
 
 // ========== FUNGSI KIRIM KE RELAY (YANG SUDAH DIPERBAIKI) ==========
-async function sendRequestToRelay(chatId, userId, serverId, command, messageId) {
+async function sendRequestToRelay(chatId, userId, serverId, command, replyToMessageId = null) {
     try {
         if (!redisClient || !redisClient.isReady) {
             console.log('❌ Redis not connected');
             return false;
         }
         
-        // Buat request ID UNIK dengan format yang benar
         const timestamp = Date.now();
         const randomStr = Math.random().toString(36).substring(2, 8);
         const requestId = `req:${chatId}:${timestamp}:${randomStr}`;
         
         const requestData = {
-            chat_id: chatId,              // ID grup (bisa negatif)
-            user_id: userId,               // ID user asli yang menggunakan command
-            message_id: messageId,          // ID pesan user untuk di-reply
-            command: command,               // '/cekinfo' atau '/info'
-            args: [String(userId), String(serverId)], // Args untuk Bot A
+            chat_id: chatId,
+            user_id: userId,
+            command: command,
+            args: [String(userId), String(serverId)],
             time: Date.now() / 1000
         };
+        
+        // Hanya tambahkan reply_to_message_id jika ada (untuk /cekinfo)
+        if (replyToMessageId) {
+            requestData.reply_to_message_id = replyToMessageId;
+        }
         
         console.log(`📤 Menyimpan request ke Redis:`, JSON.stringify(requestData));
         
@@ -1003,7 +1006,7 @@ if (IS_WORKER) {
                 }
                 
                 // Kirim ke relay dengan command '/info' (messageId tetap dikirim)
-                const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', messageId);
+                const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', null);
                 
                 if (!sent) {
                     await bot.sendMessage(chatId, 'Terjadi kesalahan. Silakan coba lagi.');
