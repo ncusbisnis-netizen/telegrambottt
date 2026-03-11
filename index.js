@@ -47,7 +47,8 @@ let db = {
     users: {}, 
     total_success: 0, 
     feature: { info: true },
-    pending_topups: {} 
+    pending_topups: {},
+    allowed_groups: [] // Array grup yang diizinkan
 };
 
 const pool = new Pool({
@@ -81,6 +82,8 @@ async function loadDB() {
         const res = await pool.query('SELECT value FROM bot_data WHERE key = $1', ['database']);
         if (res.rows.length > 0) {
             db = res.rows[0].value;
+            // Pastikan properti allowed_groups ada
+            if (!db.allowed_groups) db.allowed_groups = [];
             const duration = Date.now() - start;
             console.log(`Load database sukses. Total users: ${Object.keys(db.users || {}).length} (${duration}ms)`);
         } else {
@@ -92,6 +95,7 @@ async function loadDB() {
             if (fs.existsSync('database.json')) {
                 const data = fs.readFileSync('database.json', 'utf8');
                 db = JSON.parse(data);
+                if (!db.allowed_groups) db.allowed_groups = [];
                 console.log('Load dari file (fallback)');
             }
         } catch (e) {}
@@ -109,7 +113,6 @@ async function saveDB() {
         );
         console.log('Database tersimpan di Postgres');
         
-        // Kirim notifikasi ke semua listener bahwa database telah berubah
         pool.query("SELECT pg_notify('db_updated', 'reload')").catch(err => {
             console.log('Gagal mengirim NOTIFY:', err.message);
         });
@@ -162,6 +165,10 @@ if (REDIS_URL) {
 
 function isAdmin(userId) { 
     return ADMIN_IDS.includes(userId); 
+}
+
+function isGroupAllowed(groupId) {
+    return db.allowed_groups && db.allowed_groups.includes(Number(groupId));
 }
 
 function getUserCredits(userId, username = '') {
@@ -711,19 +718,122 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== /START ==========
-        bot.onText(/\/start/, async (msg) => {
+        // ========== /IDGRUP ==========
+        bot.onText(/\/idgrup/, async (msg) => {
+            try {
+                const chatId = msg.chat.id;
+                const chatType = msg.chat.type;
+
+                if (chatType !== 'group' && chatType !== 'supergroup') {
+                    await bot.sendMessage(chatId, 'Perintah ini hanya dapat digunakan di dalam grup.');
+                    return;
+                }
+
+                await bot.sendMessage(chatId, `ID Grup ini adalah: \`${chatId}\``, { parse_mode: 'Markdown' });
+            } catch (error) {
+                console.log('Error /idgrup:', error.message);
+            }
+        });
+
+        // ========== ADMIN GROUP MANAGEMENT ==========
+        bot.onText(/\/addgroup (\-?\d+)/, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
-                
+                if (!isAdmin(msg.from.id)) return;
+
+                const groupId = parseInt(match[1]);
+                if (!db.allowed_groups) db.allowed_groups = [];
+
+                if (db.allowed_groups.includes(groupId)) {
+                    await bot.sendMessage(msg.chat.id, `Grup ${groupId} sudah terdaftar.`);
+                    return;
+                }
+
+                db.allowed_groups.push(groupId);
+                await saveDB();
+                await bot.sendMessage(msg.chat.id, `✅ Grup ${groupId} berhasil ditambahkan.`);
+            } catch (error) {
+                console.log('Error /addgroup:', error.message);
+            }
+        });
+
+        bot.onText(/\/removegroup (\-?\d+)/, async (msg, match) => {
+            try {
+                if (msg.chat.type !== 'private') return;
+                if (!isAdmin(msg.from.id)) return;
+
+                const groupId = parseInt(match[1]);
+                if (!db.allowed_groups) db.allowed_groups = [];
+
+                const index = db.allowed_groups.indexOf(groupId);
+                if (index === -1) {
+                    await bot.sendMessage(msg.chat.id, `Grup ${groupId} tidak ditemukan.`);
+                    return;
+                }
+
+                db.allowed_groups.splice(index, 1);
+                await saveDB();
+                await bot.sendMessage(msg.chat.id, `✅ Grup ${groupId} berhasil dihapus.`);
+            } catch (error) {
+                console.log('Error /removegroup:', error.message);
+            }
+        });
+
+        bot.onText(/\/listgroup/, async (msg) => {
+            try {
+                if (msg.chat.type !== 'private') return;
+                if (!isAdmin(msg.from.id)) return;
+
+                if (!db.allowed_groups || db.allowed_groups.length === 0) {
+                    await bot.sendMessage(msg.chat.id, 'Belum ada grup terdaftar.');
+                    return;
+                }
+
+                let message = 'Daftar grup terdaftar:\n\n';
+                db.allowed_groups.forEach((id, i) => {
+                    message += `${i + 1}. \`${id}\`\n`;
+                });
+
+                await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
+            } catch (error) {
+                console.log('Error /listgroup:', error.message);
+            }
+        });
+
+        // ========== /START (BISA DI GRUP) ==========
+        bot.onText(/\/start/, async (msg) => {
+            try {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 const username = msg.from.username;
+                const chatType = msg.chat.type;
                 
                 await loadDB();
                 
                 const credits = getUserCredits(userId, username || '');
                 
+                // Jika di grup, cek apakah grup terdaftar
+                if (chatType === 'group' || chatType === 'supergroup') {
+                    if (!isGroupAllowed(chatId)) {
+                        await bot.sendMessage(chatId, 
+                            'Grup ini belum terdaftar. Silakan minta izin ke @ncus999 untuk mendaftarkan grup ini.'
+                        );
+                        return;
+                    }
+                    
+                    // Di grup, kirim pesan sederhana (tidak pakai inline keyboard karena reply)
+                    let message = `Halo @${username || 'User'}!\n\n`;
+                    message += `Saldo Anda: Rp ${credits.toLocaleString()}\n\n`;
+                    message += `Gunakan perintah berikut dengan cara REPLY ke pesan ini:\n`;
+                    message += `/info ID USER ID SERVER - Info akun (GRATIS)\n`;
+                    message += `/cek ID USER ID SERVER - Detail lengkap (Rp 5.000)\n`;
+                    message += `/find NICKNAME SERVER - Cari ID (Rp 5.000)\n`;
+                    
+                    await bot.sendMessage(chatId, message);
+                    return;
+                }
+                
+                // Jika di private chat (dengan inline keyboard)
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `User ID: ${userId}\n`;
                 message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
@@ -738,6 +848,9 @@ if (IS_WORKER) {
                     message += `/oninfo - Aktifkan fitur\n`;
                     message += `/listtopup - Daftar topup\n`;
                     message += `/addtopup ID JUMLAH - Tambah saldo user\n`;
+                    message += `/addgroup ID - Tambah grup\n`;
+                    message += `/removegroup ID - Hapus grup\n`;
+                    message += `/listgroup - Lihat grup terdaftar\n`;
                 }
                 
                 const replyMarkup = {
@@ -755,103 +868,137 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== /INFO ==========
-        bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                
-                if (!match || !match[1]) {
-                    await bot.sendMessage(chatId,
-                        `INFORMASI AKUN\n\n` +
-                        `Format: /info ID_USER ID_SERVER\n` +
-                        `Contoh: /info 123456789 1234`
-                    );
-                    return;
-                }
-                
-                if (!db.feature?.info && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 'Fitur info sedang dinonaktifkan oleh admin.');
-                    return;
-                }
-                
-                const joined = await checkJoin(bot, userId);
-                
-                if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-                    let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`;
-                    
-                    
-                    const buttons = [];
-                    if (!joined.channel) {
-                        buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
-                    }
-                    if (!joined.group) {
-                        buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
-                    }
-                    
-                    await bot.sendMessage(chatId, message, { 
-                        reply_markup: { inline_keyboard: buttons } 
-                    });
-                    return;
-                }
-                
-                const args = match[1].trim().split(/\s+/);
-                if (args.length < 2) {
-                    await bot.sendMessage(chatId, `Format: /info ID_USER ID_SERVER`);
-                    return;
-                }
-                
-                const targetId = args[0];
-                const serverId = args[1];
-                
-                if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-                    await bot.sendMessage(chatId, 'ID dan Server harus angka.');
-                    return;
-                }
-                
-                // Tidak ada pengecekan userProcessing
-                
-                const sent = await sendRequestToRelay(chatId, targetId, serverId);
-                
-                if (!sent) {
-                    await bot.sendMessage(chatId, 'Gagal terhubung ke relay. Coba lagi nanti.');
-                    return;
-                }
-                
-                getUserCredits(userId, msg.from.username || '');
-                db.users[userId].success += 1;
-                db.total_success += 1;
-                await saveDB();
-                
-            } catch (error) {
-                console.log('Error /info:', error.message);
-                try {
-                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
-                } catch (e) {}
-            }
-        });
-
-        // ========== /CEK ==========
-bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
+        // ========== /INFO (Bisa di Private & Grup) ==========
+bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
     try {
-        if (msg.chat.type !== 'private') return;
+        if (msg.chat.type !== 'private' && msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') return;
         
         const chatId = msg.chat.id;
         const userId = msg.from.id;
+        const chatType = msg.chat.type;
+        const messageId = msg.message_id;
+
+        // Jika di grup, cek apakah grup terdaftar
+        if (chatType === 'group' || chatType === 'supergroup') {
+            if (!isGroupAllowed(chatId)) {
+                await bot.sendMessage(chatId, 
+                    'Grup ini belum terdaftar. Silakan minta izin ke @ncus999 untuk mendaftarkan grup ini.',
+                    { reply_to_message_id: messageId }
+                );
+                return;
+            }
+        }
+        
+        if (!match || !match[1]) {
+            await bot.sendMessage(chatId,
+                `INFORMASI AKUN\n\n` +
+                `Format: /info ID_USER ID_SERVER\n` +
+                `Contoh: /info 123456789 1234`,
+                { reply_to_message_id: messageId }
+            );
+            return;
+        }
+        
+        if (!db.feature?.info && !isAdmin(userId)) {
+            await bot.sendMessage(chatId, 'Fitur info sedang dinonaktifkan oleh admin.', 
+                { reply_to_message_id: messageId }
+            );
+            return;
+        }
+        
+        // CEK JOIN HANYA UNTUK PRIVATE CHAT
+        if (chatType === 'private') {
+            const joined = await checkJoin(bot, userId);
+            
+            if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
+                let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`;
+                
+                const buttons = [];
+                if (!joined.channel) {
+                    buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
+                }
+                if (!joined.group) {
+                    buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
+                }
+                
+                await bot.sendMessage(chatId, message, { 
+                    reply_markup: { inline_keyboard: buttons },
+                    reply_to_message_id: messageId
+                });
+                return;
+            }
+        }
+        
+        const args = match[1].trim().split(/\s+/);
+        if (args.length < 2) {
+            await bot.sendMessage(chatId, `Format: /info ID_USER ID_SERVER`,
+                { reply_to_message_id: messageId }
+            );
+            return;
+        }
+        
+        const targetId = args[0];
+        const serverId = args[1];
+        
+        if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
+            await bot.sendMessage(chatId, 'ID dan Server harus angka.',
+                { reply_to_message_id: messageId }
+            );
+            return;
+        }
+        
+        const sent = await sendRequestToRelay(chatId, targetId, serverId);
+        
+        if (!sent) {
+            await bot.sendMessage(chatId, 'Terjadi kesalahan. Silakan coba lagi.',
+                { reply_to_message_id: messageId }
+            );
+            return;
+        }
+        
+        getUserCredits(userId, msg.from.username || '');
+        db.users[userId].success += 1;
+        db.total_success += 1;
+        await saveDB();
+        
+    } catch (error) {
+        console.log('Error /info:', error.message);
+        try {
+            await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.',
+                { reply_to_message_id: msg.message_id }
+            );
+        } catch (e) {}
+    }
+});
+
+// ========== /CEK (HANYA PRIVATE CHAT) ==========
+bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
+    try {
+        // Hanya private chat yang diizinkan
+        if (msg.chat.type !== 'private') {
+            await bot.sendMessage(msg.chat.id, 
+                'Perintah /cek hanya dapat digunakan di private chat.\n\nSilakan chat langsung dengan bot untuk menggunakan fitur ini.',
+                { reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
+        
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        const messageId = msg.message_id;
         
         if (!match || !match[1]) {
             await bot.sendMessage(chatId, 
                 `DETAIL AKUN\n\n` +
                 `Format: /cek ID_USER ID_SERVER\n` +
                 `Contoh: /cek 123456789 1234\n\n` +
-                `Biaya: Rp 5.000`
+                `Biaya: Rp 5.000`,
+                { reply_to_message_id: messageId }
             );
             return;
         }
         
-        // Cek join channel/group
+        // CEK JOIN (PRIVATE CHAT WAJIB JOIN)
         const joined = await checkJoin(bot, userId);
         if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
             let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`;
@@ -862,13 +1009,18 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             if (!joined.group) {
                 buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
             }
-            await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
+            await bot.sendMessage(chatId, message, { 
+                reply_markup: { inline_keyboard: buttons },
+                reply_to_message_id: messageId
+            });
             return;
         }
         
         const args = match[1].trim().split(/\s+/);
         if (args.length < 2) {
-            await bot.sendMessage(chatId, `Format: /cek ID_USER ID_SERVER`);
+            await bot.sendMessage(chatId, `Format: /cek ID_USER ID_SERVER`,
+                { reply_to_message_id: messageId }
+            );
             return;
         }
         
@@ -876,7 +1028,9 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
         const serverId = args[1];
         
         if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-            await bot.sendMessage(chatId, 'ID dan Server harus angka.');
+            await bot.sendMessage(chatId, 'ID dan Server harus angka.',
+                { reply_to_message_id: messageId }
+            );
             return;
         }
         
@@ -893,13 +1047,16 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                         inline_keyboard: [
                             [{ text: 'TOP UP', callback_data: 'topup_menu' }]
                         ]
-                    }
+                    },
+                    reply_to_message_id: messageId
                 }
             );
             return;
         }
         
-        const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data detail...');
+        const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data detail...', 
+            { reply_to_message_id: messageId }
+        );
         
         try {
             const data = await getMLBBData(targetId, serverId, 'lookup');
@@ -919,16 +1076,14 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
 
             const d = data;
             
-            // Format tanggal created (TTL)
             let createdDate = '-';
             if (d.ttl) {
                 const parts = d.ttl.split('-');
                 if (parts.length === 3) {
-                    createdDate = `${parts[2]}-${parts[1]}-${parts[0]}`; // Ubah ke DD-MM-YYYY
+                    createdDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
                 }
             }
             
-            // OUTPUT LENGKAP DENGAN SEMUA FIELD
             let output = `PLAYER PROFILE\n\n`;
             
             output += `• ID Server: ${d.role_id || targetId} (${d.zone_id || serverId})\n`;
@@ -938,7 +1093,6 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             output += `• Last Login: ${d.last_login || '-'}\n`;
             output += `• Achievement Points: ${d.achievement_points?.toLocaleString() || 0}\n`;
             
-            // LAST COUNTRY & CREATED COUNTRY
             if (d.last_country_logged || d.created_country) {
                 if (d.last_country_logged) {
                     output += `• Last Country: ${d.last_country_logged}\n`;
@@ -983,7 +1137,6 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 output += `• ${d.affinity_list.join('\n• ')}\n\n`;
             }
             
-            // LOCATIONS
             if (d.locations_logged && d.locations_logged.length > 0) {
                 output += `LOCATIONS\n`;
                 output += `• ${d.locations_logged.join('\n• ')}\n\n`;
@@ -1034,7 +1187,6 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 output += `\n`;
             }
             
-            // SQUAD SECTION
             if (d.squad_name || d.squad_id) {
                 output += `SQUAD\n`;
                 if (d.squad_name) {
@@ -1057,29 +1209,29 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             
             output += `Sisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
 
-            // Cek panjang pesan, jika terlalu panjang bagi menjadi 2
+            // Hapus pesan loading
+            await bot.deleteMessage(chatId, loadingMsg.message_id);
+            
+            // Kirim hasil sebagai reply ke pesan user
             if (output.length > 4000) {
-                // Kirim pesan pertama (sampai sebelum SOCIAL)
                 let part1 = output.substring(0, output.indexOf('SOCIAL'));
                 part1 += `\n\n[Lanjutan di pesan berikutnya...]`;
                 
-                await bot.editMessageText(part1, {
-                    chat_id: chatId,
-                    message_id: loadingMsg.message_id,
+                await bot.sendMessage(chatId, part1, {
+                    reply_to_message_id: messageId,
                     reply_markup: { 
                         inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
                     }
                 });
                 
-                // Kirim pesan kedua (SOCIAL dan sisanya)
                 let part2 = output.substring(output.indexOf('SOCIAL'));
-                await bot.sendMessage(chatId, part2);
+                await bot.sendMessage(chatId, part2, {
+                    reply_to_message_id: messageId
+                });
                 
             } else {
-                // Jika tidak terlalu panjang, kirim satu pesan
-                await bot.editMessageText(output, {
-                    chat_id: chatId,
-                    message_id: loadingMsg.message_id,
+                await bot.sendMessage(chatId, output, {
+                    reply_to_message_id: messageId,
                     reply_markup: { 
                         inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
                     }
@@ -1097,18 +1249,28 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
     } catch (error) {
         console.log('Error /cek:', error.message);
         try {
-            await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
+            await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.',
+                { reply_to_message_id: msg.message_id }
+            );
         } catch (e) {}
     }
 });
 
-        // ========== /FIND ==========
+// ========== /FIND (HANYA PRIVATE CHAT) ==========
 bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
     try {
-        if (msg.chat.type !== 'private') return;
+        // Hanya private chat yang diizinkan
+        if (msg.chat.type !== 'private') {
+            await bot.sendMessage(msg.chat.id, 
+                'Perintah /find hanya dapat digunakan di private chat.\n\nSilakan chat langsung dengan bot untuk menggunakan fitur ini.',
+                { reply_to_message_id: msg.message_id }
+            );
+            return;
+        }
         
         const chatId = msg.chat.id;
         const userId = msg.from.id;
+        const messageId = msg.message_id;
         
         if (!match || !match[1]) {
             await bot.sendMessage(chatId,
@@ -1120,7 +1282,8 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
                 `2. Cari via Role ID:\n` +
                 `   /find ID\n` +
                 `   Contoh: /find 123456789\n\n` +
-                `Biaya: Rp 5.000`
+                `Biaya: Rp 5.000`,
+                { reply_to_message_id: messageId }
             );
             return;
         }
@@ -1141,7 +1304,8 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
                     `Format salah.\n\n` +
                     `Jika ingin mencari berdasarkan nickname, Anda WAJIB menyertakan server.\n` +
                     `Contoh: /find Nama Pemain 1234\n\n` +
-                    `Atau cari langsung via Role ID: /find 123456789`
+                    `Atau cari langsung via Role ID: /find 123456789`,
+                    { reply_to_message_id: messageId }
                 );
                 return;
             }
@@ -1154,17 +1318,17 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
                 await bot.sendMessage(chatId,
                     `Format salah.\n\n` +
                     `Server harus berupa angka.\n` +
-                    `Contoh: /find Nama Pemain 1234`
+                    `Contoh: /find Nama Pemain 1234`,
+                    { reply_to_message_id: messageId }
                 );
                 return;
             }
         }
         
+        // CEK JOIN (PRIVATE CHAT WAJIB JOIN)
         const joined = await checkJoin(bot, userId);
-        
         if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
             let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`;
-            
             const buttons = [];
             if (!joined.channel) {
                 buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
@@ -1172,8 +1336,10 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             if (!joined.group) {
                 buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
             }
-            
-            await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
+            await bot.sendMessage(chatId, message, { 
+                reply_markup: { inline_keyboard: buttons },
+                reply_to_message_id: messageId
+            });
             return;
         }
         
@@ -1190,13 +1356,16 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
                         inline_keyboard: [
                             [{ text: 'TOP UP', callback_data: 'topup_menu' }]
                         ]
-                    }
+                    },
+                    reply_to_message_id: messageId
                 }
             );
             return;
         }
         
-        const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...');
+        const loadingMsg = await bot.sendMessage(chatId, 'Mencari data...', 
+            { reply_to_message_id: messageId }
+        );
         
         try {
             let results = null;
@@ -1214,11 +1383,6 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             
             if (!searchSuccess) {
                 let failMsg = 'Gagal mengambil data. Saldo Anda tidak terpotong.\n\nSilakan coba lagi nanti.';
-                if (!isRoleIdSearch) {
-                    failMsg = `Gagal mengambil data.`;
-                } else {
-                    failMsg = `Gagal mengambil data.`;
-                }
                 await bot.editMessageText(failMsg, {
                     chat_id: chatId,
                     message_id: loadingMsg.message_id
@@ -1253,7 +1417,6 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
                     output += `Last Login: ${item.last_login}\n`;
                 }
                 
-                // TAMBAHKAN COUNTRY DAN LAST COUNTRY (langsung dari API)
                 if (item.country) {
                     output += `Region: ${item.country}\n`;
                 }
@@ -1274,9 +1437,12 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             
             output += `\nSisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
             
-            await bot.editMessageText(output, {
-                chat_id: chatId,
-                message_id: loadingMsg.message_id,
+            // Hapus pesan loading
+            await bot.deleteMessage(chatId, loadingMsg.message_id);
+            
+            // Kirim hasil sebagai reply ke pesan user
+            await bot.sendMessage(chatId, output, {
+                reply_to_message_id: messageId,
                 reply_markup: { 
                     inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
                 }
@@ -1293,7 +1459,9 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
     } catch (error) {
         console.log('Error /find:', error.message);
         try {
-            await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
+            await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.',
+                { reply_to_message_id: msg.message_id }
+            );
         } catch (e) {}
     }
 });
@@ -1597,6 +1765,9 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
                     message += `/oninfo - Aktifkan fitur\n`;
                     message += `/listtopup - Daftar saldo > 0\n`;
                     message += `/addtopup ID JUMLAH - Tambah saldo\n`;
+                    message += `/addgroup ID - Tambah grup\n`;
+                    message += `/removegroup ID - Hapus grup\n`;
+                    message += `/listgroup - Lihat grup terdaftar\n`;
                 }
                 
                 const replyMarkup = {
