@@ -765,37 +765,30 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== /IDGRUP (HANYA UNTUK OWNER GRUP) ==========
-        bot.onText(/\/idgrup/, async (msg) => {
-            try {
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const chatType = msg.chat.type;
+        // ========== /IDGRUP (HANYA UNTUK ADMIN BOT) ==========
+bot.onText(/\/idgrup/, async (msg) => {
+    try {
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        const chatType = msg.chat.type;
 
-                // Hanya bisa digunakan di grup
-                if (chatType !== 'group' && chatType !== 'supergroup') {
-                    await bot.sendMessage(chatId, 'Perintah ini hanya dapat digunakan di dalam grup.');
-                    return;
-                }
+        // Hanya bisa digunakan di grup
+        if (chatType !== 'group' && chatType !== 'supergroup') {
+            await bot.sendMessage(chatId, 'Perintah ini hanya dapat digunakan di dalam grup.');
+            return;
+        }
 
-                // Cek apakah user adalah owner grup
-                try {
-                    const chatMember = await bot.getChatMember(chatId, userId);
-                    if (chatMember.status !== 'creator') {
-                        await bot.sendMessage(chatId, 'Hanya owner grup yang dapat menggunakan perintah ini.');
-                        return;
-                    }
-                } catch (error) {
-                    console.log('Error cek owner:', error.message);
-                    await bot.sendMessage(chatId, 'Gagal memverifikasi kepemilikan grup.');
-                    return;
-                }
+        // Cek apakah user adalah ADMIN BOT
+        if (!isAdmin(userId)) {
+            await bot.sendMessage(chatId, 'Hanya admin bot yang dapat menggunakan perintah ini.');
+            return;
+        }
 
-                await bot.sendMessage(chatId, `ID Grup ini adalah: \`${chatId}\``, { parse_mode: 'Markdown' });
-            } catch (error) {
-                console.log('Error /idgrup:', error.message);
-            }
-        });
+        await bot.sendMessage(chatId, `ID Grup ini adalah: \`${chatId}\``, { parse_mode: 'Markdown' });
+    } catch (error) {
+        console.log('Error /idgrup:', error.message);
+    }
+});
 
         // ========== /ADDGROUP ==========
         bot.onText(/\/addgroup (\-?\d+)/, async (msg, match) => {
