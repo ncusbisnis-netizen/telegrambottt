@@ -728,7 +728,7 @@ if (IS_WORKER) {
                 message += `User ID: ${userId}\n`;
                 message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
                 message += `DAFTAR PERINTAH:\n`;
-                message += `/info - Info akun terhubung ( GRATIS )\n`;
+                message += `/info - Info akun terhubung (GRATIS)\n`;
                 message += `/cek - Detail lengkap akun (Rp 5.000)\n`;
                 message += `/find - Cari ID via nickname(Rp 5.000)\n\n`;
                 
@@ -767,7 +767,7 @@ if (IS_WORKER) {
                     await bot.sendMessage(chatId,
                         `INFORMASI AKUN\n\n` +
                         `Format: /info ID_USER ID_SERVER\n` +
-                        `Contoh: /info 643461181 8554`
+                        `Contoh: /info 123456789 1234`
                     );
                     return;
                 }
@@ -845,7 +845,7 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             await bot.sendMessage(chatId, 
                 `DETAIL AKUN\n\n` +
                 `Format: /cek ID_USER ID_SERVER\n` +
-                `Contoh: /cek 643461181 8554\n\n` +
+                `Contoh: /cek 123456789 1234\n\n` +
                 `Biaya: Rp 5.000`
             );
             return;
@@ -1119,7 +1119,7 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
                 `   Contoh: /find Nama Pemain 1234\n\n` +
                 `2. Cari via Role ID:\n` +
                 `   /find ID\n` +
-                `   Contoh: /find 643461181\n\n` +
+                `   Contoh: /find 123456789\n\n` +
                 `Biaya: Rp 5.000`
             );
             return;
@@ -1141,7 +1141,7 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
                     `Format salah.\n\n` +
                     `Jika ingin mencari berdasarkan nickname, Anda WAJIB menyertakan server.\n` +
                     `Contoh: /find Nama Pemain 1234\n\n` +
-                    `Atau cari langsung via Role ID: /find 643461181`
+                    `Atau cari langsung via Role ID: /find 123456789`
                 );
                 return;
             }
@@ -1587,7 +1587,7 @@ bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
                 message += `User ID: ${userId}\n`;
                 message += `Saldo: Rp ${credits.toLocaleString()}\n\n`;
                 message += `DAFTAR PERINTAH:\n`;
-                message += `/info - Info akun terhubung ( GRATIS )\n`;
+                message += `/info - Info akun terhubung (GRATIS)\n`;
                 message += `/cek  - Detail lengkap akun (Rp 5.000)\n`;
                 message += `/find - Cari ID via nickname (Rp 5.000)\n`;
                 
