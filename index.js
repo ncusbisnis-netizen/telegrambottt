@@ -918,8 +918,8 @@ if (IS_WORKER) {
                     return;
                 }
                 
-                // Kirim ke relay dengan command '/cekinfo' dan messageId
-                const sent = await sendRequestToRelay(chatId, targetId, serverId, '/cekinfo', messageId);
+                // Kirim ke relay dengan command '/info' dan messageId
+                const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', messageId);
                 
                 if (!sent) {
                     await bot.sendMessage(chatId, 'Terjadi kesalahan. Silakan coba lagi.',
@@ -935,7 +935,7 @@ if (IS_WORKER) {
                 await saveDB();
                 
             } catch (error) {
-                console.log('Error /cekinfo:', error.message);
+                console.log('Error /info:', error.message);
                 try {
                     await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.',
                         { reply_to_message_id: msg.message_id }
