@@ -758,6 +758,7 @@ if (IS_WORKER) {
                     message += `/addgroup ID - Tambah grup\n`;
                     message += `/removegroup ID - Hapus grup\n`;
                     message += `/listgroup - Lihat grup terdaftar\n`;
+                    message += `/pesan - Kirim broadcast ke semua user\n`;
                 }
                 
                 const replyMarkup = {
@@ -1620,6 +1621,115 @@ if (IS_WORKER) {
                 console.log('Error /addtopup:', error.message);
             }
         });
+        
+        // ========== /PESAN (BROADCAST CEPAT) - TANPA P-LIMIT ==========
+bot.onText(/\/pesan(?:\s+(.+))?/i, async (msg, match) => {
+    try {
+        // Hanya private chat dan admin
+        if (msg.chat.type !== 'private') return;
+        if (!isAdmin(msg.from.id)) return;
+
+        const chatId = msg.chat.id;
+        const text = match[1] || '';
+        const hasPhoto = msg.photo && msg.photo.length > 0;
+        const photoFileId = hasPhoto ? msg.photo[msg.photo.length - 1].file_id : null;
+        const caption = hasPhoto ? (msg.caption || text) : text;
+
+        if (!hasPhoto && !caption) {
+            await bot.sendMessage(chatId, 
+                '📤 *BROADCAST PESAN*\n\n' +
+                'Gunakan format:\n' +
+                '• Dengan teks saja: `/pesan Halo semua`\n' +
+                '• Dengan foto + teks: kirim foto dengan caption `/pesan`',
+                { parse_mode: 'Markdown' }
+            );
+            return;
+        }
+
+        // Ambil semua user ID
+        const users = Object.keys(db.users || {}).map(id => parseInt(id));
+        if (users.length === 0) {
+            await bot.sendMessage(chatId, 'Tidak ada pengguna terdaftar.');
+            return;
+        }
+
+        const statusMsg = await bot.sendMessage(
+            chatId, 
+            `⏳ Memulai broadcast ke *${users.length}* pengguna...`,
+            { parse_mode: 'Markdown' }
+        );
+
+        let success = 0, failed = 0;
+        
+        // KIRIM 5 USER BERSAMAAN (MANUAL CONCURRENCY)
+        const concurrency = 5; // jumlah request bersamaan
+        for (let i = 0; i < users.length; i += concurrency) {
+            const batch = users.slice(i, i + concurrency);
+            
+            // Kirim batch ini secara paralel
+            await Promise.all(batch.map(async (userId) => {
+                try {
+                    if (hasPhoto) {
+                        await bot.sendPhoto(userId, photoFileId, { 
+                            caption: caption, 
+                            parse_mode: 'HTML' 
+                        });
+                    } else {
+                        await bot.sendMessage(userId, caption, { 
+                            parse_mode: 'HTML' 
+                        });
+                    }
+                    success++;
+                } catch (error) {
+                    // Handle rate limit
+                    if (error.response && error.response.statusCode === 429) {
+                        const retryAfter = error.response.body.parameters?.retry_after || 1;
+                        console.log(`Rate limit, tunggu ${retryAfter} detik`);
+                        await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                        
+                        // Coba ulang
+                        try {
+                            if (hasPhoto) {
+                                await bot.sendPhoto(userId, photoFileId, { 
+                                    caption: caption, 
+                                    parse_mode: 'HTML' 
+                                });
+                            } else {
+                                await bot.sendMessage(userId, caption, { 
+                                    parse_mode: 'HTML' 
+                                });
+                            }
+                            success++;
+                        } catch (retryError) {
+                            failed++;
+                        }
+                    } else {
+                        failed++;
+                        console.log(`Gagal kirim ke ${userId}:`, error.message);
+                    }
+                }
+            }));
+            
+            // Jeda kecil antar batch (opsional)
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        await bot.editMessageText(
+            `✅ *Broadcast selesai*\n\n` +
+            `📨 Berhasil: *${success}*\n` +
+            `❌ Gagal: *${failed}*`,
+            { 
+                chat_id: chatId, 
+                message_id: statusMsg.message_id,
+                parse_mode: 'Markdown'
+            }
+        );
+
+    } catch (error) {
+        console.log('Error /pesan:', error.message);
+        await bot.sendMessage(msg.chat.id, '❌ Terjadi kesalahan.');
+    }
+});
 
         // ========== CALLBACK QUERY ==========
         bot.on('callback_query', async (cb) => {
@@ -1786,6 +1896,7 @@ if (IS_WORKER) {
                     message += `/addgroup ID - Tambah grup\n`;
                     message += `/removegroup ID - Hapus grup\n`;
                     message += `/listgroup - Lihat grup terdaftar\n`;
+                    message += `/pesan - Kirim broadcast ke semua user\n`;
                 }
                 
                 const replyMarkup = {
