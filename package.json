@@ -15,7 +15,8 @@
     "moment-timezone": "^0.5.43",
     "qrcode": "^1.5.3",
     "pg": "^8.11.3",
-    "redis": "^4.6.10"
+    "redis": "^4.6.10",
+    "p-limit": "^5.0.0"
   },
   "engines": {
     "node": "18.x"
