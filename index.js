@@ -845,26 +845,100 @@ if (IS_WORKER) {
         });
 
         // ========== /LISTGROUP ==========
-        bot.onText(/\/listgroup/, async (msg) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                if (!isAdmin(msg.from.id)) return;
+bot.onText(/\/listgroup/, async (msg) => {
+    try {
+        if (msg.chat.type !== 'private') return;
+        if (!isAdmin(msg.from.id)) return;
 
-                if (!db.allowed_groups || db.allowed_groups.length === 0) {
-                    await bot.sendMessage(msg.chat.id, 'Belum ada grup terdaftar.');
-                    return;
-                }
+        if (!db.allowed_groups || db.allowed_groups.length === 0) {
+            await bot.sendMessage(msg.chat.id, 'Belum ada grup terdaftar.');
+            return;
+        }
 
-                let message = '📋 DAFTAR GRUP TERDAFTAR:\n\n';
-                db.allowed_groups.forEach((id, i) => {
-                    message += `${i + 1}. \`${id}\`\n`;
-                });
-
-                await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
-            } catch (error) {
-                console.log('Error /listgroup:', error.message);
-            }
+        let message = '📋 DAFTAR GRUP TERDAFTAR:\n\n';
+        db.allowed_groups.forEach((id, i) => {
+            message += `${i + 1}. \`${id}\`\n`;
         });
+
+        await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
+    } catch (error) {
+        console.log('Error /listgroup:', error.message);
+    }
+});
+
+// ========== /SCANCHANNEL (TAMBAHKAN INI) ==========
+bot.onText(/\/scanchannel/, async (msg) => {
+    try {
+        if (msg.chat.type !== 'private') return;
+        if (!isAdmin(msg.from.id)) return;
+
+        const chatId = msg.chat.id;
+        
+        if (!CHANNEL) {
+            await bot.sendMessage(chatId, '❌ CHANNEL tidak dikonfigurasi di environment variable.');
+            return;
+        }
+
+        const loadingMsg = await bot.sendMessage(chatId, 
+            `⏳ Scanning member dari ${CHANNEL}...`
+        );
+
+        try {
+            // Ambil daftar admin channel
+            const admins = await bot.getChatAdministrators(CHANNEL);
+            
+            let added = 0;
+            let existing = 0;
+
+            for (const admin of admins) {
+                const userId = admin.user.id;
+                const username = admin.user.username || '';
+
+                if (!db.users[userId]) {
+                    db.users[userId] = { 
+                        username: username, 
+                        success: 0, 
+                        credits: 0, 
+                        topup_history: [] 
+                    };
+                    added++;
+                } else {
+                    existing++;
+                }
+            }
+
+            await saveDB();
+
+            await bot.editMessageText(
+                `✅ SCAN CHANNEL SELESAI\n\n` +
+                `Channel: ${CHANNEL}\n` +
+                `Total admin: ${admins.length}\n\n` +
+                `📊 Hasil:\n` +
+                `• User baru: ${added}\n` +
+                `• User existing: ${existing}\n` +
+                `• Total user database: ${Object.keys(db.users).length}`,
+                {
+                    chat_id: chatId,
+                    message_id: loadingMsg.message_id
+                }
+            );
+
+        } catch (error) {
+            console.log('Error scan channel:', error.message);
+            await bot.editMessageText(
+                `❌ Gagal scan channel: ${error.message}\n\n` +
+                `Pastikan bot sudah menjadi ADMIN di channel ${CHANNEL}`,
+                {
+                    chat_id: chatId,
+                    message_id: loadingMsg.message_id
+                }
+            );
+        }
+
+    } catch (error) {
+        console.log('Error /scanchannel:', error.message);
+    }
+});
 
         // ========== /CEKINFO (HANYA DI GRUP) ==========
         bot.onText(/\/cekinfo(?:\s+(.+))?/i, async (msg, match) => {
@@ -1989,3 +2063,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+ 
