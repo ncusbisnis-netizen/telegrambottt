@@ -298,15 +298,46 @@ async function getMLBBData(userId, serverId, type = 'lookup') {
                 "Content-Type": "application/json",
                 "x-api-key": API_KEY_CHECKTON
             },
-            timeout: 30000
+            timeout: 60000
         });
         
         console.log(`Checkton response status: ${response.status}`);
+        console.log(`Checkton response data:`, JSON.stringify(response.data).substring(0, 200) + '...');
         
-        if (response.data?.data) {
-            return response.data.data;
+        // CEK BERBAGAI KEMUNGKINAN STRUCTURE RESPONSE
+        if (response.data) {
+            // Jika response.data.data ada dan tidak kosong
+            if (response.data.data && Object.keys(response.data.data).length > 0) {
+                console.log('Menggunakan response.data.data');
+                return response.data.data;
+            }
+            
+            // Jika response.data langsung berisi data yang diinginkan (bukan di dalam .data)
+            if (response.data.role_id || response.data.name || response.data.level) {
+                console.log('Menggunakan response.data langsung');
+                return response.data;
+            }
+            
+            // Jika response.data.status === 0 (sukses) dan ada data
+            if (response.data.status === 0 && response.data.data) {
+                console.log('Menggunakan response dengan status 0');
+                return response.data.data;
+            }
+            
+            // Jika response.data.result ada
+            if (response.data.result) {
+                console.log('Menggunakan response.data.result');
+                return response.data.result;
+            }
+            
+            // Jika response.data berbentuk array dan tidak kosong
+            if (Array.isArray(response.data) && response.data.length > 0) {
+                console.log('Menggunakan response array');
+                return response.data[0];
+            }
         }
         
+        console.log('Tidak ada data yang valid dalam response');
         return null;
         
     } catch (error) {
@@ -339,29 +370,42 @@ async function findPlayerByName(name) {
             timeout: 60000
         });
         
+        console.log(`Find response status: ${response.status}`);
+        console.log(`Find response data:`, JSON.stringify(response.data).substring(0, 200) + '...');
+        
+        // CEK BERBAGAI KEMUNGKINAN STRUCTURE RESPONSE
         if (response.data) {
+            // Jika response.data.status === 0 dan ada data
             if (response.data.status === 0 && response.data.data) {
-                return response.data.data;
+                // Jika data berbentuk array
+                if (Array.isArray(response.data.data)) {
+                    return response.data.data;
+                }
+                // Jika data berbentuk object, bungkus dalam array
+                return [response.data.data];
             }
+            
+            // Jika response.data langsung array
             if (Array.isArray(response.data)) {
                 return response.data;
             }
+            
+            // Jika response.data object dengan role_id
             if (response.data.role_id) {
                 return [response.data];
             }
+            
+            // Jika response.data.data array
+            if (response.data.data && Array.isArray(response.data.data)) {
+                return response.data.data;
+            }
         }
         
+        console.log('Tidak ada data yang valid dalam response find');
         return null;
         
     } catch (error) {
         console.log(`Error findPlayerByName:`, error.message);
-        if (error.code === 'ECONNABORTED') {
-            console.log('Timeout - koneksi terlalu lama');
-        }
-        if (error.response) {
-            console.log('Response status:', error.response.status);
-            console.log('Response data:', JSON.stringify(error.response.data));
-        }
         return null;
     }
 }
@@ -383,15 +427,27 @@ async function getPlayerByRoleId(roleId) {
             timeout: 60000
         });
         
+        console.log(`Find by role response status: ${response.status}`);
+        
+        // CEK BERBAGAI KEMUNGKINAN STRUCTURE RESPONSE
         if (response.data) {
             if (response.data.status === 0 && response.data.data) {
-                return response.data.data;
+                if (Array.isArray(response.data.data)) {
+                    return response.data.data;
+                }
+                return [response.data.data];
             }
+            
             if (Array.isArray(response.data)) {
                 return response.data;
             }
+            
             if (response.data.role_id) {
                 return [response.data];
+            }
+            
+            if (response.data.data && Array.isArray(response.data.data)) {
+                return response.data.data;
             }
         }
         
@@ -399,13 +455,6 @@ async function getPlayerByRoleId(roleId) {
         
     } catch (error) {
         console.log(`Error getPlayerByRoleId:`, error.message);
-        if (error.code === 'ECONNABORTED') {
-            console.log('Timeout - koneksi terlalu lama');
-        }
-        if (error.response) {
-            console.log('Response status:', error.response.status);
-            console.log('Response data:', JSON.stringify(error.response.data));
-        }
         return null;
     }
 }
