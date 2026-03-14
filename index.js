@@ -1132,7 +1132,7 @@ bot.onText(/\/scanchannel/, async (msg) => {
             }
         });
 
-        // ========== /CEK (GABUNGAN FIND + LOOKUP DENGAN RETRY LOOKUP) ==========
+  // ========== /CEK (GABUNGAN FIND + LOOKUP) ==========
 bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
     try {
         if (msg.chat.type !== 'private') return;
@@ -1188,8 +1188,8 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 serverFilter = parts[1];
             } else {
                 await bot.sendMessage(chatId, 
-                    'Format salah.\n\n' +
-                    'Server harus berupa angka.\n' +
+                    'GAGAL MENGAMBIL DATA\n\n' +
+                    'PASTIKAN NICKNAME SERVER VALID\n' +
                     'Contoh: /cek Nama Pemain 1234'
                 );
                 return;
@@ -1201,8 +1201,8 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 searchQuery = parts[0];
             } else {
                 await bot.sendMessage(chatId,
-                    'Format salah.\n\n' +
-                    'Untuk mencari via Role ID, gunakan angka.\n' +
+                    'GAGAL MENGAMBIL DATA\n\n' +
+                    'PASTIKAN ID VALID\n' +
                     'Contoh: /cek 123456789'
                 );
                 return;
@@ -1216,8 +1216,8 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 searchQuery = parts.slice(0, -1).join(' ');
             } else {
                 await bot.sendMessage(chatId,
-                    'Format salah.\n\n' +
-                    'Parameter terakhir harus berupa server (angka).\n' +
+                    'GAGAL MENGAMBIL DATA\n\n' +
+                    'PASTIKAN NICKNAME SERVER VALID\n' +
                     'Contoh: /cek Nama Panjang Pemain 1234'
                 );
                 return;
@@ -1250,107 +1250,99 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
         try {
             let foundAccounts = [];
             let selectedAccount = null;
-            let targetRoleId = null;
-            let targetZoneId = null;
             
             // TAHAP 1: LAKUKAN PENCARIAN (TYPE FIND)
             if (isSearchByName) {
                 console.log(`Mode: Cari via nickname "${searchQuery}" server ${serverFilter}`);
                 foundAccounts = await findPlayerByName(searchQuery);
                 
+                // CEK JIKA FIND GAGAL
                 if (!foundAccounts || foundAccounts.length === 0) {
-                    await bot.editMessageText('GAGAL MENGAMBIL DATA', {
+                    await bot.editMessageText(
+                        'GAGAL MENGAMBIL DATA\n\n' +
+                        'PASTIKAN NICKNAME SERVER VALID', {
                         chat_id: chatId,
                         message_id: loadingMsg.message_id
                     });
                     return;
                 }
                 
+                // Filter berdasarkan server
                 foundAccounts = foundAccounts.filter(a => a.zone_id == serverFilter);
                 
+                // CEK JIKA TIDAK ADA DI SERVER TERSEBUT
                 if (foundAccounts.length === 0) {
-                    await bot.editMessageText('GAGAL MENGAMBIL DATA', {
+                    await bot.editMessageText(
+                        'GAGAL MENGAMBIL DATA\n\n' +
+                        'PASTIKAN NICKNAME SERVER VALID', {
                         chat_id: chatId,
                         message_id: loadingMsg.message_id
                     });
                     return;
                 }
                 
+                // Ambil akun pertama
                 selectedAccount = foundAccounts[0];
-                targetRoleId = selectedAccount.role_id;
-                targetZoneId = selectedAccount.zone_id;
                 
             } else if (isSearchByRoleId) {
                 console.log(`Mode: Cari via role ID ${searchQuery}`);
                 foundAccounts = await getPlayerByRoleId(searchQuery);
                 
+                // CEK JIKA FIND GAGAL
                 if (!foundAccounts || foundAccounts.length === 0) {
-                    // Jika find gagal, tetap coba lookup dengan input user
-                    console.log(`Find gagal, coba langsung lookup dengan role ID ${searchQuery}`);
-                    targetRoleId = searchQuery;
-                    targetZoneId = null; // Akan dicari nanti
-                } else {
-                    selectedAccount = foundAccounts[0];
-                    targetRoleId = selectedAccount.role_id;
-                    targetZoneId = selectedAccount.zone_id;
+                    await bot.editMessageText(
+                        'GAGAL MENGAMBIL DATA\n\n' +
+                        'PASTIKAN ID VALID', {
+                        chat_id: chatId,
+                        message_id: loadingMsg.message_id
+                    });
+                    return;
                 }
+                
+                // Ambil akun pertama
+                selectedAccount = foundAccounts[0];
             }
             
-            // Jika targetZoneId masih null (dari role ID yang tidak ditemukan di find)
-            if (!targetZoneId && targetRoleId) {
-                // Coba cari server dari input atau minta user
-                await bot.editMessageText(
-                    `Role ID ditemukan tapi server tidak diketahui.\n` +
-                    `Silakan masukkan server untuk Role ID ${targetRoleId}:\n` +
-                    `Contoh: /cek ${targetRoleId} 1234`, {
-                    chat_id: chatId,
-                    message_id: loadingMsg.message_id
-                });
-                return;
-            }
-            
-            // TAHAP 2: RETRY LOOKUP SAMPAI BERHASIL
-            let detailData = null;
-            let retryCount = 0;
-            const maxRetries = 10; // MAKSIMAL 10x PERCOBAAN
-            const retryDelay = 2000; // JEDA 2 DETIK ANTAR PERCOBAAN
-            
-            await bot.editMessageText(`Mengambil data detail... (Percobaan 1/${maxRetries})`, {
+            // Update loading message
+            await bot.editMessageText(`Mengambil data detail...`, {
                 chat_id: chatId,
                 message_id: loadingMsg.message_id
             });
             
-            while (retryCount < maxRetries) {
+            // TAHAP 2: AMBIL DETAIL LENGKAP (TYPE LOOKUP) - PAKSA SAMPAI DAPAT
+            let detailData = null;
+            let lookupSuccess = false;
+            let retryCount = 0;
+            const maxRetries = 5; // MAKSIMAL 5 PERCOBAAN
+            
+            while (!lookupSuccess && retryCount < maxRetries) {
                 retryCount++;
                 
-                console.log(`Percobaan lookup ke-${retryCount} untuk ${targetRoleId} server ${targetZoneId}`);
-                
-                detailData = await getMLBBData(targetRoleId, targetZoneId, 'lookup');
-                
-                // Cek apakah detailData valid (tidak error dan ada data)
-                if (detailData && !detailData.error) {
-                    console.log(`Lookup berhasil pada percobaan ke-${retryCount}`);
-                    break;
-                }
-                
-                if (retryCount < maxRetries) {
-                    await bot.editMessageText(
-                        `Mengambil data detail... (Percobaan ${retryCount + 1}/${maxRetries})`, {
+                if (retryCount > 1) {
+                    await bot.editMessageText(`Mengambil data detail... (Percobaan ${retryCount}/${maxRetries})`, {
                         chat_id: chatId,
                         message_id: loadingMsg.message_id
                     });
-                    
-                    // Tunggu sebelum mencoba lagi
-                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                }
+                
+                detailData = await getMLBBData(selectedAccount.role_id, selectedAccount.zone_id, 'lookup');
+                
+                if (detailData && !detailData.error) {
+                    lookupSuccess = true;
+                    break;
+                }
+                
+                // Jeda 1 detik sebelum mencoba lagi
+                if (retryCount < maxRetries) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             }
             
-            // CEK APAKAH DETAIL DATA MASIH ERROR SETELAH MAKSIMAL PERCOBAAN
-            if (!detailData || detailData.error) {
+            // CEK JIKA LOOKUP GAGAL SETELAH MAKSIMAL PERCOBAAN
+            if (!lookupSuccess) {
                 await bot.editMessageText(
-                    `GAGAL MENGAMBIL DATA\n\n` +
-                    `Sudah mencoba ${maxRetries}x namun tetap gagal.\n` +
-                    `Mungkin server sedang sibuk atau akun tidak bisa diakses.`, {
+                    'REQUEST SEDANG ERROR\n\n' +
+                    'SILAHKAN COBA LAGI NANTI', {
                     chat_id: chatId,
                     message_id: loadingMsg.message_id
                 });
@@ -1369,16 +1361,6 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             await bot.deleteMessage(chatId, loadingMsg.message_id);
             
             // TAHAP 5: TAMPILKAN HASIL GABUNGAN
-            if (!selectedAccount) {
-                // Buat searchResult dummy jika tidak ada dari find
-                selectedAccount = {
-                    role_id: targetRoleId,
-                    zone_id: targetZoneId,
-                    name: detailData.name || 'Unknown',
-                    level: detailData.level || '-'
-                };
-            }
-            
             await sendCombinedAccountInfo(bot, chatId, userId, selectedAccount, detailData, searchQuery, serverFilter, isSearchByRoleId);
             
             // Update statistik
@@ -1388,7 +1370,9 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             
         } catch (error) {
             console.log('Error saat memproses:', error.message);
-            await bot.editMessageText('GAGAL MENGAMBIL DATA', {
+            await bot.editMessageText(
+                'REQUEST SEDANG ERROR\n\n' +
+                'SILAHKAN COBA LAGI NANTI', {
                 chat_id: chatId,
                 message_id: loadingMsg.message_id
             });
@@ -1397,7 +1381,7 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
     } catch (error) {
         console.log('Error /cek:', error.message);
         try {
-            await bot.sendMessage(msg.chat.id, 'GAGAL MENGAMBIL DATA');
+            await bot.sendMessage(msg.chat.id, 'REQUEST SEDANG ERROR\n\nSILAHKAN COBA LAGI NANTI');
         } catch (e) {}
     }
 });
