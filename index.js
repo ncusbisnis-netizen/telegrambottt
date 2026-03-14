@@ -1881,14 +1881,6 @@ async function sendCombinedAccountInfo(bot, chatId, userId, searchResult, detail
             output += `Created Country: ${d.created_country || searchResult.country || '-'}\n`;
         }
         
-        // TAMBAHKAN LOKASI DARI HASIL PENCARIAN
-        if (searchResult.locations_logged && Array.isArray(searchResult.locations_logged)) {
-            const locations = formatLocations(searchResult.locations_logged, 5);
-            if (locations) {
-                output += `Locations: ${locations}\n`;
-            }
-        }
-        
         output += `\n`;
         output += `RANK INFO\n`;
         output += `Current Tier: ${d.current_tier || '-'}\n`;
@@ -1924,10 +1916,31 @@ async function sendCombinedAccountInfo(bot, chatId, userId, searchResult, detail
             output += `${d.affinity_list.join('\n')}\n\n`;
         }
         
-        if (d.locations_logged && d.locations_logged.length > 0) {
-            output += `LOCATIONS\n`;
-            output += `${d.locations_logged.join('\n')}\n\n`;
+        // ========== BAGIAN LOCATIONS (GABUNGAN DARI FIND DAN LOOKUP) ==========
+        let allLocations = [];
+        
+        // Ambil lokasi dari hasil pencarian (find)
+        if (searchResult.locations_logged && Array.isArray(searchResult.locations_logged)) {
+            allLocations = allLocations.concat(searchResult.locations_logged);
         }
+        
+        // Ambil lokasi dari detail data (lookup)
+        if (d.locations_logged && Array.isArray(d.locations_logged)) {
+            allLocations = allLocations.concat(d.locations_logged);
+        }
+        
+        // Hapus duplikat (jika ada lokasi yang sama)
+        allLocations = [...new Set(allLocations)];
+        
+        // Tampilkan semua lokasi yang sudah digabung
+        if (allLocations.length > 0) {
+            output += `LOCATIONS\n`;
+            const locations = formatLocations(allLocations, 15); // Tampilkan 15 lokasi
+            if (locations) {
+                output += `${locations}\n\n`;
+            }
+        }
+        // ========== END LOCATIONS ==========
         
         if (d.top_3_hero_details && d.top_3_hero_details.length > 0) {
             output += `TOP 3 HERO\n`;
