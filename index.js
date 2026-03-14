@@ -298,7 +298,7 @@ async function getMLBBData(userId, serverId, type = 'lookup') {
                 "Content-Type": "application/json",
                 "x-api-key": API_KEY_CHECKTON
             },
-            timeout: 60000
+            timeout: 30000
         });
         
         console.log(`Checkton response status: ${response.status}`);
