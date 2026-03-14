@@ -298,57 +298,41 @@ async function getMLBBData(userId, serverId, type = 'lookup') {
                 "Content-Type": "application/json",
                 "x-api-key": API_KEY_CHECKTON
             },
-            timeout: 60000
+            timeout: 30000 // Turunkan timeout jadi 30 detik
         });
         
         console.log(`Checkton response status: ${response.status}`);
-        console.log(`Checkton response data:`, JSON.stringify(response.data).substring(0, 200) + '...');
         
-        // CEK RESPONSE DENGAN STATUS -1 (AKUN TIDAK DITEMUKAN)
+        // CEK RESPONSE
         if (response.data) {
             // Jika status = -1, akun tidak ditemukan
             if (response.data.status === -1) {
                 console.log('Akun tidak ditemukan:', response.data.message);
-                return {
-                    error: true,
-                    message: response.data.message || 'Akun tidak ditemukan',
-                    not_found: true
-                };
+                return { error: true, message: 'not_found' };
             }
             
             // Jika response.data.data ada dan tidak kosong
             if (response.data.data && Object.keys(response.data.data).length > 0) {
-                console.log('Menggunakan response.data.data');
                 return response.data.data;
             }
             
             // Jika response.data langsung berisi data yang diinginkan
             if (response.data.role_id || response.data.name || response.data.level) {
-                console.log('Menggunakan response.data langsung');
                 return response.data;
             }
             
             // Jika response.data.status === 0 (sukses) dan ada data
             if (response.data.status === 0 && response.data.data) {
-                console.log('Menggunakan response dengan status 0');
                 return response.data.data;
             }
         }
         
         console.log('Tidak ada data yang valid dalam response');
-        return {
-            error: true,
-            message: 'Tidak ada data yang valid',
-            not_found: true
-        };
+        return { error: true, message: 'no_data' };
         
     } catch (error) {
         console.log(`Error getMLBBData:`, error.message);
-        return {
-            error: true,
-            message: error.message,
-            not_found: false
-        };
+        return { error: true, message: error.message };
     }
 }
 
@@ -1148,7 +1132,7 @@ bot.onText(/\/scanchannel/, async (msg) => {
             }
         });
 
-        // ========== /CEK (GABUNGAN FIND + LOOKUP DALAM SATU OUTPUT) ==========
+        // ========== /CEK (GABUNGAN FIND + LOOKUP DENGAN RETRY LOOKUP) ==========
 bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
     try {
         if (msg.chat.type !== 'private') return;
@@ -1191,14 +1175,13 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
         const parts = input.split(/\s+/).filter(p => p.length > 0);
         
         // DETEKSI JENIS INPUT
-        let isSearchByName = false;  // /cek NICKNAME SERVER
-        let isSearchByRoleId = false; // /cek ID
+        let isSearchByName = false;
+        let isSearchByRoleId = false;
         
         let searchQuery = '';
         let serverFilter = null;
         
         if (parts.length === 2) {
-            // Format: nickname + server
             if (/^\d+$/.test(parts[1])) {
                 isSearchByName = true;
                 searchQuery = parts[0];
@@ -1213,7 +1196,6 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             }
         } 
         else if (parts.length === 1) {
-            // Single parameter: harus angka (role ID)
             if (/^\d+$/.test(parts[0])) {
                 isSearchByRoleId = true;
                 searchQuery = parts[0];
@@ -1221,15 +1203,12 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 await bot.sendMessage(chatId,
                     'Format salah.\n\n' +
                     'Untuk mencari via Role ID, gunakan angka.\n' +
-                    'Contoh: /cek 123456789\n\n' +
-                    'Atau cari via Nickname + Server:\n' +
-                    '/cek Nama Pemain 1234'
+                    'Contoh: /cek 123456789'
                 );
                 return;
             }
         } 
         else {
-            // Lebih dari 2 parameter - gabungkan sebagai nickname
             const lastPart = parts[parts.length - 1];
             if (/^\d+$/.test(lastPart)) {
                 isSearchByName = true;
@@ -1271,6 +1250,8 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
         try {
             let foundAccounts = [];
             let selectedAccount = null;
+            let targetRoleId = null;
+            let targetZoneId = null;
             
             // TAHAP 1: LAKUKAN PENCARIAN (TYPE FIND)
             if (isSearchByName) {
@@ -1285,7 +1266,6 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                     return;
                 }
                 
-                // Filter berdasarkan server
                 foundAccounts = foundAccounts.filter(a => a.zone_id == serverFilter);
                 
                 if (foundAccounts.length === 0) {
@@ -1296,37 +1276,81 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                     return;
                 }
                 
-                // Ambil akun pertama
                 selectedAccount = foundAccounts[0];
+                targetRoleId = selectedAccount.role_id;
+                targetZoneId = selectedAccount.zone_id;
                 
             } else if (isSearchByRoleId) {
                 console.log(`Mode: Cari via role ID ${searchQuery}`);
                 foundAccounts = await getPlayerByRoleId(searchQuery);
                 
                 if (!foundAccounts || foundAccounts.length === 0) {
-                    await bot.editMessageText('GAGAL MENGAMBIL DATA', {
-                        chat_id: chatId,
-                        message_id: loadingMsg.message_id
-                    });
-                    return;
+                    // Jika find gagal, tetap coba lookup dengan input user
+                    console.log(`Find gagal, coba langsung lookup dengan role ID ${searchQuery}`);
+                    targetRoleId = searchQuery;
+                    targetZoneId = null; // Akan dicari nanti
+                } else {
+                    selectedAccount = foundAccounts[0];
+                    targetRoleId = selectedAccount.role_id;
+                    targetZoneId = selectedAccount.zone_id;
                 }
-                
-                // Ambil akun pertama
-                selectedAccount = foundAccounts[0];
             }
             
-            // Update loading message
-            await bot.editMessageText(`Mengambil data detail...`, {
+            // Jika targetZoneId masih null (dari role ID yang tidak ditemukan di find)
+            if (!targetZoneId && targetRoleId) {
+                // Coba cari server dari input atau minta user
+                await bot.editMessageText(
+                    `Role ID ditemukan tapi server tidak diketahui.\n` +
+                    `Silakan masukkan server untuk Role ID ${targetRoleId}:\n` +
+                    `Contoh: /cek ${targetRoleId} 1234`, {
+                    chat_id: chatId,
+                    message_id: loadingMsg.message_id
+                });
+                return;
+            }
+            
+            // TAHAP 2: RETRY LOOKUP SAMPAI BERHASIL
+            let detailData = null;
+            let retryCount = 0;
+            const maxRetries = 10; // MAKSIMAL 10x PERCOBAAN
+            const retryDelay = 2000; // JEDA 2 DETIK ANTAR PERCOBAAN
+            
+            await bot.editMessageText(`Mengambil data detail... (Percobaan 1/${maxRetries})`, {
                 chat_id: chatId,
                 message_id: loadingMsg.message_id
             });
             
-            // TAHAP 2: AMBIL DETAIL LENGKAP (TYPE LOOKUP)
-            const detailData = await getMLBBData(selectedAccount.role_id, selectedAccount.zone_id, 'lookup');
+            while (retryCount < maxRetries) {
+                retryCount++;
+                
+                console.log(`Percobaan lookup ke-${retryCount} untuk ${targetRoleId} server ${targetZoneId}`);
+                
+                detailData = await getMLBBData(targetRoleId, targetZoneId, 'lookup');
+                
+                // Cek apakah detailData valid (tidak error dan ada data)
+                if (detailData && !detailData.error) {
+                    console.log(`Lookup berhasil pada percobaan ke-${retryCount}`);
+                    break;
+                }
+                
+                if (retryCount < maxRetries) {
+                    await bot.editMessageText(
+                        `Mengambil data detail... (Percobaan ${retryCount + 1}/${maxRetries})`, {
+                        chat_id: chatId,
+                        message_id: loadingMsg.message_id
+                    });
+                    
+                    // Tunggu sebelum mencoba lagi
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                }
+            }
             
-            // CEK APAKAH DETAIL DATA ERROR
+            // CEK APAKAH DETAIL DATA MASIH ERROR SETELAH MAKSIMAL PERCOBAAN
             if (!detailData || detailData.error) {
-                await bot.editMessageText('GAGAL MENGAMBIL DATA', {
+                await bot.editMessageText(
+                    `GAGAL MENGAMBIL DATA\n\n` +
+                    `Sudah mencoba ${maxRetries}x namun tetap gagal.\n` +
+                    `Mungkin server sedang sibuk atau akun tidak bisa diakses.`, {
                     chat_id: chatId,
                     message_id: loadingMsg.message_id
                 });
@@ -1344,7 +1368,17 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             // TAHAP 4: HAPUS LOADING MESSAGE
             await bot.deleteMessage(chatId, loadingMsg.message_id);
             
-            // TAHAP 5: TAMPILKAN HASIL GABUNGAN (FIND + LOOKUP) JADI 1 OUTPUT
+            // TAHAP 5: TAMPILKAN HASIL GABUNGAN
+            if (!selectedAccount) {
+                // Buat searchResult dummy jika tidak ada dari find
+                selectedAccount = {
+                    role_id: targetRoleId,
+                    zone_id: targetZoneId,
+                    name: detailData.name || 'Unknown',
+                    level: detailData.level || '-'
+                };
+            }
+            
             await sendCombinedAccountInfo(bot, chatId, userId, selectedAccount, detailData, searchQuery, serverFilter, isSearchByRoleId);
             
             // Update statistik
