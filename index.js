@@ -304,15 +304,25 @@ async function getMLBBData(userId, serverId, type = 'lookup') {
         console.log(`Checkton response status: ${response.status}`);
         console.log(`Checkton response data:`, JSON.stringify(response.data).substring(0, 200) + '...');
         
-        // CEK BERBAGAI KEMUNGKINAN STRUCTURE RESPONSE
+        // CEK RESPONSE DENGAN STATUS -1 (AKUN TIDAK DITEMUKAN)
         if (response.data) {
+            // Jika status = -1, akun tidak ditemukan
+            if (response.data.status === -1) {
+                console.log('Akun tidak ditemukan:', response.data.message);
+                return {
+                    error: true,
+                    message: response.data.message || 'Akun tidak ditemukan',
+                    not_found: true
+                };
+            }
+            
             // Jika response.data.data ada dan tidak kosong
             if (response.data.data && Object.keys(response.data.data).length > 0) {
                 console.log('Menggunakan response.data.data');
                 return response.data.data;
             }
             
-            // Jika response.data langsung berisi data yang diinginkan (bukan di dalam .data)
+            // Jika response.data langsung berisi data yang diinginkan
             if (response.data.role_id || response.data.name || response.data.level) {
                 console.log('Menggunakan response.data langsung');
                 return response.data;
@@ -323,33 +333,22 @@ async function getMLBBData(userId, serverId, type = 'lookup') {
                 console.log('Menggunakan response dengan status 0');
                 return response.data.data;
             }
-            
-            // Jika response.data.result ada
-            if (response.data.result) {
-                console.log('Menggunakan response.data.result');
-                return response.data.result;
-            }
-            
-            // Jika response.data berbentuk array dan tidak kosong
-            if (Array.isArray(response.data) && response.data.length > 0) {
-                console.log('Menggunakan response array');
-                return response.data[0];
-            }
         }
         
         console.log('Tidak ada data yang valid dalam response');
-        return null;
+        return {
+            error: true,
+            message: 'Tidak ada data yang valid',
+            not_found: true
+        };
         
     } catch (error) {
         console.log(`Error getMLBBData:`, error.message);
-        if (error.code === 'ECONNABORTED') {
-            console.log('Timeout - koneksi terlalu lama');
-        }
-        if (error.response) {
-            console.log('Response status:', error.response.status);
-            console.log('Response data:', JSON.stringify(error.response.data));
-        }
-        return null;
+        return {
+            error: true,
+            message: error.message,
+            not_found: false
+        };
     }
 }
 
@@ -1172,23 +1171,24 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             return;
         }
         
-        // Cek join channel/group
+        // CEK JOIN CHANNEL/GROUP
         const joined = await checkJoin(bot, userId);
         if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
             let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`;
             const buttons = [];
-            if (!joined.channel) {
+            if (!joined.channel && CHANNEL) {
                 buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
             }
-            if (!joined.group) {
+            if (!joined.group && GROUP) {
                 buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
             }
             await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
             return;
         }
         
+        // PARSING INPUT
         const input = match[1].trim();
-        const parts = input.split(/\s+/);
+        const parts = input.split(/\s+/).filter(p => p.length > 0);
         
         // DETEKSI JENIS INPUT
         let isSearchByName = false;  // /cek NICKNAME SERVER
@@ -1278,7 +1278,7 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 foundAccounts = await findPlayerByName(searchQuery);
                 
                 if (!foundAccounts || foundAccounts.length === 0) {
-                    await bot.editMessageText('Tidak menemukan akun dengan nickname tersebut. Saldo tidak terpotong.', {
+                    await bot.editMessageText('GAGAL MENGAMBIL DATA', {
                         chat_id: chatId,
                         message_id: loadingMsg.message_id
                     });
@@ -1289,7 +1289,7 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 foundAccounts = foundAccounts.filter(a => a.zone_id == serverFilter);
                 
                 if (foundAccounts.length === 0) {
-                    await bot.editMessageText(`Tidak menemukan akun dengan nickname "${searchQuery}" di server ${serverFilter}. Saldo tidak terpotong.`, {
+                    await bot.editMessageText('GAGAL MENGAMBIL DATA', {
                         chat_id: chatId,
                         message_id: loadingMsg.message_id
                     });
@@ -1304,7 +1304,7 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
                 foundAccounts = await getPlayerByRoleId(searchQuery);
                 
                 if (!foundAccounts || foundAccounts.length === 0) {
-                    await bot.editMessageText('Tidak menemukan akun dengan Role ID tersebut. Saldo tidak terpotong.', {
+                    await bot.editMessageText('GAGAL MENGAMBIL DATA', {
                         chat_id: chatId,
                         message_id: loadingMsg.message_id
                     });
@@ -1316,7 +1316,7 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             }
             
             // Update loading message
-            await bot.editMessageText(`Mengambil data detail untuk ${selectedAccount.name || selectedAccount.nickname}...`, {
+            await bot.editMessageText(`Mengambil data detail...`, {
                 chat_id: chatId,
                 message_id: loadingMsg.message_id
             });
@@ -1324,8 +1324,9 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             // TAHAP 2: AMBIL DETAIL LENGKAP (TYPE LOOKUP)
             const detailData = await getMLBBData(selectedAccount.role_id, selectedAccount.zone_id, 'lookup');
             
-            if (!detailData) {
-                await bot.editMessageText('Gagal mengambil data detail. Saldo tidak terpotong.', {
+            // CEK APAKAH DETAIL DATA ERROR
+            if (!detailData || detailData.error) {
+                await bot.editMessageText('GAGAL MENGAMBIL DATA', {
                     chat_id: chatId,
                     message_id: loadingMsg.message_id
                 });
@@ -1353,7 +1354,7 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             
         } catch (error) {
             console.log('Error saat memproses:', error.message);
-            await bot.editMessageText('Terjadi kesalahan. Silakan coba lagi.', {
+            await bot.editMessageText('GAGAL MENGAMBIL DATA', {
                 chat_id: chatId,
                 message_id: loadingMsg.message_id
             });
@@ -1362,7 +1363,7 @@ bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
     } catch (error) {
         console.log('Error /cek:', error.message);
         try {
-            await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
+            await bot.sendMessage(msg.chat.id, 'GAGAL MENGAMBIL DATA');
         } catch (e) {}
     }
 });
