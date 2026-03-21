@@ -778,9 +778,10 @@ if (IS_WORKER) {
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `Daftar layanan dan harga:\n`;
-                message += `• Info akun terhubung (GRATIS)\n`;
-                message += `• Detail lengkap akun (Rp 5.000)\n`;
-                message += `• Cari ID via nickname (Rp 5.000)\n`;
+                message += `• Info akun terhubung - GRATIS\n`;
+                message += `• Detail lengkap akun - Rp 5.000\n`;
+                message += `• Cari ID via nickname - Rp 5.000\n`;
+                message += `• Langganan akses /find dan /cek unlimited\n`;
                 
                 if (isAdmin(userId)) {
                     message += `\nADMIN MENU\n`;
@@ -1694,9 +1695,10 @@ if (IS_WORKER) {
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `Daftar layanan dan harga:\n`;
-                message += `• Info akun terhubung (GRATIS)\n`;
-                message += `• Detail lengkap akun (Rp 5.000)\n`;
-                message += `• Cari ID via nickname (Rp 5.000)\n`;
+                message += `• Info akun terhubung - GRATIS\n`;
+                message += `• Detail lengkap akun - Rp 5.000\n`;
+                message += `• Cari ID via nickname - Rp 5.000\n`;
+                message += `• Langganan akses /find dan /cek unlimited\n`;
                 
                 if (isAdmin(userId)) {
                     message += `\nADMIN MENU\n`;
