@@ -243,6 +243,36 @@ function hasActiveSubscription(userId) {
     return user.subscription.active && endDate > now;
 }
 
+async function checkAndUpdateExpiredSubscription(userId) {
+    const user = db.users[userId];
+    if (!user || !user.subscription) return false;
+    
+    const now = new Date();
+    const endDate = new Date(user.subscription.end_date);
+    
+    if (user.subscription.active && endDate <= now) {
+        user.subscription.active = false;
+        await saveDB();
+        console.log(`Langganan user ${userId} expired pada ${endDate}, status dinonaktifkan`);
+        
+        try {
+            await bot.sendMessage(userId,
+                `NOTIFIKASI LANGGANAN\n\n` +
+                `Langganan Anda telah berakhir.\n\n` +
+                `Akses unlimited untuk fitur /cek dan /find telah dinonaktifkan.\n` +
+                `Silakan perpanjang langganan untuk mendapatkan akses kembali.\n\n` +
+                `Ketik /start atau tekan tombol LANGGANAN untuk memperpanjang.`
+            );
+        } catch (notifError) {
+            console.log(`Gagal kirim notifikasi expired ke ${userId}:`, notifError.message);
+        }
+        
+        return false;
+    }
+    
+    return user.subscription.active && endDate > now;
+}
+
 async function activateSubscription(userId, type) {
     const now = new Date();
     let endDate;
@@ -291,11 +321,13 @@ async function buySubscriptionWithBalance(userId, subscriptionType) {
     const existingSub = db.users[userId].subscription;
     let newEndDate;
     let startDate;
+    let wasActive = false;
     
     if (existingSub && existingSub.active && new Date(existingSub.end_date) > now) {
         const currentEndDate = new Date(existingSub.end_date);
         newEndDate = new Date(currentEndDate.getTime() + duration * 24 * 60 * 60 * 1000);
         startDate = existingSub.start_date;
+        wasActive = true;
         console.log(`Perpanjang langganan: dari ${currentEndDate} menjadi ${newEndDate}`);
     } else {
         newEndDate = new Date(now.getTime() + duration * 24 * 60 * 60 * 1000);
@@ -311,6 +343,33 @@ async function buySubscriptionWithBalance(userId, subscriptionType) {
     };
     
     await saveDB();
+    
+    try {
+        const endDateFormatted = moment(newEndDate).tz('Asia/Jakarta').format('DD MMMM YYYY HH:mm');
+        if (wasActive) {
+            await bot.sendMessage(userId,
+                `LANGGANAN DIPERPANJANG\n\n` +
+                `Paket: ${subscriptionType === '7days' ? '7 Hari' : '30 Hari'}\n` +
+                `Biaya: Rp ${amount.toLocaleString()}\n` +
+                `Sisa saldo: Rp ${db.users[userId].credits.toLocaleString()}\n` +
+                `Berlaku sampai: ${endDateFormatted} WIB\n\n` +
+                `Terima kasih telah memperpanjang langganan!`
+            );
+        } else {
+            await bot.sendMessage(userId,
+                `LANGGANAN AKTIF\n\n` +
+                `Selamat! Langganan Anda telah aktif.\n\n` +
+                `Paket: ${subscriptionType === '7days' ? '7 Hari' : '30 Hari'}\n` +
+                `Biaya: Rp ${amount.toLocaleString()}\n` +
+                `Sisa saldo: Rp ${db.users[userId].credits.toLocaleString()}\n` +
+                `Berlaku sampai: ${endDateFormatted} WIB\n\n` +
+                `Anda sekarang memiliki akses unlimited ke fitur /cek dan /find.`
+            );
+        }
+    } catch (notifError) {
+        console.log('Gagal kirim notifikasi langganan:', notifError.message);
+    }
+    
     return { success: true, newBalance: db.users[userId].credits, endDate: newEndDate };
 }
 
@@ -1135,6 +1194,8 @@ if (IS_WORKER) {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 
+                await checkAndUpdateExpiredSubscription(userId);
+                
                 if (!match || !match[1]) {
                     await bot.sendMessage(chatId,
                         `DETAIL ACCOUNT\n\n` +
@@ -1282,173 +1343,174 @@ if (IS_WORKER) {
         });
 
         bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
-    try {
-        if (msg.chat.type !== 'private') return;
-        
-        await loadDB();
-        
-        const chatId = msg.chat.id;
-        const userId = msg.from.id;
-        
-        if (!match || !match[1]) {
-            await bot.sendMessage(chatId,
-                `CARI ID VIA NICKNAME\n\n` +
-                `Gunakan format:\n` +
-                `/find NICKNAME SERVER\n\n` +
-                `Contoh:\n` +
-                `/find RRQ Jule 15707`
-            );
-            return;
-        }
-        
-        const joined = await checkJoin(bot, userId);
-        if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-            let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`;
-            const buttons = [];
-            if (!joined.channel && CHANNEL) {
-                buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
-            }
-            if (!joined.group && GROUP) {
-                buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
-            }
-            await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
-            return;
-        }
-        
-        const input = match[1].trim();
-        const parts = input.split(/\s+/).filter(p => p.length > 0);
-        
-        if (parts.length < 2) {
-            await bot.sendMessage(chatId,
-                `FORMAT SALAH\n\n` +
-                `Format yang benar:\n` +
-                `/find NICKNAME SERVER\n\n` +
-                `Contoh: /find RRQ Jule 15707`
-            );
-            return;
-        }
-        
-        const serverFilter = parts[parts.length - 1];
-        if (!/^\d+$/.test(serverFilter)) {
-            await bot.sendMessage(chatId,
-                `FORMAT SALAH\n\n` +
-                `Server harus berupa angka.\n\n` +
-                `Contoh: /find RRQ Jule 15707`
-            );
-            return;
-        }
-        
-        const searchQuery = parts.slice(0, -1).join(' ');
-        
-        const credits = getUserCredits(userId, msg.from.username || '');
-        if (credits < 5000 && !isAdmin(userId) && !hasActiveSubscription(userId)) {
-            await bot.sendMessage(chatId,
-                `SALDO TIDAK CUKUP\n\n` +
-                `Saldo Anda: Rp ${credits.toLocaleString()}\n` +
-                `Biaya: Rp 5.000\n` +
-                `Kekurangan: Rp ${(5000 - credits).toLocaleString()}\n\n` +
-                `Silakan isi saldo atau berlangganan:`,
-                {
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: 'TOP UP', callback_data: 'topup_menu' }],
-                            [{ text: 'LANGGANAN', callback_data: 'langganan_menu' }]
-                        ]
-                    }
-                }
-            );
-            return;
-        }
-        
-        const loadingMsg = await bot.sendMessage(chatId, 'Mencari akun...');
-        
-        try {
-            let foundAccounts = await findPlayerByName(searchQuery);
-            
-            if (!foundAccounts || foundAccounts.length === 0) {
-                await bot.editMessageText(
-                    `AKUN TIDAK DITEMUKAN\n\n` +
-                    `Tidak ada akun dengan nickname "${searchQuery}" ditemukan.`,
-                    {
-                        chat_id: chatId,
-                        message_id: loadingMsg.message_id
-                    }
-                );
-                return;
-            }
-            
-            foundAccounts = foundAccounts.filter(a => String(a.zone_id) === serverFilter);
-            
-            if (foundAccounts.length === 0) {
-                await bot.editMessageText(
-                    `AKUN TIDAK DITEMUKAN\n\n` +
-                    `Tidak ada akun dengan nickname "${searchQuery}" di server ${serverFilter}.`,
-                    {
-                        chat_id: chatId,
-                        message_id: loadingMsg.message_id
-                    }
-                );
-                return;
-            }
-            
-            if (!isAdmin(userId) && !hasActiveSubscription(userId)) {
-                db.users[userId].credits -= 5000;
-                await saveDB();
-            }
-            
-            await bot.deleteMessage(chatId, loadingMsg.message_id);
-            
-            // Tampilkan hasil dengan tombol Stok Admin
-            for (let i = 0; i < foundAccounts.length; i++) {
-                const acc = foundAccounts[i];
+            try {
+                if (msg.chat.type !== 'private') return;
                 
-                let output = `HASIL PENCARIAN\n\n`;
-                output += `ID: ${acc.role_id}\n`;
-                output += `Server: ${acc.zone_id}\n`;
-                output += `Name: ${acc.name || acc.nickname || '-'}\n`;
-                output += `Level: ${acc.level || 0}\n`;
-                output += `Last Login: ${acc.last_login || '-'}\n`;
-                output += `Country: ${acc.country || acc.created_country || '-'}\n`;
-                output += `Last Country: ${acc.last_country || '-'}\n`;
+                await loadDB();
                 
-                if (acc.locations_logged && Array.isArray(acc.locations_logged) && acc.locations_logged.length > 0) {
-                    output += `Locations: ${acc.locations_logged.join(' > ')}\n`;
-                } else {
-                    output += `Locations: -\n`;
+                const chatId = msg.chat.id;
+                const userId = msg.from.id;
+                
+                await checkAndUpdateExpiredSubscription(userId);
+                
+                if (!match || !match[1]) {
+                    await bot.sendMessage(chatId,
+                        `CARI ID VIA NICKNAME\n\n` +
+                        `Gunakan format:\n` +
+                        `/find NICKNAME SERVER\n\n` +
+                        `Contoh:\n` +
+                        `/find RRQ Jule 15707`
+                    );
+                    return;
                 }
                 
-                if (foundAccounts.length > 1) {
-                    output += `\n[${i+1}/${foundAccounts.length}]`;
+                const joined = await checkJoin(bot, userId);
+                if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
+                    let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`;
+                    const buttons = [];
+                    if (!joined.channel && CHANNEL) {
+                        buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
+                    }
+                    if (!joined.group && GROUP) {
+                        buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
+                    }
+                    await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
+                    return;
                 }
                 
-                await bot.sendMessage(chatId, output, {
-                    reply_markup: { 
-                        inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
-                    }
-                });
-            }
-            
-            getUserCredits(userId, msg.from.username || '');
-            db.users[userId].success += 1;
-            db.total_success += 1;
-            await saveDB();
-            
-        } catch (error) {
-            console.log('Error /find:', error.message);
-            await bot.editMessageText(
-                `ERROR\n\n` +
-                `Terjadi kesalahan saat mencari data. Silakan coba lagi nanti.`,
-                {
-                    chat_id: chatId,
-                    message_id: loadingMsg.message_id
+                const input = match[1].trim();
+                const parts = input.split(/\s+/).filter(p => p.length > 0);
+                
+                if (parts.length < 2) {
+                    await bot.sendMessage(chatId,
+                        `FORMAT SALAH\n\n` +
+                        `Format yang benar:\n` +
+                        `/find NICKNAME SERVER\n\n` +
+                        `Contoh: /find RRQ Jule 15707`
+                    );
+                    return;
                 }
-            );
-        }
-        
-    } catch (error) {
-        console.log('Error /find:', error.message);
-    }
-});
+                
+                const serverFilter = parts[parts.length - 1];
+                if (!/^\d+$/.test(serverFilter)) {
+                    await bot.sendMessage(chatId,
+                        `FORMAT SALAH\n\n` +
+                        `Server harus berupa angka.\n\n` +
+                        `Contoh: /find RRQ Jule 15707`
+                    );
+                    return;
+                }
+                
+                const searchQuery = parts.slice(0, -1).join(' ');
+                
+                const credits = getUserCredits(userId, msg.from.username || '');
+                if (credits < 5000 && !isAdmin(userId) && !hasActiveSubscription(userId)) {
+                    await bot.sendMessage(chatId,
+                        `SALDO TIDAK CUKUP\n\n` +
+                        `Saldo Anda: Rp ${credits.toLocaleString()}\n` +
+                        `Biaya: Rp 5.000\n` +
+                        `Kekurangan: Rp ${(5000 - credits).toLocaleString()}\n\n` +
+                        `Silakan isi saldo atau berlangganan:`,
+                        {
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: 'TOP UP', callback_data: 'topup_menu' }],
+                                    [{ text: 'LANGGANAN', callback_data: 'langganan_menu' }]
+                                ]
+                            }
+                        }
+                    );
+                    return;
+                }
+                
+                const loadingMsg = await bot.sendMessage(chatId, 'Mencari akun...');
+                
+                try {
+                    let foundAccounts = await findPlayerByName(searchQuery);
+                    
+                    if (!foundAccounts || foundAccounts.length === 0) {
+                        await bot.editMessageText(
+                            `AKUN TIDAK DITEMUKAN\n\n` +
+                            `Tidak ada akun dengan nickname "${searchQuery}" ditemukan.`,
+                            {
+                                chat_id: chatId,
+                                message_id: loadingMsg.message_id
+                            }
+                        );
+                        return;
+                    }
+                    
+                    foundAccounts = foundAccounts.filter(a => String(a.zone_id) === serverFilter);
+                    
+                    if (foundAccounts.length === 0) {
+                        await bot.editMessageText(
+                            `AKUN TIDAK DITEMUKAN\n\n` +
+                            `Tidak ada akun dengan nickname "${searchQuery}" di server ${serverFilter}.`,
+                            {
+                                chat_id: chatId,
+                                message_id: loadingMsg.message_id
+                            }
+                        );
+                        return;
+                    }
+                    
+                    if (!isAdmin(userId) && !hasActiveSubscription(userId)) {
+                        db.users[userId].credits -= 5000;
+                        await saveDB();
+                    }
+                    
+                    await bot.deleteMessage(chatId, loadingMsg.message_id);
+                    
+                    for (let i = 0; i < foundAccounts.length; i++) {
+                        const acc = foundAccounts[i];
+                        
+                        let output = `HASIL PENCARIAN\n\n`;
+                        output += `ID: ${acc.role_id}\n`;
+                        output += `Server: ${acc.zone_id}\n`;
+                        output += `Name: ${acc.name || acc.nickname || '-'}\n`;
+                        output += `Level: ${acc.level || 0}\n`;
+                        output += `Last Login: ${acc.last_login || '-'}\n`;
+                        output += `Country: ${acc.country || acc.created_country || '-'}\n`;
+                        output += `Last Country: ${acc.last_country || '-'}\n`;
+                        
+                        if (acc.locations_logged && Array.isArray(acc.locations_logged) && acc.locations_logged.length > 0) {
+                            output += `Locations: ${acc.locations_logged.join(' > ')}\n`;
+                        } else {
+                            output += `Locations: -\n`;
+                        }
+                        
+                        if (foundAccounts.length > 1) {
+                            output += `\n[${i+1}/${foundAccounts.length}]`;
+                        }
+                        
+                        await bot.sendMessage(chatId, output, {
+                            reply_markup: { 
+                                inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
+                            }
+                        });
+                    }
+                    
+                    getUserCredits(userId, msg.from.username || '');
+                    db.users[userId].success += 1;
+                    db.total_success += 1;
+                    await saveDB();
+                    
+                } catch (error) {
+                    console.log('Error /find:', error.message);
+                    await bot.editMessageText(
+                        `ERROR\n\n` +
+                        `Terjadi kesalahan saat mencari data. Silakan coba lagi nanti.`,
+                        {
+                            chat_id: chatId,
+                            message_id: loadingMsg.message_id
+                        }
+                    );
+                }
+                
+            } catch (error) {
+                console.log('Error /find:', error.message);
+            }
+        });
 
         bot.onText(/\/listtopup(?:\s+(\d+))?/, async (msg, match) => {
             try {
@@ -1775,27 +1837,29 @@ if (IS_WORKER) {
         }
 
         async function showSubscriptionMenu(bot, chatId, messageId, userId) {
-    await loadDB();
-    
-    const message = `Akses unlimited untuk fitur /cek dan /find tanpa limit\nsilahkan pilih paket:`;
-    
-    const replyMarkup = {
-        inline_keyboard: [
-            [{ text: '7 Hari (Rp 50.000)', callback_data: 'langganan_7days' }],
-            [{ text: '30 Hari (Rp 100.000)', callback_data: 'langganan_30days' }],
-            [{ text: 'Kembali ke Menu', callback_data: 'kembali_ke_menu' }]
-        ]
-    };
-    
-    await bot.editMessageText(message, {
-        chat_id: chatId,
-        message_id: messageId,
-        reply_markup: replyMarkup
-    });
-}
+            await loadDB();
+            
+            const message = `Akses unlimited untuk fitur /cek dan /find tanpa limit\nsilahkan pilih paket:`;
+            
+            const replyMarkup = {
+                inline_keyboard: [
+                    [{ text: '7 Hari (Rp 50.000)', callback_data: 'langganan_7days' }],
+                    [{ text: '30 Hari (Rp 100.000)', callback_data: 'langganan_30days' }],
+                    [{ text: 'Kembali ke Menu', callback_data: 'kembali_ke_menu' }]
+                ]
+            };
+            
+            await bot.editMessageText(message, {
+                chat_id: chatId,
+                message_id: messageId,
+                reply_markup: replyMarkup
+            });
+        }
 
         async function showProfileMenu(bot, chatId, messageId, userId) {
             await loadDB();
+            
+            await checkAndUpdateExpiredSubscription(userId);
             
             const credits = getUserCredits(userId);
             const hasSub = hasActiveSubscription(userId);
