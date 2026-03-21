@@ -2221,7 +2221,7 @@ if (IS_WORKER) {
                         `/cek ID SERVER\n\n` +
                         `Contoh:\n` +
                         `/cek 123456789 1234\n\n` +
-                        `Anda dapat menemukan Game ID dan Server ID di aplikasi MLBB pada bagian Profil.`,
+                        `bot akan memberikan se detail mungkin seperti Tanggal pembuatan akun Dllnya`,
                         {
                             chat_id: chatId,
                             message_id: messageId,
