@@ -984,101 +984,152 @@ if (IS_WORKER) {
                     }
                     
                     if (state.action === 'broadcast' && state.step === 'waiting_message') {
-                        const hasPhoto = msg.photo && msg.photo.length > 0;
-                        const photoFileId = hasPhoto ? msg.photo[msg.photo.length - 1].file_id : null;
-                        const caption = hasPhoto ? (msg.caption || text) : text;
-                        
-                        if (!hasPhoto && !text) {
-                            await bot.sendMessage(chatId, 'Kirim pesan atau foto yang ingin di-broadcast:', {
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: 'Batal', callback_data: 'admin_batal' }]
-                                    ]
-                                }
+    const hasPhoto = msg.photo && msg.photo.length > 0;
+    const hasVideo = msg.video;
+    const hasDocument = msg.document;
+    const hasText = msg.text && msg.text.length > 0;
+    
+    // Cek apakah ada konten yang dikirim
+    if (!hasPhoto && !hasVideo && !hasDocument && !hasText) {
+        await bot.sendMessage(chatId, 'Kirim pesan, foto, video, atau dokumen yang ingin di-broadcast:', {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: 'Batal', callback_data: 'admin_batal' }]
+                ]
+            }
+        });
+        return;
+    }
+    
+    const users = Object.keys(db.users || {}).map(id => parseInt(id));
+    if (users.length === 0) {
+        await bot.sendMessage(chatId, 'Tidak ada pengguna terdaftar.', {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
+                ]
+            }
+        });
+        clearAdminState(userId);
+        return;
+    }
+    
+    const statusMsg = await bot.sendMessage(chatId, `Memulai broadcast ke ${users.length} pengguna...`);
+    
+    let success = 0, failed = 0;
+    const concurrency = 5;
+    
+    for (let i = 0; i < users.length; i += concurrency) {
+        const batch = users.slice(i, i + concurrency);
+        
+        await Promise.all(batch.map(async (targetUserId) => {
+            try {
+                if (hasPhoto) {
+                    // Kirim foto
+                    const photoFileId = msg.photo[msg.photo.length - 1].file_id;
+                    const caption = msg.caption || '';
+                    await bot.sendPhoto(targetUserId, photoFileId, { 
+                        caption: caption, 
+                        parse_mode: 'HTML' 
+                    });
+                } else if (hasVideo) {
+                    // Kirim video
+                    const videoFileId = msg.video.file_id;
+                    const caption = msg.caption || '';
+                    await bot.sendVideo(targetUserId, videoFileId, { 
+                        caption: caption, 
+                        parse_mode: 'HTML' 
+                    });
+                } else if (hasDocument) {
+                    // Kirim dokumen
+                    const documentFileId = msg.document.file_id;
+                    const caption = msg.caption || '';
+                    await bot.sendDocument(targetUserId, documentFileId, { 
+                        caption: caption, 
+                        parse_mode: 'HTML' 
+                    });
+                } else {
+                    // Kirim teks biasa
+                    await bot.sendMessage(targetUserId, msg.text, { 
+                        parse_mode: 'HTML' 
+                    });
+                }
+                success++;
+            } catch (error) {
+                if (error.response && error.response.statusCode === 429) {
+                    const retryAfter = error.response.body.parameters?.retry_after || 1;
+                    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                    try {
+                        if (hasPhoto) {
+                            const photoFileId = msg.photo[msg.photo.length - 1].file_id;
+                            const caption = msg.caption || '';
+                            await bot.sendPhoto(targetUserId, photoFileId, { 
+                                caption: caption, 
+                                parse_mode: 'HTML' 
                             });
-                            return;
-                        }
-                        
-                        const users = Object.keys(db.users || {}).map(id => parseInt(id));
-                        if (users.length === 0) {
-                            await bot.sendMessage(chatId, 'Tidak ada pengguna terdaftar.', {
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
-                                    ]
-                                }
+                        } else if (hasVideo) {
+                            const videoFileId = msg.video.file_id;
+                            const caption = msg.caption || '';
+                            await bot.sendVideo(targetUserId, videoFileId, { 
+                                caption: caption, 
+                                parse_mode: 'HTML' 
                             });
-                            clearAdminState(userId);
-                            return;
+                        } else if (hasDocument) {
+                            const documentFileId = msg.document.file_id;
+                            const caption = msg.caption || '';
+                            await bot.sendDocument(targetUserId, documentFileId, { 
+                                caption: caption, 
+                                parse_mode: 'HTML' 
+                            });
+                        } else {
+                            await bot.sendMessage(targetUserId, msg.text, { 
+                                parse_mode: 'HTML' 
+                            });
                         }
-                        
-                        const statusMsg = await bot.sendMessage(chatId, `Memulai broadcast ke ${users.length} pengguna...`);
-                        
-                        let success = 0, failed = 0;
-                        const concurrency = 5;
-                        
-                        for (let i = 0; i < users.length; i += concurrency) {
-                            const batch = users.slice(i, i + concurrency);
-                            
-                            await Promise.all(batch.map(async (userId) => {
-                                try {
-                                    if (hasPhoto) {
-                                        await bot.sendPhoto(userId, photoFileId, { 
-                                            caption: caption, 
-                                            parse_mode: 'HTML' 
-                                        });
-                                    } else {
-                                        await bot.sendMessage(userId, text, { 
-                                            parse_mode: 'HTML' 
-                                        });
-                                    }
-                                    success++;
-                                } catch (error) {
-                                    if (error.response && error.response.statusCode === 429) {
-                                        const retryAfter = error.response.body.parameters?.retry_after || 1;
-                                        await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-                                        try {
-                                            if (hasPhoto) {
-                                                await bot.sendPhoto(userId, photoFileId, { 
-                                                    caption: caption, 
-                                                    parse_mode: 'HTML' 
-                                                });
-                                            } else {
-                                                await bot.sendMessage(userId, text, { 
-                                                    parse_mode: 'HTML' 
-                                                });
-                                            }
-                                            success++;
-                                        } catch (retryError) {
-                                            failed++;
-                                        }
-                                    } else {
-                                        failed++;
-                                    }
-                                }
-                            }));
-                            
-                            await new Promise(resolve => setTimeout(resolve, 100));
-                        }
-                        
-                        await bot.editMessageText(
-                            `Broadcast selesai\n\n` +
-                            `Berhasil: ${success}\n` +
-                            `Gagal: ${failed}`,
-                            {
-                                chat_id: chatId,
-                                message_id: statusMsg.message_id,
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
-                                    ]
-                                }
-                            }
-                        );
-                        
-                        clearAdminState(userId);
-                        return;
+                        success++;
+                    } catch (retryError) {
+                        failed++;
                     }
+                } else {
+                    failed++;
+                    console.log(`Gagal kirim ke ${targetUserId}:`, error.message);
+                }
+            }
+        }));
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    let resultMessage = `Broadcast selesai\n\n`;
+    resultMessage += `Berhasil: ${success}\n`;
+    resultMessage += `Gagal: ${failed}\n\n`;
+    
+    if (hasPhoto) {
+        resultMessage += `Media yang dikirim: Foto`;
+        if (msg.caption) resultMessage += ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+    } else if (hasVideo) {
+        resultMessage += `Media yang dikirim: Video`;
+        if (msg.caption) resultMessage += ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+    } else if (hasDocument) {
+        resultMessage += `Media yang dikirim: Dokumen`;
+        if (msg.caption) resultMessage += ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+    } else {
+        resultMessage += `Pesan yang dikirim: "${msg.text.substring(0, 100)}${msg.text.length > 100 ? '...' : ''}"`;
+    }
+    
+    await bot.editMessageText(resultMessage, {
+        chat_id: chatId,
+        message_id: statusMsg.message_id,
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
+            ]
+        }
+    });
+    
+    clearAdminState(userId);
+    return;
+}
                 }
                 
                 if (isAdmin(userId)) return;
@@ -2390,31 +2441,29 @@ if (IS_WORKER) {
                 }
 
                 if (data === 'admin_broadcast_start') {
-                    await bot.editMessageText(
-                        `BROADCAST PESAN\n\n` +
-                        `Kirim pesan yang ingin disebarkan ke semua user.\n\n` +
-                        `Anda bisa mengirim teks biasa atau foto dengan caption.`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Batal', callback_data: 'admin_batal' }]
-                                ]
-                            }
-                        }
-                    );
-                    await setAdminState(userId, 'broadcast', 'waiting_message');
-                    await bot.answerCallbackQuery(cb.id);
-                    return;
-                }
-
-                if (data === 'admin_batal') {
-                    clearAdminState(userId);
-                    await showAdminMenu(bot, chatId, messageId, userId);
-                    await bot.answerCallbackQuery(cb.id);
-                    return;
-                }
+    await bot.editMessageText(
+        `BROADCAST PESAN\n\n` +
+        `Kirim pesan yang ingin disebarkan ke semua user.\n\n` +
+        `Format yang didukung:\n` +
+        `• Teks biasa\n` +
+        `• Foto (bisa dengan caption)\n` +
+        `• Video (bisa dengan caption)\n` +
+        `• Dokumen (bisa dengan caption)\n\n` +
+        `Ketik pesan atau kirim media sekarang.`,
+        {
+            chat_id: chatId,
+            message_id: messageId,
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: 'Batal', callback_data: 'admin_batal' }]
+                ]
+            }
+        }
+    );
+    await setAdminState(userId, 'broadcast', 'waiting_message');
+    await bot.answerCallbackQuery(cb.id);
+    return;
+}
 
                 if (data === 'admin_offinfo') {
                     if (!db.feature) db.feature = {};
