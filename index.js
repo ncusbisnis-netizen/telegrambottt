@@ -1117,11 +1117,11 @@ if (IS_WORKER) {
                         { text: 'CHECK INFO', callback_data: 'check_info' }
                     ],
                     [{ text: 'CARI ID VIA NICKNAME', callback_data: 'find_id' }],
-                    [{ text: 'PROFILE', callback_data: 'profile_menu' }],
                     [
                         { text: 'TOP UP', callback_data: 'topup_menu' },
                         { text: 'LANGGANAN', callback_data: 'langganan_menu' }
-                    ]
+                    ],
+                    [{ text: 'PROFILE', callback_data: 'profile_menu' }]
                 ];
                 
                 if (isAdmin(userId)) {
@@ -1660,11 +1660,11 @@ if (IS_WORKER) {
                         { text: 'CHECK INFO', callback_data: 'check_info' }
                     ],
                     [{ text: 'CARI ID VIA NICKNAME', callback_data: 'find_id' }],
-                    [{ text: 'PROFILE', callback_data: 'profile_menu' }],
                     [
                         { text: 'TOP UP', callback_data: 'topup_menu' },
                         { text: 'LANGGANAN', callback_data: 'langganan_menu' }
-                    ]
+                    ],
+                    [{ text: 'PROFILE', callback_data: 'profile_menu' }]
                 ];
                 
                 if (isAdmin(userId)) {
@@ -2221,7 +2221,7 @@ if (IS_WORKER) {
                         `/cek ID SERVER\n\n` +
                         `Contoh:\n` +
                         `/cek 123456789 1234\n\n` +
-                        `Bot akan menampilkan informasi akun dengan detail seperti tanggal.pembuatan akun dll.\n\n` +
+                        `Bot akan menampilkan informasi akun dengan detail seperti tanggal pembuatan akun dll.\n\n` +
                         `Biaya Rp 5.000`,
                         {
                             chat_id: chatId,
@@ -2271,7 +2271,7 @@ if (IS_WORKER) {
                         `/find NICKNAME SERVER\n\n` +
                         `Contoh:\n` +
                         `/find RRQ Jule 15707\n\n` +
-                        `Bot akan menampilkan pemain yang cocok dengan ID game, lokasi dan negara terakhir login.\n\n` +
+                        `Bot akan menampilkan pemain dengan format ID, lokasi dan negara terakhir login.\n\n` +
                         `Biaya Rp 5.000`,
                         {
                             chat_id: chatId,
