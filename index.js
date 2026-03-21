@@ -1216,7 +1216,7 @@ if (IS_WORKER) {
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `Daftar layanan dan harga:\n`;
-                message += `• CHECK INFO - GRATIS\n`;
+                message += `• CHECK BIND - GRATIS\n`;
                 message += `• FULL INFO - Rp 5.000\n`;
                 message += `• CARI ID VIA NICKNAME - Rp 5.000\n`;
                 message += `• Langganan akses /find dan /cek unlimited\n`;
@@ -1224,7 +1224,7 @@ if (IS_WORKER) {
                 const baseKeyboard = [
                     [
                         { text: 'FULL INFO', callback_data: 'full_info' },
-                        { text: 'CHECK INFO', callback_data: 'check_info' }
+                        { text: 'CHECK BIND', callback_data: 'check_info' }
                     ],
                     [{ text: 'CARI ID VIA NICKNAME', callback_data: 'find_id' }],
                     [
@@ -1759,7 +1759,7 @@ if (IS_WORKER) {
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `Daftar layanan dan harga:\n`;
-                message += `• CHECK INFO - GRATIS\n`;
+                message += `• CHECK BIND - GRATIS\n`;
                 message += `• FULL INFO - Rp 5.000\n`;
                 message += `• CARI ID VIA NICKNAME - Rp 5.000\n`;
                 message += `• Langganan akses /find dan /cek unlimited\n`;
@@ -1767,7 +1767,7 @@ if (IS_WORKER) {
                 const baseKeyboard = [
                     [
                         { text: 'FULL INFO', callback_data: 'full_info' },
-                        { text: 'CHECK INFO', callback_data: 'check_info' }
+                        { text: 'CHECK BIND', callback_data: 'check_info' }
                     ],
                     [{ text: 'CARI ID VIA NICKNAME', callback_data: 'find_id' }],
                     [
@@ -2349,7 +2349,7 @@ if (IS_WORKER) {
                 if (data === 'check_info') {
                     await bot.answerCallbackQuery(cb.id);
                     await bot.editMessageText(
-                        `CHECK INFO\n\n` +
+                        `CHECK BIND\n\n` +
                         `Perintah ini digunakan untuk melihat informasi akun terhubung pada MLBB.\n\n` +
                         `Cara Penggunaan:\n` +
                         `Kirim perintah:\n` +
