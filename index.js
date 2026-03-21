@@ -989,11 +989,12 @@ if (IS_WORKER) {
     const hasDocument = msg.document;
     const hasAudio = msg.audio;
     const hasVoice = msg.voice;
+    const hasSticker = msg.sticker;
+    const hasAnimation = msg.animation;
     const hasText = msg.text && msg.text.length > 0;
     
-    // Cek apakah ada konten yang dikirim
-    if (!hasPhoto && !hasVideo && !hasDocument && !hasAudio && !hasVoice && !hasText) {
-        await bot.sendMessage(chatId, 'Kirim pesan, foto, video, dokumen, audio, atau voice note yang ingin di-broadcast:', {
+    if (!hasPhoto && !hasVideo && !hasDocument && !hasAudio && !hasVoice && !hasSticker && !hasAnimation && !hasText) {
+        await bot.sendMessage(chatId, 'Kirim pesan, foto, video, dokumen, audio, voice note, sticker, atau GIF yang ingin di-broadcast:', {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: 'Batal', callback_data: 'admin_batal' }]
@@ -1042,6 +1043,12 @@ if (IS_WORKER) {
     } else if (hasVoice) {
         mediaType = 'Voice Note';
         mediaInfo = '';
+    } else if (hasSticker) {
+        mediaType = 'Sticker';
+        mediaInfo = '';
+    } else if (hasAnimation) {
+        mediaType = 'GIF/Animation';
+        if (msg.caption) mediaInfo = ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
     } else {
         mediaType = 'Teks';
         mediaInfo = ` "${msg.text.substring(0, 100)}${msg.text.length > 100 ? '...' : ''}"`;
@@ -1083,6 +1090,16 @@ if (IS_WORKER) {
                 } else if (hasVoice) {
                     const voiceFileId = msg.voice.file_id;
                     await bot.sendVoice(targetUserId, voiceFileId);
+                } else if (hasSticker) {
+                    const stickerFileId = msg.sticker.file_id;
+                    await bot.sendSticker(targetUserId, stickerFileId);
+                } else if (hasAnimation) {
+                    const animationFileId = msg.animation.file_id;
+                    const caption = msg.caption || '';
+                    await bot.sendAnimation(targetUserId, animationFileId, { 
+                        caption: caption, 
+                        parse_mode: 'HTML' 
+                    });
                 } else {
                     await bot.sendMessage(targetUserId, msg.text, { 
                         parse_mode: 'HTML' 
@@ -1125,6 +1142,16 @@ if (IS_WORKER) {
                         } else if (hasVoice) {
                             const voiceFileId = msg.voice.file_id;
                             await bot.sendVoice(targetUserId, voiceFileId);
+                        } else if (hasSticker) {
+                            const stickerFileId = msg.sticker.file_id;
+                            await bot.sendSticker(targetUserId, stickerFileId);
+                        } else if (hasAnimation) {
+                            const animationFileId = msg.animation.file_id;
+                            const caption = msg.caption || '';
+                            await bot.sendAnimation(targetUserId, animationFileId, { 
+                                caption: caption, 
+                                parse_mode: 'HTML' 
+                            });
                         } else {
                             await bot.sendMessage(targetUserId, msg.text, { 
                                 parse_mode: 'HTML' 
@@ -2482,7 +2509,9 @@ if (IS_WORKER) {
         `• Video (bisa dengan caption)\n` +
         `• Dokumen (bisa dengan caption)\n` +
         `• Audio (bisa dengan caption)\n` +
-        `• Voice Note\n\n` +
+        `• Voice Note\n` +
+        `• Sticker\n` +
+        `• GIF/Animation (bisa dengan caption)\n\n` +
         `Ketik pesan atau kirim media sekarang.`,
         {
             chat_id: chatId,
@@ -2495,6 +2524,13 @@ if (IS_WORKER) {
         }
     );
     await setAdminState(userId, 'broadcast', 'waiting_message');
+    await bot.answerCallbackQuery(cb.id);
+    return;
+}
+
+if (data === 'admin_batal') {
+    clearAdminState(userId);
+    await showAdminMenu(bot, chatId, messageId, userId);
     await bot.answerCallbackQuery(cb.id);
     return;
 }
