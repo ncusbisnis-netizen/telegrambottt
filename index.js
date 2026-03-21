@@ -832,38 +832,28 @@ if (IS_WORKER) {
                 if (!text) return;
                 if (chatType !== 'private') return;
                 
-                // Cek apakah admin sedang dalam state input
                 const state = getAdminState(userId);
                 if (state && isAdmin(userId)) {
-                    // Handle cancel via /batal
-                    if (text === '/batal') {
-                        clearAdminState(userId);
-                        await bot.sendMessage(chatId, 'Dibatalkan.', {
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
-                                ]
-                            }
-                        });
-                        return;
-                    }
-                    
-                    // Proses berdasarkan action
                     if (state.action === 'addtopup' && state.step === 'waiting_userid') {
                         const targetId = parseInt(text);
                         if (isNaN(targetId)) {
                             await bot.sendMessage(chatId, 'User ID harus angka. Coba lagi:', {
                                 reply_markup: {
                                     inline_keyboard: [
-                                        [{ text: 'Batal', callback_data: 'admin_menu' }]
+                                        [{ text: 'Batal', callback_data: 'admin_batal' }]
                                     ]
                                 }
                             });
                             return;
                         }
-                        
                         await setAdminState(userId, 'addtopup', 'waiting_amount', { targetId });
-                        await bot.sendMessage(chatId, `User ID: ${targetId}\n\nMasukkan nominal topup (Rp):\n\nContoh: 50000`);
+                        await bot.sendMessage(chatId, `User ID: ${targetId}\n\nMasukkan nominal topup (Rp):\n\nContoh: 50000`, {
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: 'Batal', callback_data: 'admin_batal' }]
+                                ]
+                            }
+                        });
                         return;
                     }
                     
@@ -872,7 +862,13 @@ if (IS_WORKER) {
                         const targetId = state.data.targetId;
                         
                         if (isNaN(amount) || amount < 1 || amount > 1000000) {
-                            await bot.sendMessage(chatId, 'Nominal harus angka 1-1.000.000. Coba lagi:');
+                            await bot.sendMessage(chatId, 'Nominal harus angka 1-1.000.000. Coba lagi:', {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: 'Batal', callback_data: 'admin_batal' }]
+                                    ]
+                                }
+                            });
                             return;
                         }
                         
@@ -910,7 +906,7 @@ if (IS_WORKER) {
                             await bot.sendMessage(chatId, 'Group ID harus angka. Coba lagi:', {
                                 reply_markup: {
                                     inline_keyboard: [
-                                        [{ text: 'Batal', callback_data: 'admin_menu' }]
+                                        [{ text: 'Batal', callback_data: 'admin_batal' }]
                                     ]
                                 }
                             });
@@ -951,7 +947,7 @@ if (IS_WORKER) {
                             await bot.sendMessage(chatId, 'Group ID harus angka. Coba lagi:', {
                                 reply_markup: {
                                     inline_keyboard: [
-                                        [{ text: 'Batal', callback_data: 'admin_menu' }]
+                                        [{ text: 'Batal', callback_data: 'admin_batal' }]
                                     ]
                                 }
                             });
@@ -993,7 +989,13 @@ if (IS_WORKER) {
                         const caption = hasPhoto ? (msg.caption || text) : text;
                         
                         if (!hasPhoto && !text) {
-                            await bot.sendMessage(chatId, 'Kirim pesan atau foto yang ingin di-broadcast:');
+                            await bot.sendMessage(chatId, 'Kirim pesan atau foto yang ingin di-broadcast:', {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: 'Batal', callback_data: 'admin_batal' }]
+                                    ]
+                                }
+                            });
                             return;
                         }
                         
@@ -1079,7 +1081,6 @@ if (IS_WORKER) {
                     }
                 }
                 
-                // Middleware untuk user biasa
                 if (isAdmin(userId)) return;
                 
                 const command = text.split(' ')[0];
@@ -1724,26 +1725,24 @@ if (IS_WORKER) {
         }
 
         async function showSubscriptionMenu(bot, chatId, messageId, userId) {
-            await loadDB();
-            
-            const message = `Akses unlimited untuk fitur /cek dan /find tanpa limit\nsilahkan pilih paket:`;
-            
-            const replyMarkup = {
-                inline_keyboard: [
-                    [
-                        { text: '7 Hari (Rp 50.000)', callback_data: 'langganan_7days' },
-                        { text: '30 Hari (Rp 100.000)', callback_data: 'langganan_30days' }
-                    ],
-                    [{ text: 'Kembali ke Menu', callback_data: 'kembali_ke_menu' }]
-                ]
-            };
-            
-            await bot.editMessageText(message, {
-                chat_id: chatId,
-                message_id: messageId,
-                reply_markup: replyMarkup
-            });
-        }
+    await loadDB();
+    
+    const message = `Akses unlimited untuk fitur /cek dan /find tanpa limit\nsilahkan pilih paket:`;
+    
+    const replyMarkup = {
+        inline_keyboard: [
+            [{ text: '7 Hari (Rp 50.000)', callback_data: 'langganan_7days' }],
+            [{ text: '30 Hari (Rp 100.000)', callback_data: 'langganan_30days' }],
+            [{ text: 'Kembali ke Menu', callback_data: 'kembali_ke_menu' }]
+        ]
+    };
+    
+    await bot.editMessageText(message, {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: replyMarkup
+    });
+}
 
         async function showProfileMenu(bot, chatId, messageId, userId) {
             await loadDB();
@@ -1824,15 +1823,21 @@ if (IS_WORKER) {
                 
                 const replyMarkup = {
                     inline_keyboard: [
-                        [{ text: 'List Topup', callback_data: 'admin_listtopup' }],
-                        [{ text: 'List Langganan', callback_data: 'admin_listlangganan' }],
-                        [{ text: 'List Group', callback_data: 'admin_listgroup' }],
-                        [{ text: 'Tambah Saldo User', callback_data: 'admin_addtopup_start' }],
-                        [{ text: 'Tambah Group', callback_data: 'admin_addgroup_start' }],
-                        [{ text: 'Hapus Group', callback_data: 'admin_removegroup_start' }],
-                        [{ text: 'Broadcast Pesan', callback_data: 'admin_broadcast_start' }],
-                        [{ text: 'Nonaktifkan Info', callback_data: 'admin_offinfo' }],
-                        [{ text: 'Aktifkan Info', callback_data: 'admin_oninfo' }],
+                        [
+                            { text: 'List Topup', callback_data: 'admin_listtopup' },
+                            { text: 'List Langganan', callback_data: 'admin_listlangganan' },
+                            { text: 'List Group', callback_data: 'admin_listgroup' }
+                        ],
+                        [
+                            { text: 'Tambah Saldo', callback_data: 'admin_addtopup_start' },
+                            { text: 'Tambah Group', callback_data: 'admin_addgroup_start' },
+                            { text: 'Hapus Group', callback_data: 'admin_removegroup_start' }
+                        ],
+                        [
+                            { text: 'Broadcast', callback_data: 'admin_broadcast_start' },
+                            { text: 'Nonaktifkan Info', callback_data: 'admin_offinfo' },
+                            { text: 'Aktifkan Info', callback_data: 'admin_oninfo' }
+                        ],
                         [{ text: 'Kembali ke Menu', callback_data: 'kembali_ke_menu' }]
                     ]
                 };
@@ -2329,7 +2334,7 @@ if (IS_WORKER) {
                             message_id: messageId,
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{ text: 'Batal', callback_data: 'admin_menu' }]
+                                    [{ text: 'Batal', callback_data: 'admin_batal' }]
                                 ]
                             }
                         }
@@ -2350,7 +2355,7 @@ if (IS_WORKER) {
                             message_id: messageId,
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{ text: 'Batal', callback_data: 'admin_menu' }]
+                                    [{ text: 'Batal', callback_data: 'admin_batal' }]
                                 ]
                             }
                         }
@@ -2370,7 +2375,7 @@ if (IS_WORKER) {
                             message_id: messageId,
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{ text: 'Batal', callback_data: 'admin_menu' }]
+                                    [{ text: 'Batal', callback_data: 'admin_batal' }]
                                 ]
                             }
                         }
@@ -2384,19 +2389,25 @@ if (IS_WORKER) {
                     await bot.editMessageText(
                         `BROADCAST PESAN\n\n` +
                         `Kirim pesan yang ingin disebarkan ke semua user.\n\n` +
-                        `Anda bisa mengirim teks biasa atau foto dengan caption.\n\n` +
-                        `Ketik /batal untuk membatalkan.`,
+                        `Anda bisa mengirim teks biasa atau foto dengan caption.`,
                         {
                             chat_id: chatId,
                             message_id: messageId,
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{ text: 'Batal', callback_data: 'admin_menu' }]
+                                    [{ text: 'Batal', callback_data: 'admin_batal' }]
                                 ]
                             }
                         }
                     );
                     await setAdminState(userId, 'broadcast', 'waiting_message');
+                    await bot.answerCallbackQuery(cb.id);
+                    return;
+                }
+
+                if (data === 'admin_batal') {
+                    clearAdminState(userId);
+                    await showAdminMenu(bot, chatId, messageId, userId);
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
