@@ -1106,9 +1106,9 @@ if (IS_WORKER) {
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `Daftar layanan dan harga:\n`;
-                message += `• Info akun terhubung - GRATIS\n`;
-                message += `• Detail lengkap akun - Rp 5.000\n`;
-                message += `• Cari ID via nickname - Rp 5.000\n`;
+                message += `• CHECK INFO - GRATIS\n`;
+                message += `• FULL INFO - Rp 5.000\n`;
+                message += `• CARI ID VIA NICKNAME - Rp 5.000\n`;
                 message += `• Langganan akses /find dan /cek unlimited\n`;
                 
                 const baseKeyboard = [
@@ -1649,9 +1649,9 @@ if (IS_WORKER) {
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `Daftar layanan dan harga:\n`;
-                message += `• Info akun terhubung - GRATIS\n`;
-                message += `• Detail lengkap akun - Rp 5.000\n`;
-                message += `• Cari ID via nickname - Rp 5.000\n`;
+                message += `• CHECK INFO - GRATIS\n`;
+                message += `• FULL INFO - Rp 5.000\n`;
+                message += `• CARI ID VIA NICKNAME - Rp 5.000\n`;
                 message += `• Langganan akses /find dan /cek unlimited\n`;
                 
                 const baseKeyboard = [
