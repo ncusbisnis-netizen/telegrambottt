@@ -984,21 +984,14 @@ if (IS_WORKER) {
                     }
                     
                     if (state.action === 'broadcast' && state.step === 'waiting_message') {
-    console.log('[BROADCAST] Processing message from admin:', userId);
-    
     const hasPhoto = msg.photo && msg.photo.length > 0;
-    const hasVideo = msg.video !== undefined;
-    const hasDocument = msg.document !== undefined;
-    const hasAudio = msg.audio !== undefined;
-    const hasVoice = msg.voice !== undefined;
-    const hasSticker = msg.sticker !== undefined;
-    const hasAnimation = msg.animation !== undefined;
+    const hasVideo = msg.video;
+    const hasDocument = msg.document;
+    const hasAudio = msg.audio;
+    const hasVoice = msg.voice;
+    const hasSticker = msg.sticker;
+    const hasAnimation = msg.animation;
     const hasText = msg.text && msg.text.length > 0;
-    
-    console.log('[BROADCAST] Message types:', { 
-        hasPhoto, hasVideo, hasDocument, hasAudio, 
-        hasVoice, hasSticker, hasAnimation, hasText 
-    });
     
     if (!hasPhoto && !hasVideo && !hasDocument && !hasAudio && !hasVoice && !hasSticker && !hasAnimation && !hasText) {
         await bot.sendMessage(chatId, 'Kirim pesan, foto, video, dokumen, audio, voice note, sticker, atau GIF yang ingin di-broadcast:', {
@@ -1061,8 +1054,6 @@ if (IS_WORKER) {
         mediaInfo = ` "${msg.text.substring(0, 100)}${msg.text.length > 100 ? '...' : ''}"`;
     }
     
-    console.log('[BROADCAST] Broadcasting to', users.length, 'users, media type:', mediaType);
-    
     for (let i = 0; i < users.length; i += concurrency) {
         const batch = users.slice(i, i + concurrency);
         
@@ -1116,7 +1107,6 @@ if (IS_WORKER) {
                 }
                 success++;
             } catch (error) {
-                console.log(`[BROADCAST] Error sending to ${targetUserId}:`, error.message);
                 if (error.response && error.response.statusCode === 429) {
                     const retryAfter = error.response.body.parameters?.retry_after || 1;
                     await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
@@ -1173,6 +1163,7 @@ if (IS_WORKER) {
                     }
                 } else {
                     failed++;
+                    console.log(`Gagal kirim ke ${targetUserId}:`, error.message);
                 }
             }
         }));
@@ -1225,9 +1216,9 @@ if (IS_WORKER) {
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `Daftar layanan dan harga:\n`;
-                message += `• Info akun terhubung - GRATIS\n`;
-                message += `• Detail lengkap akun - Rp 5.000\n`;
-                message += `• Cari ID via nickname - Rp 5.000\n`;
+                message += `• CHECK INFO - GRATIS\n`;
+                message += `• FULL INFO - Rp 5.000\n`;
+                message += `• CARI ID VIA NICKNAME - Rp 5.000\n`;
                 message += `• Langganan akses /find dan /cek unlimited\n`;
                 
                 const baseKeyboard = [
@@ -1236,11 +1227,11 @@ if (IS_WORKER) {
                         { text: 'CHECK INFO', callback_data: 'check_info' }
                     ],
                     [{ text: 'CARI ID VIA NICKNAME', callback_data: 'find_id' }],
-                    [{ text: 'PROFILE', callback_data: 'profile_menu' }],
                     [
                         { text: 'TOP UP', callback_data: 'topup_menu' },
                         { text: 'LANGGANAN', callback_data: 'langganan_menu' }
-                    ]
+                    ],
+                    [{ text: 'PROFILE', callback_data: 'profile_menu' }]
                 ];
                 
                 if (isAdmin(userId)) {
@@ -1768,9 +1759,9 @@ if (IS_WORKER) {
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `Daftar layanan dan harga:\n`;
-                message += `• Info akun terhubung - GRATIS\n`;
-                message += `• Detail lengkap akun - Rp 5.000\n`;
-                message += `• Cari ID via nickname - Rp 5.000\n`;
+                message += `• CHECK INFO - GRATIS\n`;
+                message += `• FULL INFO - Rp 5.000\n`;
+                message += `• CARI ID VIA NICKNAME - Rp 5.000\n`;
                 message += `• Langganan akses /find dan /cek unlimited\n`;
                 
                 const baseKeyboard = [
@@ -1779,11 +1770,11 @@ if (IS_WORKER) {
                         { text: 'CHECK INFO', callback_data: 'check_info' }
                     ],
                     [{ text: 'CARI ID VIA NICKNAME', callback_data: 'find_id' }],
-                    [{ text: 'PROFILE', callback_data: 'profile_menu' }],
                     [
                         { text: 'TOP UP', callback_data: 'topup_menu' },
                         { text: 'LANGGANAN', callback_data: 'langganan_menu' }
-                    ]
+                    ],
+                    [{ text: 'PROFILE', callback_data: 'profile_menu' }]
                 ];
                 
                 if (isAdmin(userId)) {
@@ -2340,7 +2331,8 @@ if (IS_WORKER) {
                         `/cek ID SERVER\n\n` +
                         `Contoh:\n` +
                         `/cek 123456789 1234\n\n` +
-                        `Anda dapat menemukan Game ID dan Server ID di aplikasi MLBB pada bagian Profil.`,
+                        `Bot akan menampilkan informasi akun dengan detail seperti tanggal pembuatan akun dll.\n\n` +
+                        `Biaya Rp 5.000`,
                         {
                             chat_id: chatId,
                             message_id: messageId,
@@ -2363,7 +2355,9 @@ if (IS_WORKER) {
                         `Kirim perintah:\n` +
                         `/info ID SERVER\n\n` +
                         `Contoh:\n` +
-                        `/info 123456789 1234`,
+                        `/info 123456789 1234\n\n` +
+                        `Bot akan menampilkan email, Facebook, dan akun sosial lainnya yang terhubung.\n\n` +
+                        `Biaya Rp 0`,
                         {
                             chat_id: chatId,
                             message_id: messageId,
@@ -2387,7 +2381,8 @@ if (IS_WORKER) {
                         `/find NICKNAME SERVER\n\n` +
                         `Contoh:\n` +
                         `/find RRQ Jule 15707\n\n` +
-                        `Bot akan menampilkan pemain yang cocok dengan Game ID dan Server ID mereka.`,
+                        `Bot akan menampilkan pemain dengan format ID, lokasi dan negara terakhir login.\n\n` +
+                        `Biaya Rp 5.000`,
                         {
                             chat_id: chatId,
                             message_id: messageId,
@@ -2533,12 +2528,12 @@ if (IS_WORKER) {
     return;
 }
 
-                if (data === 'admin_batal') {
-                    clearAdminState(userId);
-                    await showAdminMenu(bot, chatId, messageId, userId);
-                    await bot.answerCallbackQuery(cb.id);
-                    return;
-                }
+if (data === 'admin_batal') {
+    clearAdminState(userId);
+    await showAdminMenu(bot, chatId, messageId, userId);
+    await bot.answerCallbackQuery(cb.id);
+    return;
+}
 
                 if (data === 'admin_offinfo') {
                     if (!db.feature) db.feature = {};
