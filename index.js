@@ -2221,7 +2221,8 @@ if (IS_WORKER) {
                         `/cek ID SERVER\n\n` +
                         `Contoh:\n` +
                         `/cek 123456789 1234\n\n` +
-                        `bot akan memberikan se detail mungkin seperti Tanggal pembuatan akun Dllnya`,
+                        `bot akan memberikan se detail mungkin seperti tanggal pembuatan akun dan lain lainnya.\n\n` +
+                        `Biaya Rp 5.000
                         {
                             chat_id: chatId,
                             message_id: messageId,
@@ -2244,7 +2245,9 @@ if (IS_WORKER) {
                         `Kirim perintah:\n` +
                         `/info ID SERVER\n\n` +
                         `Contoh:\n` +
-                        `/info 123456789 1234`,
+                        `/info 123456789 1234\n\n` +
+                        `bot akan memberikan informasi akun yang terhubung seperti email, social media dllnya.\n\n` +
+                        Biaya Gratis
                         {
                             chat_id: chatId,
                             message_id: messageId,
@@ -2268,7 +2271,8 @@ if (IS_WORKER) {
                         `/find NICKNAME SERVER\n\n` +
                         `Contoh:\n` +
                         `/find RRQ Jule 15707\n\n` +
-                        `Bot akan menampilkan pemain yang cocok dengan Game ID dan Server ID mereka.`,
+                        `Bot akan menampilkan pemain yang cocok dengan Game ID dan Server ID mereka.\n\n` +
+                        Biaya Rp 5.000
                         {
                             chat_id: chatId,
                             message_id: messageId,
