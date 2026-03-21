@@ -777,10 +777,10 @@ if (IS_WORKER) {
                 getUserCredits(userId, username || '');
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
-                message += `DAFTAR PERINTAH:\n`;
-                message += `/info - Info akun (GRATIS)\n`;
-                message += `/cek  - Detail lengkap akun (Rp 5.000)\n`;
-                message += `/find - Cari ID via nickname (Rp 5.000)\n`;
+                message += `Daftar layanan dan harga:\n`;
+                message += `Info akun terhubung (GRATIS)\n`;
+                message += `Detail lengkap akun (Rp 5.000)\n`;
+                message += `Cari ID via nickname (Rp 5.000)\n`;
                 
                 if (isAdmin(userId)) {
                     message += `\nADMIN MENU\n`;
@@ -1138,8 +1138,7 @@ if (IS_WORKER) {
                     await bot.sendMessage(chatId,
                         `DETAIL ACCOUNT\n\n` +
                         `Format: /cek ID_USER ID_SERVER\n` +
-                        `Contoh: /cek 123456789 1234\n\n` +
-                        `Biaya: Rp 5.000`
+                        `Contoh: /cek 123456789 1234`
                     );
                     return;
                 }
@@ -1296,8 +1295,7 @@ if (IS_WORKER) {
                         `Gunakan format:\n` +
                         `/find NICKNAME SERVER\n\n` +
                         `Contoh:\n` +
-                        `/find RRQ Jule 15707\n\n` +
-                        `Biaya: Rp 5.000`
+                        `/find RRQ Jule 15707`
                     );
                     return;
                 }
@@ -1690,10 +1688,10 @@ if (IS_WORKER) {
                 await loadDB();
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
-                message += `DAFTAR PERINTAH:\n`;
-                message += `/info - Info akun (GRATIS)\n`;
-                message += `/cek  - Detail lengkap akun (Rp 5.000)\n`;
-                message += `/find - Cari ID via nickname (Rp 5.000)\n`;
+                message += `Daftar layanan dan harga:\n`;
+                message += `Info akun terhubung (GRATIS)\n`;
+                message += `Detail lengkap akun (Rp 5.000)\n`;
+                message += `Cari ID via nickname (Rp 5.000)\n`;
                 
                 if (isAdmin(userId)) {
                     message += `\nADMIN MENU\n`;
@@ -2025,7 +2023,7 @@ if (IS_WORKER) {
                         `/cek ID SERVER\n\n` +
                         `Contoh:\n` +
                         `/cek 123456789 1234\n\n` +
-                        `Biaya: Rp 5.000`,
+                        `Anda dapat menemukan Game ID dan Server ID di aplikasi MLBB pada bagian Profil.`,
                         {
                             chat_id: chatId,
                             message_id: messageId,
@@ -2043,7 +2041,7 @@ if (IS_WORKER) {
                     await bot.answerCallbackQuery(cb.id);
                     await bot.editMessageText(
                         `CHECK INFO\n\n` +
-                        `Perintah ini digunakan untuk melihat informasi dasar akun MLBB (gratis).\n\n` +
+                        `Perintah ini digunakan untuk melihat informasi akun terhubung pada MLBB.\n\n` +
                         `Cara Penggunaan:\n` +
                         `Kirim perintah:\n` +
                         `/info ID SERVER\n\n` +
@@ -2072,7 +2070,7 @@ if (IS_WORKER) {
                         `/find NICKNAME SERVER\n\n` +
                         `Contoh:\n` +
                         `/find RRQ Jule 15707\n\n` +
-                        `Biaya: Rp 5.000`,
+                        `Bot akan menampilkan pemain yang cocok dengan Game ID dan Server ID mereka.`,
                         {
                             chat_id: chatId,
                             message_id: messageId,
