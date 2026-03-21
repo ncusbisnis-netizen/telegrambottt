@@ -984,14 +984,21 @@ if (IS_WORKER) {
                     }
                     
                     if (state.action === 'broadcast' && state.step === 'waiting_message') {
+    console.log('[BROADCAST] Processing message from admin:', userId);
+    
     const hasPhoto = msg.photo && msg.photo.length > 0;
-    const hasVideo = msg.video;
-    const hasDocument = msg.document;
-    const hasAudio = msg.audio;
-    const hasVoice = msg.voice;
-    const hasSticker = msg.sticker;
-    const hasAnimation = msg.animation;
+    const hasVideo = msg.video !== undefined;
+    const hasDocument = msg.document !== undefined;
+    const hasAudio = msg.audio !== undefined;
+    const hasVoice = msg.voice !== undefined;
+    const hasSticker = msg.sticker !== undefined;
+    const hasAnimation = msg.animation !== undefined;
     const hasText = msg.text && msg.text.length > 0;
+    
+    console.log('[BROADCAST] Message types:', { 
+        hasPhoto, hasVideo, hasDocument, hasAudio, 
+        hasVoice, hasSticker, hasAnimation, hasText 
+    });
     
     if (!hasPhoto && !hasVideo && !hasDocument && !hasAudio && !hasVoice && !hasSticker && !hasAnimation && !hasText) {
         await bot.sendMessage(chatId, 'Kirim pesan, foto, video, dokumen, audio, voice note, sticker, atau GIF yang ingin di-broadcast:', {
@@ -1054,6 +1061,8 @@ if (IS_WORKER) {
         mediaInfo = ` "${msg.text.substring(0, 100)}${msg.text.length > 100 ? '...' : ''}"`;
     }
     
+    console.log('[BROADCAST] Broadcasting to', users.length, 'users, media type:', mediaType);
+    
     for (let i = 0; i < users.length; i += concurrency) {
         const batch = users.slice(i, i + concurrency);
         
@@ -1107,6 +1116,7 @@ if (IS_WORKER) {
                 }
                 success++;
             } catch (error) {
+                console.log(`[BROADCAST] Error sending to ${targetUserId}:`, error.message);
                 if (error.response && error.response.statusCode === 429) {
                     const retryAfter = error.response.body.parameters?.retry_after || 1;
                     await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
@@ -1163,7 +1173,6 @@ if (IS_WORKER) {
                     }
                 } else {
                     failed++;
-                    console.log(`Gagal kirim ke ${targetUserId}:`, error.message);
                 }
             }
         }));
