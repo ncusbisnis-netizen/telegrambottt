@@ -1216,9 +1216,9 @@ if (IS_WORKER) {
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `Daftar layanan dan harga:\n`;
-                message += `• CHECK INFO - GRATIS\n`;
-                message += `• FULL INFO - Rp 5.000\n`;
-                message += `• CARI ID VIA NICKNAME - Rp 5.000\n`;
+                message += `• Info akun terhubung - GRATIS\n`;
+                message += `• Detail lengkap akun - Rp 5.000\n`;
+                message += `• Cari ID via nickname - Rp 5.000\n`;
                 message += `• Langganan akses /find dan /cek unlimited\n`;
                 
                 const baseKeyboard = [
@@ -1227,11 +1227,11 @@ if (IS_WORKER) {
                         { text: 'CHECK INFO', callback_data: 'check_info' }
                     ],
                     [{ text: 'CARI ID VIA NICKNAME', callback_data: 'find_id' }],
+                    [{ text: 'PROFILE', callback_data: 'profile_menu' }],
                     [
                         { text: 'TOP UP', callback_data: 'topup_menu' },
                         { text: 'LANGGANAN', callback_data: 'langganan_menu' }
-                    ],
-                    [{ text: 'PROFILE', callback_data: 'profile_menu' }]
+                    ]
                 ];
                 
                 if (isAdmin(userId)) {
@@ -1759,9 +1759,9 @@ if (IS_WORKER) {
                 
                 let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
                 message += `Daftar layanan dan harga:\n`;
-                message += `• CHECK INFO - GRATIS\n`;
-                message += `• FULL INFO - Rp 5.000\n`;
-                message += `• CARI ID VIA NICKNAME - Rp 5.000\n`;
+                message += `• Info akun terhubung - GRATIS\n`;
+                message += `• Detail lengkap akun - Rp 5.000\n`;
+                message += `• Cari ID via nickname - Rp 5.000\n`;
                 message += `• Langganan akses /find dan /cek unlimited\n`;
                 
                 const baseKeyboard = [
@@ -1770,11 +1770,11 @@ if (IS_WORKER) {
                         { text: 'CHECK INFO', callback_data: 'check_info' }
                     ],
                     [{ text: 'CARI ID VIA NICKNAME', callback_data: 'find_id' }],
+                    [{ text: 'PROFILE', callback_data: 'profile_menu' }],
                     [
                         { text: 'TOP UP', callback_data: 'topup_menu' },
                         { text: 'LANGGANAN', callback_data: 'langganan_menu' }
-                    ],
-                    [{ text: 'PROFILE', callback_data: 'profile_menu' }]
+                    ]
                 ];
                 
                 if (isAdmin(userId)) {
@@ -2331,8 +2331,7 @@ if (IS_WORKER) {
                         `/cek ID SERVER\n\n` +
                         `Contoh:\n` +
                         `/cek 123456789 1234\n\n` +
-                        `Bot akan menampilkan informasi akun dengan detail seperti tanggal pembuatan akun dll.\n\n` +
-                        `Biaya Rp 5.000`,
+                        `Anda dapat menemukan Game ID dan Server ID di aplikasi MLBB pada bagian Profil.`,
                         {
                             chat_id: chatId,
                             message_id: messageId,
@@ -2355,9 +2354,7 @@ if (IS_WORKER) {
                         `Kirim perintah:\n` +
                         `/info ID SERVER\n\n` +
                         `Contoh:\n` +
-                        `/info 123456789 1234\n\n` +
-                        `Bot akan menampilkan email, Facebook, dan akun sosial lainnya yang terhubung.\n\n` +
-                        `Biaya Rp 0`,
+                        `/info 123456789 1234`,
                         {
                             chat_id: chatId,
                             message_id: messageId,
@@ -2381,8 +2378,7 @@ if (IS_WORKER) {
                         `/find NICKNAME SERVER\n\n` +
                         `Contoh:\n` +
                         `/find RRQ Jule 15707\n\n` +
-                        `Bot akan menampilkan pemain dengan format ID, lokasi dan negara terakhir login.\n\n` +
-                        `Biaya Rp 5.000`,
+                        `Bot akan menampilkan pemain yang cocok dengan Game ID dan Server ID mereka.`,
                         {
                             chat_id: chatId,
                             message_id: messageId,
@@ -2528,12 +2524,12 @@ if (IS_WORKER) {
     return;
 }
 
-if (data === 'admin_batal') {
-    clearAdminState(userId);
-    await showAdminMenu(bot, chatId, messageId, userId);
-    await bot.answerCallbackQuery(cb.id);
-    return;
-}
+                if (data === 'admin_batal') {
+                    clearAdminState(userId);
+                    await showAdminMenu(bot, chatId, messageId, userId);
+                    await bot.answerCallbackQuery(cb.id);
+                    return;
+                }
 
                 if (data === 'admin_offinfo') {
                     if (!db.feature) db.feature = {};
