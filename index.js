@@ -2247,7 +2247,7 @@ if (IS_WORKER) {
                         `Contoh:\n` +
                         `/info 123456789 1234\n\n` +
                         `bot akan memberikan informasi akun yang terhubung seperti email, social media dllnya.\n\n` +
-                        Biaya Gratis
+                        `Biaya Gratis`
                         {
                             chat_id: chatId,
                             message_id: messageId,
@@ -2272,7 +2272,7 @@ if (IS_WORKER) {
                         `Contoh:\n` +
                         `/find RRQ Jule 15707\n\n` +
                         `Bot akan menampilkan pemain yang cocok dengan Game ID dan Server ID mereka.\n\n` +
-                        Biaya Rp 5.000
+                        `Biaya Rp 5.000`
                         {
                             chat_id: chatId,
                             message_id: messageId,
