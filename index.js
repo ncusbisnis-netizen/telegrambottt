@@ -2221,7 +2221,8 @@ if (IS_WORKER) {
                         `/cek ID SERVER\n\n` +
                         `Contoh:\n` +
                         `/cek 123456789 1234\n\n` +
-                        `Anda dapat menemukan Game ID dan Server ID di aplikasi MLBB pada bagian Profil.`,
+                        `Bot akan menampilkan informasi akun dengan detail seperti tanggal.pembuatan akun dll.\n\n` +
+                        `Biaya Rp 5.000`,
                         {
                             chat_id: chatId,
                             message_id: messageId,
@@ -2244,7 +2245,9 @@ if (IS_WORKER) {
                         `Kirim perintah:\n` +
                         `/info ID SERVER\n\n` +
                         `Contoh:\n` +
-                        `/info 123456789 1234`,
+                        `/info 123456789 1234\n\n` +
+                        `Bot akan menampilkan email, Facebook, dan akun sosial lainnya yang terhubung.\n\n` +
+                        `Biaya Rp 0`,
                         {
                             chat_id: chatId,
                             message_id: messageId,
@@ -2268,7 +2271,8 @@ if (IS_WORKER) {
                         `/find NICKNAME SERVER\n\n` +
                         `Contoh:\n` +
                         `/find RRQ Jule 15707\n\n` +
-                        `Bot akan menampilkan pemain yang cocok dengan Game ID dan Server ID mereka.`,
+                        `Bot akan menampilkan pemain yang cocok dengan ID game, lokasi dan negara terakhir login.\n\n` +
+                        `Biaya Rp 5.000`,
                         {
                             chat_id: chatId,
                             message_id: messageId,
