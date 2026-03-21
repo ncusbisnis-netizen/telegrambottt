@@ -987,11 +987,13 @@ if (IS_WORKER) {
     const hasPhoto = msg.photo && msg.photo.length > 0;
     const hasVideo = msg.video;
     const hasDocument = msg.document;
+    const hasAudio = msg.audio;
+    const hasVoice = msg.voice;
     const hasText = msg.text && msg.text.length > 0;
     
     // Cek apakah ada konten yang dikirim
-    if (!hasPhoto && !hasVideo && !hasDocument && !hasText) {
-        await bot.sendMessage(chatId, 'Kirim pesan, foto, video, atau dokumen yang ingin di-broadcast:', {
+    if (!hasPhoto && !hasVideo && !hasDocument && !hasAudio && !hasVoice && !hasText) {
+        await bot.sendMessage(chatId, 'Kirim pesan, foto, video, dokumen, audio, atau voice note yang ingin di-broadcast:', {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: 'Batal', callback_data: 'admin_batal' }]
@@ -1018,6 +1020,32 @@ if (IS_WORKER) {
     
     let success = 0, failed = 0;
     const concurrency = 5;
+    let mediaType = '';
+    let mediaInfo = '';
+    
+    if (hasPhoto) {
+        mediaType = 'Foto';
+        if (msg.caption) mediaInfo = ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+    } else if (hasVideo) {
+        mediaType = 'Video';
+        if (msg.caption) mediaInfo = ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+    } else if (hasDocument) {
+        mediaType = 'Dokumen';
+        const fileName = msg.document.file_name || 'tanpa nama';
+        mediaInfo = ` (${fileName})`;
+        if (msg.caption) mediaInfo += ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+    } else if (hasAudio) {
+        mediaType = 'Audio';
+        const title = msg.audio.title || msg.audio.file_name || 'tanpa judul';
+        mediaInfo = ` (${title})`;
+        if (msg.caption) mediaInfo += ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+    } else if (hasVoice) {
+        mediaType = 'Voice Note';
+        mediaInfo = '';
+    } else {
+        mediaType = 'Teks';
+        mediaInfo = ` "${msg.text.substring(0, 100)}${msg.text.length > 100 ? '...' : ''}"`;
+    }
     
     for (let i = 0; i < users.length; i += concurrency) {
         const batch = users.slice(i, i + concurrency);
@@ -1025,7 +1053,6 @@ if (IS_WORKER) {
         await Promise.all(batch.map(async (targetUserId) => {
             try {
                 if (hasPhoto) {
-                    // Kirim foto
                     const photoFileId = msg.photo[msg.photo.length - 1].file_id;
                     const caption = msg.caption || '';
                     await bot.sendPhoto(targetUserId, photoFileId, { 
@@ -1033,7 +1060,6 @@ if (IS_WORKER) {
                         parse_mode: 'HTML' 
                     });
                 } else if (hasVideo) {
-                    // Kirim video
                     const videoFileId = msg.video.file_id;
                     const caption = msg.caption || '';
                     await bot.sendVideo(targetUserId, videoFileId, { 
@@ -1041,15 +1067,23 @@ if (IS_WORKER) {
                         parse_mode: 'HTML' 
                     });
                 } else if (hasDocument) {
-                    // Kirim dokumen
                     const documentFileId = msg.document.file_id;
                     const caption = msg.caption || '';
                     await bot.sendDocument(targetUserId, documentFileId, { 
                         caption: caption, 
                         parse_mode: 'HTML' 
                     });
+                } else if (hasAudio) {
+                    const audioFileId = msg.audio.file_id;
+                    const caption = msg.caption || '';
+                    await bot.sendAudio(targetUserId, audioFileId, { 
+                        caption: caption, 
+                        parse_mode: 'HTML' 
+                    });
+                } else if (hasVoice) {
+                    const voiceFileId = msg.voice.file_id;
+                    await bot.sendVoice(targetUserId, voiceFileId);
                 } else {
-                    // Kirim teks biasa
                     await bot.sendMessage(targetUserId, msg.text, { 
                         parse_mode: 'HTML' 
                     });
@@ -1081,6 +1115,16 @@ if (IS_WORKER) {
                                 caption: caption, 
                                 parse_mode: 'HTML' 
                             });
+                        } else if (hasAudio) {
+                            const audioFileId = msg.audio.file_id;
+                            const caption = msg.caption || '';
+                            await bot.sendAudio(targetUserId, audioFileId, { 
+                                caption: caption, 
+                                parse_mode: 'HTML' 
+                            });
+                        } else if (hasVoice) {
+                            const voiceFileId = msg.voice.file_id;
+                            await bot.sendVoice(targetUserId, voiceFileId);
                         } else {
                             await bot.sendMessage(targetUserId, msg.text, { 
                                 parse_mode: 'HTML' 
@@ -1100,22 +1144,10 @@ if (IS_WORKER) {
         await new Promise(resolve => setTimeout(resolve, 100));
     }
     
-    let resultMessage = `Broadcast selesai\n\n`;
+    let resultMessage = `BROADCAST SELESAI\n\n`;
     resultMessage += `Berhasil: ${success}\n`;
     resultMessage += `Gagal: ${failed}\n\n`;
-    
-    if (hasPhoto) {
-        resultMessage += `Media yang dikirim: Foto`;
-        if (msg.caption) resultMessage += ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
-    } else if (hasVideo) {
-        resultMessage += `Media yang dikirim: Video`;
-        if (msg.caption) resultMessage += ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
-    } else if (hasDocument) {
-        resultMessage += `Media yang dikirim: Dokumen`;
-        if (msg.caption) resultMessage += ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
-    } else {
-        resultMessage += `Pesan yang dikirim: "${msg.text.substring(0, 100)}${msg.text.length > 100 ? '...' : ''}"`;
-    }
+    resultMessage += `Media yang dikirim: ${mediaType}${mediaInfo}`;
     
     await bot.editMessageText(resultMessage, {
         chat_id: chatId,
@@ -2448,7 +2480,9 @@ if (IS_WORKER) {
         `• Teks biasa\n` +
         `• Foto (bisa dengan caption)\n` +
         `• Video (bisa dengan caption)\n` +
-        `• Dokumen (bisa dengan caption)\n\n` +
+        `• Dokumen (bisa dengan caption)\n` +
+        `• Audio (bisa dengan caption)\n` +
+        `• Voice Note\n\n` +
         `Ketik pesan atau kirim media sekarang.`,
         {
             chat_id: chatId,
