@@ -173,14 +173,14 @@ const texts = {
     // Info Command
     info_command: {
         title: { id: 'INFORMASI AKUN GRATIS', en: 'FREE ACCOUNT INFO' },
-        format: { id: 'Format: /info ID_USER ID_SERVER\nContoh: /info 123456789 1234', en: 'Format: /info USER_ID SERVER_ID\nExample: /info 123456789 1234' }
+        format: { id: 'Format: /info ID_USER ID_SERVER\nContoh: /info 123456789 1234', en: 'Format: /info ID SERVER\nExample: /info 123456789 1234' }
     },
     
     // Cek Command
     cek_command: {
         title: { id: 'DETAIL ACCOUNT', en: 'ACCOUNT DETAILS' },
-        format: { id: 'Format: /cek ID_USER ID_SERVER\nContoh: /cek 123456789 1234', en: 'Format: /cek USER_ID SERVER_ID\nExample: /cek 123456789 1234' },
-        wrong_format: { id: 'FORMAT SALAH\n\nFormat yang benar:\n/cek ID_USER ID_SERVER\n\nID dan Server harus berupa angka.', en: 'WRONG FORMAT\n\nCorrect format:\n/cek USER_ID SERVER_ID\n\nID and Server must be numbers.' }
+        format: { id: 'Format: /cek ID SERVER\nContoh: /cek 123456789 1234', en: 'Format: /cek ID SERVER\nExample: /cek 123456789 1234' },
+        wrong_format: { id: 'FORMAT SALAH\n\nFormat yang benar:\n/cek ID SERVER\n\nID dan Server harus berupa angka.', en: 'WRONG FORMAT\n\nCorrect format:\n/cek ID SERVER\n\nID and Server must be numbers.' }
     },
     
     // Find Command
