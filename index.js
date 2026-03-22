@@ -71,7 +71,7 @@ const texts = {
         back_to_menu: { id: 'Kembali ke Menu', en: 'Back to Menu' },
         cancel: { id: 'Batal', en: 'Cancel' },
         stock_admin: { id: 'Stok Admin', en: 'Admin Stock' },
-        language: { id: 'BAHASA', en: 'LANGUAGE' }
+        language: { id: '🌐 BAHASA / LANGUAGE', en: '🌐 LANGUAGE / BAHASA' }
     },
     
     // Full Info Menu
