@@ -142,7 +142,7 @@ const texts = {
     
     // Language Menu
     language_menu: {
-        title: `SELECT LANGUAGE / PILIH BAHASA\n\nChoose your preferred language:\nPilih bahasa yang Anda inginkan:`,
+        title: `SELECT LANGUAGE / PILIH BAHASA:`,
         indonesian: `🇮🇩 Indonesia`,
         english: `🇬🇧 English`,
         changed_id: `Bahasa diubah ke Indonesia`,
@@ -309,8 +309,8 @@ const texts = {
             en: `This group is not registered. Please ask @ncus999 for permission to register this group.`
         },
         format: {
-            id: `INFORMASI AKUN GRATIS\n\nFormat: /cekinfo ID_USER ID_SERVER\nContoh: /cekinfo 123456789 1234`,
-            en: `FREE ACCOUNT INFO\n\nFormat: /cekinfo USER_ID SERVER_ID\nExample: /cekinfo 123456789 1234`
+            id: `INFORMASI AKUN TERHUBUNG\n\nFormat: /cekinfo ID SERVER\nContoh: /cekinfo 123456789 1234`,
+            en: `CHECK BIND PLATFORM\n\nFormat: /cekinfo ID SERVER\nExample: /cekinfo 123456789 1234`
         },
         feature_disabled: {
             id: `Fitur info sedang dinonaktifkan oleh admin.`,
