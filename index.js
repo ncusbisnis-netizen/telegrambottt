@@ -2357,6 +2357,13 @@ if (IS_WORKER) {
                         `Contoh:\n` +
                         `/info 123456789 1234\n\n` +
                         `Bot akan menampilkan email, Facebook, dan akun sosial lainnya yang terhubung.\n\n` +
+                        `CHECK BIND VIA GROUP\n\n` +
+                        `Tambahkan bot @mahsuselitzbot ke group dan jadikan admin group\n` +
+                        `Cara Penggunaan di dalam group:\n` +
+                        `Kirim perintah:\n` +
+                        `/cekinfo ID SERVER\n\n` +
+                        `Contoh:\n` +
+                        `/cekinfo 123456789 1234\n\n` +
                         `Biaya Rp 0`,
                         {
                             chat_id: chatId,
