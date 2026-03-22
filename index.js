@@ -37,11 +37,322 @@ const CHANNEL = process.env.CHANNEL;
 const GROUP = process.env.GROUP;
 const STOK_ADMIN = process.env.STOK_ADMIN;
 const REDIS_URL = process.env.REDIS_URL || process.env.REDISCLOUD_URL;
-const API_KEY_CHECKTON = process.env.API_KEY_CHECKTON || process.env.API_KEY_CHECKTON;
+const API_KEY_CHECKTON = process.env.API_KEY_CHECKTON;
 
 const ADMIN_IDS = process.env.ADMIN_IDS 
     ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim())) 
     : [];
+
+// ==================== BAHASA / LANGUAGE ====================
+const LANGUAGES = {
+    id: 'id',
+    en: 'en'
+};
+
+const DEFAULT_LANG = LANGUAGES.id;
+
+// Dictionary untuk teks dalam dua bahasa
+const texts = {
+    // Menu Utama
+    welcome: {
+        id: `SELAMAT DATANG DI BOT NCUS\n\nDaftar layanan dan harga:\n• CHECK BIND - GRATIS\n• FULL INFO - Rp 5.000\n• CARI ID VIA NICKNAME - Rp 5.000\n• Langganan akses /find dan /cek unlimited`,
+        en: `WELCOME TO NCUS BOT\n\nServices and prices:\n• CHECK BIND - FREE\n• FULL INFO - Rp 5,000\n• FIND ID BY NICKNAME - Rp 5,000\n• Subscription for unlimited /find and /cek access`
+    },
+    
+    // Tombol Menu
+    buttons: {
+        full_info: { id: 'FULL INFO', en: 'FULL INFO' },
+        check_info: { id: 'CHECK BIND', en: 'CHECK BIND' },
+        find_id: { id: 'CARI ID VIA NICKNAME', en: 'FIND ID BY NICKNAME' },
+        topup: { id: 'TOP UP', en: 'TOP UP' },
+        subscription: { id: 'LANGGANAN', en: 'SUBSCRIPTION' },
+        profile: { id: 'PROFILE', en: 'PROFILE' },
+        admin_menu: { id: 'ADMIN MENU', en: 'ADMIN MENU' },
+        back_to_menu: { id: 'Kembali ke Menu', en: 'Back to Menu' },
+        cancel: { id: 'Batal', en: 'Cancel' },
+        stock_admin: { id: 'Stok Admin', en: 'Admin Stock' },
+        language: { id: 'LANGUAGE', en: 'LANGUAGE' }
+    },
+    
+    // Full Info Menu
+    full_info_menu: {
+        id: `FULL INFO\n\nPerintah ini digunakan untuk melihat detail lengkap akun MLBB.\n\nCara Penggunaan:\nKirim perintah:\n/cek ID SERVER\n\nContoh:\n/cek 123456789 1234\n\nBot akan menampilkan informasi akun dengan detail seperti tanggal pembuatan akun dll.\n\nBiaya Rp 5.000`,
+        en: `FULL INFO\n\nThis command is used to view complete MLBB account details.\n\nHow to use:\nSend command:\n/cek ID SERVER\n\nExample:\n/cek 123456789 1234\n\nThe bot will display account information with details like account creation date etc.\n\nCost Rp 5,000`
+    },
+    
+    // Check Info Menu
+    check_info_menu: {
+        id: `CHECK BIND\n\nPerintah ini digunakan untuk melihat informasi akun terhubung pada MLBB.\n\nCara Penggunaan:\nKirim perintah:\n/info ID SERVER\n\nContoh:\n/info 123456789 1234\n\nBot akan menampilkan email, Facebook, dan akun sosial lainnya yang terhubung.\n\nCHECK BIND VIA GROUP\n\nTambahkan bot @mahsuselitzbot ke group dan jadikan admin group\nCara Penggunaan di dalam group:\nKirim perintah:\n/cekinfo ID SERVER\n\nContoh:\n/cekinfo 123456789 1234\n\nBiaya Rp 0`,
+        en: `CHECK BIND\n\nThis command is used to view connected account information on MLBB.\n\nHow to use:\nSend command:\n/info ID SERVER\n\nExample:\n/info 123456789 1234\n\nThe bot will display email, Facebook, and other connected social accounts.\n\nCHECK BIND VIA GROUP\n\nAdd bot @mahsuselitzbot to group and make it admin\nHow to use in group:\nSend command:\n/cekinfo ID SERVER\n\nExample:\n/cekinfo 123456789 1234\n\nCost Rp 0`
+    },
+    
+    // Find ID Menu
+    find_id_menu: {
+        id: `CARI ID VIA NICKNAME\n\nPerintah ini digunakan untuk mencari ID akun MLBB berdasarkan nickname.\n\nCara Penggunaan:\nKirim perintah:\n/find NICKNAME SERVER\n\nContoh:\n/find RRQ Jule 15707\n\nBot akan menampilkan pemain dengan format ID, lokasi dan negara terakhir login.\n\nBiaya Rp 5.000`,
+        en: `FIND ID BY NICKNAME\n\nThis command is used to find MLBB account ID by nickname.\n\nHow to use:\nSend command:\n/find NICKNAME SERVER\n\nExample:\n/find RRQ Jule 15707\n\nThe bot will display players with ID, location and last login country.\n\nCost Rp 5,000`
+    },
+    
+    // Profile Menu
+    profile: {
+        title: { id: 'PROFILE USER', en: 'USER PROFILE' },
+        user_id: { id: 'User ID', en: 'User ID' },
+        username: { id: 'Username', en: 'Username' },
+        balance: { id: 'Saldo', en: 'Balance' },
+        subscription_status: { id: 'Status Langganan', en: 'Subscription Status' },
+        active: { id: 'Aktif', en: 'Active' },
+        inactive: { id: 'Tidak aktif', en: 'Inactive' },
+        valid_until: { id: 'Berlaku sampai', en: 'Valid until' },
+        total_checks: { id: 'Total Pengecekan', en: 'Total Checks' },
+        times: { id: 'kali', en: 'times' }
+    },
+    
+    // Topup Menu
+    topup: {
+        title: { id: 'TOP UP SALDO', en: 'TOP UP BALANCE' },
+        your_balance: { id: 'Saldo Anda', en: 'Your balance' },
+        select_amount: { id: 'Pilih nominal top up:', en: 'Select top up amount:' }
+    },
+    
+    // Subscription Menu
+    subscription: {
+        title: { id: 'Akses unlimited untuk fitur /cek dan /find tanpa limit\nsilahkan pilih paket:', en: 'Unlimited access to /cek and /find features\nplease select package:' },
+        days7: { id: '7 Hari (Rp 50.000)', en: '7 Days (Rp 50,000)' },
+        days30: { id: '30 Hari (Rp 100.000)', en: '30 Days (Rp 100,000)' }
+    },
+    
+    // Subscription Messages
+    subscription_messages: {
+        extended: {
+            id: (type, amount, balance, endDate) => `LANGGANAN DIPERPANJANG\n\nPaket: ${type === '7days' ? '7 Hari' : '30 Hari'}\nBiaya: Rp ${amount.toLocaleString()}\nSisa saldo: Rp ${balance.toLocaleString()}\nBerlaku sampai: ${endDate} WIB\n\nTerima kasih telah memperpanjang langganan!`,
+            en: (type, amount, balance, endDate) => `SUBSCRIPTION EXTENDED\n\nPackage: ${type === '7days' ? '7 Days' : '30 Days'}\nCost: Rp ${amount.toLocaleString()}\nRemaining balance: Rp ${balance.toLocaleString()}\nValid until: ${endDate} WIB\n\nThank you for extending your subscription!`
+        },
+        new: {
+            id: (type, amount, balance, endDate) => `LANGGANAN AKTIF\n\nSelamat! Langganan Anda telah aktif.\n\nPaket: ${type === '7days' ? '7 Hari' : '30 Hari'}\nBiaya: Rp ${amount.toLocaleString()}\nSisa saldo: Rp ${balance.toLocaleString()}\nBerlaku sampai: ${endDate} WIB\n\nAnda sekarang memiliki akses unlimited ke fitur /cek dan /find.`,
+            en: (type, amount, balance, endDate) => `SUBSCRIPTION ACTIVE\n\nCongratulations! Your subscription is now active.\n\nPackage: ${type === '7days' ? '7 Days' : '30 Days'}\nCost: Rp ${amount.toLocaleString()}\nRemaining balance: Rp ${balance.toLocaleString()}\nValid until: ${endDate} WIB\n\nYou now have unlimited access to /cek and /find features.`
+        },
+        expired_notification: {
+            id: `NOTIFIKASI LANGGANAN\n\nLangganan Anda telah berakhir.\n\nAkses unlimited untuk fitur /cek dan /find telah dinonaktifkan.\nSilakan perpanjang langganan untuk mendapatkan akses kembali.\n\nKetik /start atau tekan tombol LANGGANAN untuk memperpanjang.`,
+            en: `SUBSCRIPTION NOTIFICATION\n\nYour subscription has expired.\n\nUnlimited access to /cek and /find features has been disabled.\nPlease renew your subscription to regain access.\n\nType /start or press the SUBSCRIPTION button to renew.`
+        },
+        not_enough_balance: {
+            id: (credits, amount) => `Saldo tidak cukup\n\nSaldo Anda: Rp ${credits.toLocaleString()}\nButuh: Rp ${amount.toLocaleString()}\nKekurangan: Rp ${(amount - credits).toLocaleString()}\n\nSilakan top up terlebih dahulu.`,
+            en: (credits, amount) => `Insufficient balance\n\nYour balance: Rp ${credits.toLocaleString()}\nRequired: Rp ${amount.toLocaleString()}\nShortage: Rp ${(amount - credits).toLocaleString()}\n\nPlease top up first.`
+        }
+    },
+    
+    // Language Menu
+    language_menu: {
+        title: `SELECT LANGUAGE / PILIH BAHASA\n\nChoose your preferred language:\nPilih bahasa yang Anda inginkan:`,
+        indonesian: `🇮🇩 Indonesia`,
+        english: `🇬🇧 English`,
+        changed_id: `Bahasa diubah ke Indonesia`,
+        changed_en: `Language changed to English`
+    },
+    
+    // Other Messages
+    cancel_topup: { id: 'Pembayaran dibatalkan', en: 'Payment cancelled' },
+    processing: { id: 'Memproses topup...', en: 'Processing topup...' },
+    invalid_amount: { id: 'Nominal tidak valid.', en: 'Invalid amount.' },
+    command_not_recognized: { id: 'Perintah tidak dikenal', en: 'Command not recognized' },
+    error_occurred: { id: 'Terjadi kesalahan', en: 'An error occurred' },
+    user_not_found: { id: 'User ID harus angka. Coba lagi:', en: 'User ID must be a number. Try again:' },
+    amount_invalid: { id: 'Nominal harus angka 1-1.000.000. Coba lagi:', en: 'Amount must be a number 1-1,000,000. Try again:' },
+    group_id_invalid: { id: 'Group ID harus angka. Coba lagi:', en: 'Group ID must be a number. Try again:' },
+    group_id_instruction: { id: 'Perintah ini hanya dapat digunakan di dalam grup.', en: 'This command can only be used in a group.' },
+    admin_only: { id: 'Hanya admin bot yang dapat menggunakan perintah ini.', en: 'Only bot admin can use this command.' },
+    group_id_result: { id: (chatId) => `ID Grup ini adalah: ${chatId}`, en: (chatId) => `This Group ID is: ${chatId}` },
+    
+    // Loading Messages
+    loading: {
+        fetching: { id: 'Mengambil data akun...', en: 'Fetching account data...' },
+        searching: { id: 'Mencari akun...', en: 'Searching for accounts...' },
+        creating_payment: { id: 'Membuat pembayaran...', en: 'Creating payment...' },
+        retry: { id: (retry, max) => `Mengambil data detail... (Percobaan ${retry}/${max})`, en: (retry, max) => `Fetching details... (Attempt ${retry}/${max})` }
+    },
+    
+    // Info Command
+    info_command: {
+        title: { id: 'INFORMASI AKUN GRATIS', en: 'FREE ACCOUNT INFO' },
+        format: { id: 'Format: /info ID_USER ID_SERVER\nContoh: /info 123456789 1234', en: 'Format: /info USER_ID SERVER_ID\nExample: /info 123456789 1234' }
+    },
+    
+    // Cek Command
+    cek_command: {
+        title: { id: 'DETAIL ACCOUNT', en: 'ACCOUNT DETAILS' },
+        format: { id: 'Format: /cek ID_USER ID_SERVER\nContoh: /cek 123456789 1234', en: 'Format: /cek USER_ID SERVER_ID\nExample: /cek 123456789 1234' },
+        wrong_format: { id: 'FORMAT SALAH\n\nFormat yang benar:\n/cek ID_USER ID_SERVER\n\nID dan Server harus berupa angka.', en: 'WRONG FORMAT\n\nCorrect format:\n/cek USER_ID SERVER_ID\n\nID and Server must be numbers.' }
+    },
+    
+    // Find Command
+    find_command: {
+        title: { id: 'CARI ID VIA NICKNAME', en: 'FIND ID BY NICKNAME' },
+        format: { id: 'Gunakan format:\n/find NICKNAME SERVER\n\nContoh:\n/find RRQ Jule 15707', en: 'Use format:\n/find NICKNAME SERVER\n\nExample:\n/find RRQ Jule 15707' },
+        wrong_format: { id: 'FORMAT SALAH\n\nFormat yang benar:\n/find NICKNAME SERVER\n\nContoh: /find RRQ Jule 15707', en: 'WRONG FORMAT\n\nCorrect format:\n/find NICKNAME SERVER\n\nExample: /find RRQ Jule 15707' }
+    },
+    
+    // Insufficient Balance
+    insufficient_balance: {
+        id: (credits, required) => `SALDO TIDAK CUKUP\n\nSaldo Anda: Rp ${credits.toLocaleString()}\nBiaya: Rp ${required.toLocaleString()}\nKekurangan: Rp ${(required - credits).toLocaleString()}\n\nSilakan isi saldo atau berlangganan:`,
+        en: (credits, required) => `INSUFFICIENT BALANCE\n\nYour balance: Rp ${credits.toLocaleString()}\nCost: Rp ${required.toLocaleString()}\nShortage: Rp ${(required - credits).toLocaleString()}\n\nPlease top up or subscribe:`
+    },
+    
+    // Join Required
+    join_required: {
+        id: `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`,
+        en: `ACCESS DENIED\n\nYou MUST join to use this bot:\n\n`
+    },
+    
+    // Join Buttons
+    join_channel: { id: 'Bergabung ke Channel', en: 'Join Channel' },
+    join_group: { id: 'Bergabung ke Group', en: 'Join Group' },
+    
+    // Not Found
+    not_found: {
+        id: (type, id, server) => `AKUN TIDAK DITEMUKAN\n\n${type}: ${id}\nServer: ${server}\n\nPastikan ID dan Server yang dimasukkan benar.`,
+        en: (type, id, server) => `ACCOUNT NOT FOUND\n\n${type}: ${id}\nServer: ${server}\n\nMake sure the ID and Server are correct.`
+    },
+    
+    // Error Messages
+    error: {
+        id: 'REQUEST SEDANG ERROR\n\nSILAHKAN COBA LAGI NANTI',
+        en: 'REQUEST ERROR\n\nPLEASE TRY AGAIN LATER'
+    },
+    
+    // Payment Messages
+    payment: {
+        success: { 
+            id: (amount, orderId, balance) => `PEMBAYARAN BERHASIL\n\nTerima kasih! Pembayaran Anda telah kami terima.\n\nDetail Transaksi:\nOrder ID: ${orderId}\nJumlah: Rp ${amount.toLocaleString()}\nStatus: BERHASIL\n\nSaldo Anda sekarang: Rp ${balance.toLocaleString()}\n\nSilakan gunakan bot untuk melakukan pengecekan.`,
+            en: (amount, orderId, balance) => `PAYMENT SUCCESSFUL\n\nThank you! Your payment has been received.\n\nTransaction Details:\nOrder ID: ${orderId}\nAmount: Rp ${amount.toLocaleString()}\nStatus: SUCCESS\n\nYour balance is now: Rp ${balance.toLocaleString()}\n\nPlease use the bot to check.`
+        },
+        failed: {
+            id: (amount, orderId) => `PEMBAYARAN GAGAL\n\nMaaf, pembayaran Anda gagal atau kadaluarsa.\n\nDetail Transaksi:\nOrder ID: ${orderId}\nJumlah: Rp ${amount.toLocaleString()}\nStatus: GAGAL\n\nSilakan lakukan top up ulang jika masih membutuhkan.`,
+            en: (amount, orderId) => `PAYMENT FAILED\n\nSorry, your payment failed or expired.\n\nTransaction Details:\nOrder ID: ${orderId}\nAmount: Rp ${amount.toLocaleString()}\nStatus: FAILED\n\nPlease top up again if you still need it.`
+        },
+        qr_caption: {
+            id: (amount, orderId, expiredAt) => `TOP UP SALDO\n\nNominal: Rp ${amount.toLocaleString()}\nSaldo didapat: Rp ${amount.toLocaleString()}\n\nOrder ID: ${orderId}\nBerlaku sampai: ${expiredAt} WIB\n\nScan QR code di atas untuk membayar.`,
+            en: (amount, orderId, expiredAt) => `TOP UP BALANCE\n\nAmount: Rp ${amount.toLocaleString()}\nBalance received: Rp ${amount.toLocaleString()}\n\nOrder ID: ${orderId}\nValid until: ${expiredAt} WIB\n\nScan the QR code above to pay.`
+        }
+    },
+    
+    // Admin Messages
+    admin: {
+        access_denied: {
+            id: `Akses ditolak. Anda bukan admin.`,
+            en: `Access denied. You are not an admin.`
+        },
+        add_topup: {
+            id: `TAMBAH SALDO USER\n\nMasukkan User ID:\n\nContoh: 123456789`,
+            en: `ADD USER BALANCE\n\nEnter User ID:\n\nExample: 123456789`
+        },
+        add_topup_amount: {
+            id: (targetId) => `User ID: ${targetId}\n\nMasukkan nominal topup (Rp):\n\nContoh: 50000`,
+            en: (targetId) => `User ID: ${targetId}\n\nEnter topup amount (Rp):\n\nExample: 50000`
+        },
+        add_topup_success: {
+            id: (targetId, amount, balance) => `TOPUP MANUAL BERHASIL\n\nUser: ${targetId}\nJumlah: Rp ${amount.toLocaleString()}\nSaldo sekarang: Rp ${balance.toLocaleString()}`,
+            en: (targetId, amount, balance) => `MANUAL TOPUP SUCCESS\n\nUser: ${targetId}\nAmount: Rp ${amount.toLocaleString()}\nCurrent balance: Rp ${balance.toLocaleString()}`
+        },
+        add_group: {
+            id: `TAMBAH GROUP\n\nMasukkan Group ID:\n\nContoh: -1001234567890\n\n(Gunakan /idgrup di grup untuk mengetahui ID grup)`,
+            en: `ADD GROUP\n\nEnter Group ID:\n\nExample: -1001234567890\n\n(Use /idgrup in group to find group ID)`
+        },
+        remove_group: {
+            id: `HAPUS GROUP\n\nMasukkan Group ID yang ingin dihapus:\n\nContoh: -1001234567890`,
+            en: `REMOVE GROUP\n\nEnter Group ID to remove:\n\nExample: -1001234567890`
+        },
+        group_already_exists: {
+            id: (groupId) => `Grup ${groupId} sudah terdaftar.`,
+            en: (groupId) => `Group ${groupId} is already registered.`
+        },
+        group_added: {
+            id: (groupId) => `Grup ${groupId} berhasil ditambahkan.`,
+            en: (groupId) => `Group ${groupId} successfully added.`
+        },
+        group_not_found: {
+            id: (groupId) => `Grup ${groupId} tidak ditemukan.`,
+            en: (groupId) => `Group ${groupId} not found.`
+        },
+        group_removed: {
+            id: (groupId) => `Grup ${groupId} berhasil dihapus.`,
+            en: (groupId) => `Group ${groupId} successfully removed.`
+        },
+        broadcast_start: {
+            id: `BROADCAST PESAN\n\nKirim pesan yang ingin disebarkan ke semua user.\n\nFormat yang didukung:\n• Teks biasa\n• Foto (bisa dengan caption)\n• Video (bisa dengan caption)\n• Dokumen (bisa dengan caption)\n• Audio (bisa dengan caption)\n• Voice Note\n• Sticker\n• GIF/Animation (bisa dengan caption)\n\nKetik pesan atau kirim media sekarang.`,
+            en: `BROADCAST MESSAGE\n\nSend the message you want to broadcast to all users.\n\nSupported formats:\n• Plain text\n• Photo (with caption)\n• Video (with caption)\n• Document (with caption)\n• Audio (with caption)\n• Voice Note\n• Sticker\n• GIF/Animation (with caption)\n\nType message or send media now.`
+        },
+        broadcast_result: {
+            id: (success, failed, mediaType, mediaInfo) => `BROADCAST SELESAI\n\nBerhasil: ${success}\nGagal: ${failed}\n\nMedia yang dikirim: ${mediaType}${mediaInfo}`,
+            en: (success, failed, mediaType, mediaInfo) => `BROADCAST COMPLETED\n\nSuccess: ${success}\nFailed: ${failed}\n\nMedia sent: ${mediaType}${mediaInfo}`
+        },
+        feature_off: {
+            id: `Fitur info telah dinonaktifkan.`,
+            en: `Info feature has been disabled.`
+        },
+        feature_on: {
+            id: `Fitur info telah diaktifkan.`,
+            en: `Info feature has been enabled.`
+        },
+        no_users: {
+            id: `Tidak ada pengguna terdaftar.`,
+            en: `No registered users.`
+        },
+        no_groups: {
+            id: `Belum ada grup terdaftar.`,
+            en: `No groups registered yet.`
+        }
+    },
+    
+    // Group Messages
+    group: {
+        not_allowed: {
+            id: `Grup ini belum terdaftar. Silakan minta izin ke @ncus999 untuk mendaftarkan grup ini.`,
+            en: `This group is not registered. Please ask @ncus999 for permission to register this group.`
+        },
+        format: {
+            id: `INFORMASI AKUN GRATIS\n\nFormat: /cekinfo ID_USER ID_SERVER\nContoh: /cekinfo 123456789 1234`,
+            en: `FREE ACCOUNT INFO\n\nFormat: /cekinfo USER_ID SERVER_ID\nExample: /cekinfo 123456789 1234`
+        },
+        feature_disabled: {
+            id: `Fitur info sedang dinonaktifkan oleh admin.`,
+            en: `Info feature is currently disabled by admin.`
+        }
+    },
+    
+    // Admin Menu
+    admin_menu: {
+        title: { id: 'ADMIN MENU', en: 'ADMIN MENU' },
+        stats: { id: 'STATISTIK', en: 'STATISTICS' },
+        total_users: { id: 'Total User', en: 'Total Users' },
+        total_checks: { id: 'Total Pengecekan', en: 'Total Checks' },
+        total_balance: { id: 'Total Saldo', en: 'Total Balance' },
+        total_subscriptions: { id: 'Total Langganan Aktif', en: 'Active Subscriptions' },
+        select_menu: { id: 'Pilih menu di bawah:', en: 'Select menu below:' }
+    }
+};
+
+// Helper function untuk mendapatkan teks berdasarkan bahasa
+function getText(key, lang, ...args) {
+    const textObj = texts[key];
+    if (!textObj) return key;
+    
+    if (typeof textObj === 'function') {
+        return textObj[lang](...args);
+    }
+    
+    if (typeof textObj === 'object' && !Array.isArray(textObj)) {
+        return textObj[lang] || textObj[DEFAULT_LANG];
+    }
+    
+    return textObj;
+}
+
+// Helper function untuk mendapatkan teks tombol
+function getButtonText(key, lang) {
+    const button = texts.buttons[key];
+    return button ? button[lang] : key;
+}
+
+// ==================== END BAHASA ====================
 
 let db = { 
     users: {}, 
@@ -191,7 +502,8 @@ function getUserCredits(userId, username = '') {
                 username: username, 
                 success: 0, 
                 credits: 0, 
-                topup_history: [] 
+                topup_history: [],
+                language: DEFAULT_LANG
             };
             console.log(`User baru dibuat: ${userId} dengan username ${username}`);
             
@@ -205,10 +517,47 @@ function getUserCredits(userId, username = '') {
             });
         }
         
+        if (!db.users[userId].language) {
+            db.users[userId].language = DEFAULT_LANG;
+            saveDB().catch(err => console.log('Error saving language:', err.message));
+        }
+        
         return db.users[userId].credits || 0;
     } catch (error) {
         console.log('Error getUserCredits:', error.message);
         return 0;
+    }
+}
+
+function getUserLanguage(userId) {
+    try {
+        if (db.users[userId] && db.users[userId].language) {
+            return db.users[userId].language;
+        }
+    } catch (error) {
+        console.log('Error getUserLanguage:', error.message);
+    }
+    return DEFAULT_LANG;
+}
+
+async function setUserLanguage(userId, language) {
+    try {
+        if (!db.users[userId]) {
+            db.users[userId] = { 
+                username: '', 
+                success: 0, 
+                credits: 0, 
+                topup_history: [],
+                language: language
+            };
+        } else {
+            db.users[userId].language = language;
+        }
+        await saveDB();
+        return true;
+    } catch (error) {
+        console.log('Error setUserLanguage:', error.message);
+        return false;
     }
 }
 
@@ -221,7 +570,8 @@ async function addCredits(userId, amount, orderId = null) {
                 username: '', 
                 success: 0, 
                 credits: 0, 
-                topup_history: [] 
+                topup_history: [],
+                language: DEFAULT_LANG
             };
         }
         
@@ -269,14 +619,11 @@ async function checkAndUpdateExpiredSubscription(userId) {
         await saveDB();
         console.log(`Langganan user ${userId} expired pada ${endDate}, status dinonaktifkan`);
         
+        const lang = getUserLanguage(userId);
+        const expiredMsg = texts.subscription_messages.expired_notification[lang];
+        
         try {
-            await bot.sendMessage(userId,
-                `NOTIFIKASI LANGGANAN\n\n` +
-                `Langganan Anda telah berakhir.\n\n` +
-                `Akses unlimited untuk fitur /cek dan /find telah dinonaktifkan.\n` +
-                `Silakan perpanjang langganan untuk mendapatkan akses kembali.\n\n` +
-                `Ketik /start atau tekan tombol LANGGANAN untuk memperpanjang.`
-            );
+            await bot.sendMessage(userId, expiredMsg);
         } catch (notifError) {
             console.log(`Gagal kirim notifikasi expired ke ${userId}:`, notifError.message);
         }
@@ -299,7 +646,7 @@ async function activateSubscription(userId, type) {
     }
     
     if (!db.users[userId]) {
-        db.users[userId] = { username: '', success: 0, credits: 0, topup_history: [] };
+        db.users[userId] = { username: '', success: 0, credits: 0, topup_history: [], language: DEFAULT_LANG };
     }
     db.users[userId].subscription = {
         active: true,
@@ -314,9 +661,11 @@ async function activateSubscription(userId, type) {
 async function buySubscriptionWithBalance(userId, subscriptionType) {
     const amount = subscriptionType === '7days' ? 50000 : 100000;
     const credits = getUserCredits(userId);
+    const lang = getUserLanguage(userId);
     
     if (credits < amount) {
-        return { success: false, error: 'Saldo tidak cukup' };
+        const errorMsg = texts.subscription_messages.not_enough_balance[lang](credits, amount);
+        return { success: false, error: errorMsg };
     }
     
     db.users[userId].credits -= amount;
@@ -361,24 +710,11 @@ async function buySubscriptionWithBalance(userId, subscriptionType) {
     try {
         const endDateFormatted = moment(newEndDate).tz('Asia/Jakarta').format('DD MMMM YYYY HH:mm');
         if (wasActive) {
-            await bot.sendMessage(userId,
-                `LANGGANAN DIPERPANJANG\n\n` +
-                `Paket: ${subscriptionType === '7days' ? '7 Hari' : '30 Hari'}\n` +
-                `Biaya: Rp ${amount.toLocaleString()}\n` +
-                `Sisa saldo: Rp ${db.users[userId].credits.toLocaleString()}\n` +
-                `Berlaku sampai: ${endDateFormatted} WIB\n\n` +
-                `Terima kasih telah memperpanjang langganan!`
-            );
+            const msg = texts.subscription_messages.extended[lang](subscriptionType, amount, db.users[userId].credits, endDateFormatted);
+            await bot.sendMessage(userId, msg);
         } else {
-            await bot.sendMessage(userId,
-                `LANGGANAN AKTIF\n\n` +
-                `Selamat! Langganan Anda telah aktif.\n\n` +
-                `Paket: ${subscriptionType === '7days' ? '7 Hari' : '30 Hari'}\n` +
-                `Biaya: Rp ${amount.toLocaleString()}\n` +
-                `Sisa saldo: Rp ${db.users[userId].credits.toLocaleString()}\n` +
-                `Berlaku sampai: ${endDateFormatted} WIB\n\n` +
-                `Anda sekarang memiliki akses unlimited ke fitur /cek dan /find.`
-            );
+            const msg = texts.subscription_messages.new[lang](subscriptionType, amount, db.users[userId].credits, endDateFormatted);
+            await bot.sendMessage(userId, msg);
         }
     } catch (notifError) {
         console.log('Gagal kirim notifikasi langganan:', notifError.message);
@@ -559,7 +895,8 @@ async function createPakasirTopup(amount, userId, username = '') {
                 username: username, 
                 success: 0, 
                 credits: 0, 
-                topup_history: [] 
+                topup_history: [],
+                language: DEFAULT_LANG
             };
             console.log(`USER BARU DIBUAT SAAT TOPUP: ${userId} (${username})`);
             await saveDB();
@@ -728,6 +1065,7 @@ app.post('/webhook/pakasir', async (req, res) => {
             const amount = pendingData.amount;
             const chatId = pendingData.chatId;
             const messageId = pendingData.messageId;
+            const lang = getUserLanguage(userId);
             
             await addCredits(userId, amount, order_id);
             
@@ -753,23 +1091,15 @@ app.post('/webhook/pakasir', async (req, res) => {
             
             try {
                 const newBalance = db.users[userId]?.credits || 0;
-                await sendMessage(userId, 
-                    `PEMBAYARAN BERHASIL\n\n` +
-                    `Terima kasih! Pembayaran Anda telah kami terima.\n\n` +
-                    `Detail Transaksi:\n` +
-                    `Order ID: ${order_id}\n` +
-                    `Jumlah: Rp ${amount.toLocaleString()}\n` +
-                    `Status: BERHASIL\n\n` +
-                    `Saldo Anda sekarang: Rp ${newBalance.toLocaleString()}\n\n` +
-                    `Silakan gunakan bot untuk melakukan pengecekan.`,
-                    'Markdown'
-                );
+                const successMsg = texts.payment.success[lang](amount, order_id, newBalance);
+                await sendMessage(userId, successMsg, 'Markdown');
             } catch (notifError) {
                 console.log('GAGAL KIRIM NOTIFIKASI:', notifError.message);
             }
             
         } else if (status === 'failed' || status === 'expired' || status === 'cancel') {
             console.log(`PAYMENT FAILED: ${order_id}`);
+            const lang = getUserLanguage(pendingData.userId);
             
             db.pending_topups[order_id].status = 'failed';
             db.pending_topups[order_id].processed = true;
@@ -778,16 +1108,8 @@ app.post('/webhook/pakasir', async (req, res) => {
             await saveDB();
             
             try {
-                await sendMessage(pendingData.userId, 
-                    `PEMBAYARAN GAGAL\n\n` +
-                    `Maaf, pembayaran Anda gagal atau kadaluarsa.\n\n` +
-                    `Detail Transaksi:\n` +
-                    `Order ID: ${order_id}\n` +
-                    `Jumlah: Rp ${amount.toLocaleString()}\n` +
-                    `Status: GAGAL\n\n` +
-                    `Silakan lakukan top up ulang jika masih membutuhkan.`,
-                    'Markdown'
-                );
+                const failedMsg = texts.payment.failed[lang](pendingData.amount, order_id);
+                await sendMessage(pendingData.userId, failedMsg, 'Markdown');
             } catch (notifError) {
                 console.log('GAGAL KIRIM NOTIFIKASI GAGAL:', notifError.message);
             }
@@ -833,24 +1155,27 @@ if (IS_WORKER) {
                 if (chatType !== 'private') return;
                 
                 const state = getAdminState(userId);
+                const lang = getUserLanguage(userId);
+                
                 if (state && isAdmin(userId)) {
                     if (state.action === 'addtopup' && state.step === 'waiting_userid') {
                         const targetId = parseInt(text);
                         if (isNaN(targetId)) {
-                            await bot.sendMessage(chatId, 'User ID harus angka. Coba lagi:', {
+                            await bot.sendMessage(chatId, texts.user_not_found[lang], {
                                 reply_markup: {
                                     inline_keyboard: [
-                                        [{ text: 'Batal', callback_data: 'admin_batal' }]
+                                        [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
                                     ]
                                 }
                             });
                             return;
                         }
                         await setAdminState(userId, 'addtopup', 'waiting_amount', { targetId });
-                        await bot.sendMessage(chatId, `User ID: ${targetId}\n\nMasukkan nominal topup (Rp):\n\nContoh: 50000`, {
+                        const msgText = texts.admin.add_topup_amount[lang](targetId);
+                        await bot.sendMessage(chatId, msgText, {
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{ text: 'Batal', callback_data: 'admin_batal' }]
+                                    [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
                                 ]
                             }
                         });
@@ -862,10 +1187,10 @@ if (IS_WORKER) {
                         const targetId = state.data.targetId;
                         
                         if (isNaN(amount) || amount < 1 || amount > 1000000) {
-                            await bot.sendMessage(chatId, 'Nominal harus angka 1-1.000.000. Coba lagi:', {
+                            await bot.sendMessage(chatId, texts.amount_invalid[lang], {
                                 reply_markup: {
                                     inline_keyboard: [
-                                        [{ text: 'Batal', callback_data: 'admin_batal' }]
+                                        [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
                                     ]
                                 }
                             });
@@ -873,27 +1198,20 @@ if (IS_WORKER) {
                         }
                         
                         const newBalance = await addCredits(targetId, amount, null);
+                        const successMsg = texts.admin.add_topup_success[lang](targetId, amount, newBalance);
                         
-                        await bot.sendMessage(chatId, 
-                            `TOPUP MANUAL BERHASIL\n\n` +
-                            `User: ${targetId}\n` +
-                            `Jumlah: Rp ${amount.toLocaleString()}\n` +
-                            `Saldo sekarang: Rp ${newBalance.toLocaleString()}`,
-                            {
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
-                                    ]
-                                }
+                        await bot.sendMessage(chatId, successMsg, {
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                                ]
                             }
-                        );
+                        });
                         
                         try {
-                            await bot.sendMessage(targetId, 
-                                `SALDO DITAMBAH ADMIN\n\n` +
-                                `Saldo Anda bertambah Rp ${amount.toLocaleString()}.\n` +
-                                `Saldo sekarang: Rp ${newBalance.toLocaleString()}`
-                            );
+                            const targetLang = getUserLanguage(targetId);
+                            const userMsg = texts.admin.add_topup_success[targetLang](targetId, amount, newBalance);
+                            await bot.sendMessage(targetId, userMsg);
                         } catch (e) {}
                         
                         clearAdminState(userId);
@@ -903,10 +1221,10 @@ if (IS_WORKER) {
                     if (state.action === 'addgroup' && state.step === 'waiting_groupid') {
                         const groupId = parseInt(text);
                         if (isNaN(groupId)) {
-                            await bot.sendMessage(chatId, 'Group ID harus angka. Coba lagi:', {
+                            await bot.sendMessage(chatId, texts.group_id_invalid[lang], {
                                 reply_markup: {
                                     inline_keyboard: [
-                                        [{ text: 'Batal', callback_data: 'admin_batal' }]
+                                        [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
                                     ]
                                 }
                             });
@@ -916,10 +1234,11 @@ if (IS_WORKER) {
                         if (!db.allowed_groups) db.allowed_groups = [];
                         
                         if (db.allowed_groups.includes(groupId)) {
-                            await bot.sendMessage(chatId, `Grup ${groupId} sudah terdaftar.`, {
+                            const msgText = texts.admin.group_already_exists[lang](groupId);
+                            await bot.sendMessage(chatId, msgText, {
                                 reply_markup: {
                                     inline_keyboard: [
-                                        [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
+                                        [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
                                     ]
                                 }
                             });
@@ -930,10 +1249,11 @@ if (IS_WORKER) {
                         db.allowed_groups.push(groupId);
                         await saveDB();
                         
-                        await bot.sendMessage(chatId, `Grup ${groupId} berhasil ditambahkan.`, {
+                        const msgText = texts.admin.group_added[lang](groupId);
+                        await bot.sendMessage(chatId, msgText, {
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
+                                    [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
                                 ]
                             }
                         });
@@ -944,10 +1264,10 @@ if (IS_WORKER) {
                     if (state.action === 'removegroup' && state.step === 'waiting_groupid') {
                         const groupId = parseInt(text);
                         if (isNaN(groupId)) {
-                            await bot.sendMessage(chatId, 'Group ID harus angka. Coba lagi:', {
+                            await bot.sendMessage(chatId, texts.group_id_invalid[lang], {
                                 reply_markup: {
                                     inline_keyboard: [
-                                        [{ text: 'Batal', callback_data: 'admin_batal' }]
+                                        [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
                                     ]
                                 }
                             });
@@ -958,10 +1278,11 @@ if (IS_WORKER) {
                         
                         const index = db.allowed_groups.indexOf(groupId);
                         if (index === -1) {
-                            await bot.sendMessage(chatId, `Grup ${groupId} tidak ditemukan.`, {
+                            const msgText = texts.admin.group_not_found[lang](groupId);
+                            await bot.sendMessage(chatId, msgText, {
                                 reply_markup: {
                                     inline_keyboard: [
-                                        [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
+                                        [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
                                     ]
                                 }
                             });
@@ -972,10 +1293,11 @@ if (IS_WORKER) {
                         db.allowed_groups.splice(index, 1);
                         await saveDB();
                         
-                        await bot.sendMessage(chatId, `Grup ${groupId} berhasil dihapus.`, {
+                        const msgText = texts.admin.group_removed[lang](groupId);
+                        await bot.sendMessage(chatId, msgText, {
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
+                                    [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
                                 ]
                             }
                         });
@@ -984,211 +1306,208 @@ if (IS_WORKER) {
                     }
                     
                     if (state.action === 'broadcast' && state.step === 'waiting_message') {
-    const hasPhoto = msg.photo && msg.photo.length > 0;
-    const hasVideo = msg.video;
-    const hasDocument = msg.document;
-    const hasAudio = msg.audio;
-    const hasVoice = msg.voice;
-    const hasSticker = msg.sticker;
-    const hasAnimation = msg.animation;
-    const hasText = msg.text && msg.text.length > 0;
-    
-    if (!hasPhoto && !hasVideo && !hasDocument && !hasAudio && !hasVoice && !hasSticker && !hasAnimation && !hasText) {
-        await bot.sendMessage(chatId, 'Kirim pesan, foto, video, dokumen, audio, voice note, sticker, atau GIF yang ingin di-broadcast:', {
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: 'Batal', callback_data: 'admin_batal' }]
-                ]
-            }
-        });
-        return;
-    }
-    
-    const users = Object.keys(db.users || {}).map(id => parseInt(id));
-    if (users.length === 0) {
-        await bot.sendMessage(chatId, 'Tidak ada pengguna terdaftar.', {
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
-                ]
-            }
-        });
-        clearAdminState(userId);
-        return;
-    }
-    
-    const statusMsg = await bot.sendMessage(chatId, `Memulai broadcast ke ${users.length} pengguna...`);
-    
-    let success = 0, failed = 0;
-    const concurrency = 5;
-    let mediaType = '';
-    let mediaInfo = '';
-    
-    if (hasPhoto) {
-        mediaType = 'Foto';
-        if (msg.caption) mediaInfo = ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
-    } else if (hasVideo) {
-        mediaType = 'Video';
-        if (msg.caption) mediaInfo = ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
-    } else if (hasDocument) {
-        mediaType = 'Dokumen';
-        const fileName = msg.document.file_name || 'tanpa nama';
-        mediaInfo = ` (${fileName})`;
-        if (msg.caption) mediaInfo += ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
-    } else if (hasAudio) {
-        mediaType = 'Audio';
-        const title = msg.audio.title || msg.audio.file_name || 'tanpa judul';
-        mediaInfo = ` (${title})`;
-        if (msg.caption) mediaInfo += ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
-    } else if (hasVoice) {
-        mediaType = 'Voice Note';
-        mediaInfo = '';
-    } else if (hasSticker) {
-        mediaType = 'Sticker';
-        mediaInfo = '';
-    } else if (hasAnimation) {
-        mediaType = 'GIF/Animation';
-        if (msg.caption) mediaInfo = ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
-    } else {
-        mediaType = 'Teks';
-        mediaInfo = ` "${msg.text.substring(0, 100)}${msg.text.length > 100 ? '...' : ''}"`;
-    }
-    
-    for (let i = 0; i < users.length; i += concurrency) {
-        const batch = users.slice(i, i + concurrency);
-        
-        await Promise.all(batch.map(async (targetUserId) => {
-            try {
-                if (hasPhoto) {
-                    const photoFileId = msg.photo[msg.photo.length - 1].file_id;
-                    const caption = msg.caption || '';
-                    await bot.sendPhoto(targetUserId, photoFileId, { 
-                        caption: caption, 
-                        parse_mode: 'HTML' 
-                    });
-                } else if (hasVideo) {
-                    const videoFileId = msg.video.file_id;
-                    const caption = msg.caption || '';
-                    await bot.sendVideo(targetUserId, videoFileId, { 
-                        caption: caption, 
-                        parse_mode: 'HTML' 
-                    });
-                } else if (hasDocument) {
-                    const documentFileId = msg.document.file_id;
-                    const caption = msg.caption || '';
-                    await bot.sendDocument(targetUserId, documentFileId, { 
-                        caption: caption, 
-                        parse_mode: 'HTML' 
-                    });
-                } else if (hasAudio) {
-                    const audioFileId = msg.audio.file_id;
-                    const caption = msg.caption || '';
-                    await bot.sendAudio(targetUserId, audioFileId, { 
-                        caption: caption, 
-                        parse_mode: 'HTML' 
-                    });
-                } else if (hasVoice) {
-                    const voiceFileId = msg.voice.file_id;
-                    await bot.sendVoice(targetUserId, voiceFileId);
-                } else if (hasSticker) {
-                    const stickerFileId = msg.sticker.file_id;
-                    await bot.sendSticker(targetUserId, stickerFileId);
-                } else if (hasAnimation) {
-                    const animationFileId = msg.animation.file_id;
-                    const caption = msg.caption || '';
-                    await bot.sendAnimation(targetUserId, animationFileId, { 
-                        caption: caption, 
-                        parse_mode: 'HTML' 
-                    });
-                } else {
-                    await bot.sendMessage(targetUserId, msg.text, { 
-                        parse_mode: 'HTML' 
-                    });
-                }
-                success++;
-            } catch (error) {
-                if (error.response && error.response.statusCode === 429) {
-                    const retryAfter = error.response.body.parameters?.retry_after || 1;
-                    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-                    try {
-                        if (hasPhoto) {
-                            const photoFileId = msg.photo[msg.photo.length - 1].file_id;
-                            const caption = msg.caption || '';
-                            await bot.sendPhoto(targetUserId, photoFileId, { 
-                                caption: caption, 
-                                parse_mode: 'HTML' 
+                        const hasPhoto = msg.photo && msg.photo.length > 0;
+                        const hasVideo = msg.video;
+                        const hasDocument = msg.document;
+                        const hasAudio = msg.audio;
+                        const hasVoice = msg.voice;
+                        const hasSticker = msg.sticker;
+                        const hasAnimation = msg.animation;
+                        const hasText = msg.text && msg.text.length > 0;
+                        
+                        if (!hasPhoto && !hasVideo && !hasDocument && !hasAudio && !hasVoice && !hasSticker && !hasAnimation && !hasText) {
+                            await bot.sendMessage(chatId, texts.admin.broadcast_start[lang].split('\n')[0], {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
+                                    ]
+                                }
                             });
-                        } else if (hasVideo) {
-                            const videoFileId = msg.video.file_id;
-                            const caption = msg.caption || '';
-                            await bot.sendVideo(targetUserId, videoFileId, { 
-                                caption: caption, 
-                                parse_mode: 'HTML' 
-                            });
-                        } else if (hasDocument) {
-                            const documentFileId = msg.document.file_id;
-                            const caption = msg.caption || '';
-                            await bot.sendDocument(targetUserId, documentFileId, { 
-                                caption: caption, 
-                                parse_mode: 'HTML' 
-                            });
-                        } else if (hasAudio) {
-                            const audioFileId = msg.audio.file_id;
-                            const caption = msg.caption || '';
-                            await bot.sendAudio(targetUserId, audioFileId, { 
-                                caption: caption, 
-                                parse_mode: 'HTML' 
-                            });
-                        } else if (hasVoice) {
-                            const voiceFileId = msg.voice.file_id;
-                            await bot.sendVoice(targetUserId, voiceFileId);
-                        } else if (hasSticker) {
-                            const stickerFileId = msg.sticker.file_id;
-                            await bot.sendSticker(targetUserId, stickerFileId);
-                        } else if (hasAnimation) {
-                            const animationFileId = msg.animation.file_id;
-                            const caption = msg.caption || '';
-                            await bot.sendAnimation(targetUserId, animationFileId, { 
-                                caption: caption, 
-                                parse_mode: 'HTML' 
-                            });
-                        } else {
-                            await bot.sendMessage(targetUserId, msg.text, { 
-                                parse_mode: 'HTML' 
-                            });
+                            return;
                         }
-                        success++;
-                    } catch (retryError) {
-                        failed++;
+                        
+                        const users = Object.keys(db.users || {}).map(id => parseInt(id));
+                        if (users.length === 0) {
+                            await bot.sendMessage(chatId, texts.admin.no_users[lang], {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                                    ]
+                                }
+                            });
+                            clearAdminState(userId);
+                            return;
+                        }
+                        
+                        const statusMsg = await bot.sendMessage(chatId, `Memulai broadcast ke ${users.length} pengguna...`);
+                        
+                        let success = 0, failed = 0;
+                        const concurrency = 5;
+                        let mediaType = '';
+                        let mediaInfo = '';
+                        
+                        if (hasPhoto) {
+                            mediaType = 'Foto';
+                            if (msg.caption) mediaInfo = ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+                        } else if (hasVideo) {
+                            mediaType = 'Video';
+                            if (msg.caption) mediaInfo = ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+                        } else if (hasDocument) {
+                            mediaType = 'Dokumen';
+                            const fileName = msg.document.file_name || 'tanpa nama';
+                            mediaInfo = ` (${fileName})`;
+                            if (msg.caption) mediaInfo += ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+                        } else if (hasAudio) {
+                            mediaType = 'Audio';
+                            const title = msg.audio.title || msg.audio.file_name || 'tanpa judul';
+                            mediaInfo = ` (${title})`;
+                            if (msg.caption) mediaInfo += ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+                        } else if (hasVoice) {
+                            mediaType = 'Voice Note';
+                            mediaInfo = '';
+                        } else if (hasSticker) {
+                            mediaType = 'Sticker';
+                            mediaInfo = '';
+                        } else if (hasAnimation) {
+                            mediaType = 'GIF/Animation';
+                            if (msg.caption) mediaInfo = ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+                        } else {
+                            mediaType = 'Teks';
+                            mediaInfo = ` "${msg.text.substring(0, 100)}${msg.text.length > 100 ? '...' : ''}"`;
+                        }
+                        
+                        for (let i = 0; i < users.length; i += concurrency) {
+                            const batch = users.slice(i, i + concurrency);
+                            
+                            await Promise.all(batch.map(async (targetUserId) => {
+                                try {
+                                    if (hasPhoto) {
+                                        const photoFileId = msg.photo[msg.photo.length - 1].file_id;
+                                        const caption = msg.caption || '';
+                                        await bot.sendPhoto(targetUserId, photoFileId, { 
+                                            caption: caption, 
+                                            parse_mode: 'HTML' 
+                                        });
+                                    } else if (hasVideo) {
+                                        const videoFileId = msg.video.file_id;
+                                        const caption = msg.caption || '';
+                                        await bot.sendVideo(targetUserId, videoFileId, { 
+                                            caption: caption, 
+                                            parse_mode: 'HTML' 
+                                        });
+                                    } else if (hasDocument) {
+                                        const documentFileId = msg.document.file_id;
+                                        const caption = msg.caption || '';
+                                        await bot.sendDocument(targetUserId, documentFileId, { 
+                                            caption: caption, 
+                                            parse_mode: 'HTML' 
+                                        });
+                                    } else if (hasAudio) {
+                                        const audioFileId = msg.audio.file_id;
+                                        const caption = msg.caption || '';
+                                        await bot.sendAudio(targetUserId, audioFileId, { 
+                                            caption: caption, 
+                                            parse_mode: 'HTML' 
+                                        });
+                                    } else if (hasVoice) {
+                                        const voiceFileId = msg.voice.file_id;
+                                        await bot.sendVoice(targetUserId, voiceFileId);
+                                    } else if (hasSticker) {
+                                        const stickerFileId = msg.sticker.file_id;
+                                        await bot.sendSticker(targetUserId, stickerFileId);
+                                    } else if (hasAnimation) {
+                                        const animationFileId = msg.animation.file_id;
+                                        const caption = msg.caption || '';
+                                        await bot.sendAnimation(targetUserId, animationFileId, { 
+                                            caption: caption, 
+                                            parse_mode: 'HTML' 
+                                        });
+                                    } else {
+                                        await bot.sendMessage(targetUserId, msg.text, { 
+                                            parse_mode: 'HTML' 
+                                        });
+                                    }
+                                    success++;
+                                } catch (error) {
+                                    if (error.response && error.response.statusCode === 429) {
+                                        const retryAfter = error.response.body.parameters?.retry_after || 1;
+                                        await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                                        try {
+                                            if (hasPhoto) {
+                                                const photoFileId = msg.photo[msg.photo.length - 1].file_id;
+                                                const caption = msg.caption || '';
+                                                await bot.sendPhoto(targetUserId, photoFileId, { 
+                                                    caption: caption, 
+                                                    parse_mode: 'HTML' 
+                                                });
+                                            } else if (hasVideo) {
+                                                const videoFileId = msg.video.file_id;
+                                                const caption = msg.caption || '';
+                                                await bot.sendVideo(targetUserId, videoFileId, { 
+                                                    caption: caption, 
+                                                    parse_mode: 'HTML' 
+                                                });
+                                            } else if (hasDocument) {
+                                                const documentFileId = msg.document.file_id;
+                                                const caption = msg.caption || '';
+                                                await bot.sendDocument(targetUserId, documentFileId, { 
+                                                    caption: caption, 
+                                                    parse_mode: 'HTML' 
+                                                });
+                                            } else if (hasAudio) {
+                                                const audioFileId = msg.audio.file_id;
+                                                const caption = msg.caption || '';
+                                                await bot.sendAudio(targetUserId, audioFileId, { 
+                                                    caption: caption, 
+                                                    parse_mode: 'HTML' 
+                                                });
+                                            } else if (hasVoice) {
+                                                const voiceFileId = msg.voice.file_id;
+                                                await bot.sendVoice(targetUserId, voiceFileId);
+                                            } else if (hasSticker) {
+                                                const stickerFileId = msg.sticker.file_id;
+                                                await bot.sendSticker(targetUserId, stickerFileId);
+                                            } else if (hasAnimation) {
+                                                const animationFileId = msg.animation.file_id;
+                                                const caption = msg.caption || '';
+                                                await bot.sendAnimation(targetUserId, animationFileId, { 
+                                                    caption: caption, 
+                                                    parse_mode: 'HTML' 
+                                                });
+                                            } else {
+                                                await bot.sendMessage(targetUserId, msg.text, { 
+                                                    parse_mode: 'HTML' 
+                                                });
+                                            }
+                                            success++;
+                                        } catch (retryError) {
+                                            failed++;
+                                        }
+                                    } else {
+                                        failed++;
+                                        console.log(`Gagal kirim ke ${targetUserId}:`, error.message);
+                                    }
+                                }
+                            }));
+                            
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                        }
+                        
+                        const resultMsg = texts.admin.broadcast_result[lang](success, failed, mediaType, mediaInfo);
+                        
+                        await bot.editMessageText(resultMsg, {
+                            chat_id: chatId,
+                            message_id: statusMsg.message_id,
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                                ]
+                            }
+                        });
+                        
+                        clearAdminState(userId);
+                        return;
                     }
-                } else {
-                    failed++;
-                    console.log(`Gagal kirim ke ${targetUserId}:`, error.message);
-                }
-            }
-        }));
-        
-        await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    let resultMessage = `BROADCAST SELESAI\n\n`;
-    resultMessage += `Berhasil: ${success}\n`;
-    resultMessage += `Gagal: ${failed}\n\n`;
-    resultMessage += `Media yang dikirim: ${mediaType}${mediaInfo}`;
-    
-    await bot.editMessageText(resultMessage, {
-        chat_id: chatId,
-        message_id: statusMsg.message_id,
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
-            ]
-        }
-    });
-    
-    clearAdminState(userId);
-    return;
-}
                 }
                 
                 if (isAdmin(userId)) return;
@@ -1213,29 +1532,28 @@ if (IS_WORKER) {
                 await loadDB();
                 
                 getUserCredits(userId, username || '');
+                const lang = getUserLanguage(userId);
                 
-                let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
-                message += `Daftar layanan dan harga:\n`;
-                message += `• CHECK BIND - GRATIS\n`;
-                message += `• FULL INFO - Rp 5.000\n`;
-                message += `• CARI ID VIA NICKNAME - Rp 5.000\n`;
-                message += `• Langganan akses /find dan /cek unlimited\n`;
+                const message = texts.welcome[lang];
                 
                 const baseKeyboard = [
                     [
-                        { text: 'FULL INFO', callback_data: 'full_info' },
-                        { text: 'CHECK BIND', callback_data: 'check_info' }
+                        { text: texts.buttons.full_info[lang], callback_data: 'full_info' },
+                        { text: texts.buttons.check_info[lang], callback_data: 'check_info' }
                     ],
-                    [{ text: 'CARI ID VIA NICKNAME', callback_data: 'find_id' }],
+                    [{ text: texts.buttons.find_id[lang], callback_data: 'find_id' }],
                     [
-                        { text: 'TOP UP', callback_data: 'topup_menu' },
-                        { text: 'LANGGANAN', callback_data: 'langganan_menu' }
+                        { text: texts.buttons.topup[lang], callback_data: 'topup_menu' },
+                        { text: texts.buttons.subscription[lang], callback_data: 'langganan_menu' }
                     ],
-                    [{ text: 'PROFILE', callback_data: 'profile_menu' }]
+                    [
+                        { text: texts.buttons.profile[lang], callback_data: 'profile_menu' },
+                        { text: texts.buttons.language[lang], callback_data: 'language_menu' }
+                    ]
                 ];
                 
                 if (isAdmin(userId)) {
-                    baseKeyboard.push([{ text: 'ADMIN MENU', callback_data: 'admin_menu' }]);
+                    baseKeyboard.push([{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]);
                 }
                 
                 const replyMarkup = {
@@ -1256,18 +1574,20 @@ if (IS_WORKER) {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 const chatType = msg.chat.type;
+                const lang = getUserLanguage(userId);
 
                 if (chatType !== 'group' && chatType !== 'supergroup') {
-                    await bot.sendMessage(chatId, 'Perintah ini hanya dapat digunakan di dalam grup.');
+                    await bot.sendMessage(chatId, texts.group_id_instruction[lang]);
                     return;
                 }
 
                 if (!isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 'Hanya admin bot yang dapat menggunakan perintah ini.');
+                    await bot.sendMessage(chatId, texts.admin_only[lang]);
                     return;
                 }
 
-                await bot.sendMessage(chatId, `ID Grup ini adalah: ${chatId}`);
+                const msgText = texts.group_id_result[lang](chatId);
+                await bot.sendMessage(chatId, msgText);
             } catch (error) {
                 console.log('Error /idgrup:', error.message);
             }
@@ -1282,37 +1602,30 @@ if (IS_WORKER) {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 const messageId = msg.message_id;
+                const lang = getUserLanguage(userId);
 
                 if (!isGroupAllowed(chatId)) {
-                    await bot.sendMessage(chatId, 
-                        'Grup ini belum terdaftar. Silakan minta izin ke @ncus999 untuk mendaftarkan grup ini.',
-                        { reply_to_message_id: messageId }
-                    );
+                    const msgText = texts.group.not_allowed[lang];
+                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
                     return;
                 }
                 
                 if (!match || !match[1]) {
-                    await bot.sendMessage(chatId,
-                        `INFORMASI AKUN GRATIS\n\n` +
-                        `Format: /cekinfo ID_USER ID_SERVER\n` +
-                        `Contoh: /cekinfo 123456789 1234`,
-                        { reply_to_message_id: messageId }
-                    );
+                    const msgText = texts.group.format[lang];
+                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
                     return;
                 }
                 
                 if (!db.feature?.info && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 'Fitur info sedang dinonaktifkan oleh admin.', 
-                        { reply_to_message_id: messageId }
-                    );
+                    const msgText = texts.group.feature_disabled[lang];
+                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
                     return;
                 }
                 
                 const args = match[1].trim().split(/\s+/);
                 if (args.length < 2) {
-                    await bot.sendMessage(chatId, `Format: /cekinfo ID_USER ID_SERVER`,
-                        { reply_to_message_id: messageId }
-                    );
+                    const msgText = texts.group.format[lang];
+                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
                     return;
                 }
                 
@@ -1320,18 +1633,16 @@ if (IS_WORKER) {
                 const serverId = args[1];
                 
                 if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-                    await bot.sendMessage(chatId, 'ID dan Server harus angka.',
-                        { reply_to_message_id: messageId }
-                    );
+                    const msgText = texts.cek_command.wrong_format[lang];
+                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
                     return;
                 }
                 
                 const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', messageId);
                 
                 if (!sent) {
-                    await bot.sendMessage(chatId, 'Terjadi kesalahan. Silakan coba lagi.',
-                        { reply_to_message_id: messageId }
-                    );
+                    const errorMsg = texts.error[lang];
+                    await bot.sendMessage(chatId, errorMsg, { reply_to_message_id: messageId });
                     return;
                 }
                 
@@ -1343,9 +1654,9 @@ if (IS_WORKER) {
             } catch (error) {
                 console.log('Error /cekinfo:', error.message);
                 try {
-                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.',
-                        { reply_to_message_id: msg.message_id }
-                    );
+                    const lang = getUserLanguage(msg.from.id);
+                    const errorMsg = texts.error[lang];
+                    await bot.sendMessage(msg.chat.id, errorMsg, { reply_to_message_id: msg.message_id });
                 } catch (e) {}
             }
         });
@@ -1355,11 +1666,9 @@ if (IS_WORKER) {
                 if (msg.chat.type !== 'private') return;
                 
                 if (!match || !match[1]) {
-                    await bot.sendMessage(msg.chat.id,
-                        `INFORMASI AKUN GRATIS\n\n` +
-                        `Format: /info ID_USER ID_SERVER\n` +
-                        `Contoh: /info 123456789 1234`
-                    );
+                    const lang = getUserLanguage(msg.from.id);
+                    const msgText = texts.info_command.format[lang];
+                    await bot.sendMessage(msg.chat.id, msgText);
                     return;
                 }
                 
@@ -1367,10 +1676,12 @@ if (IS_WORKER) {
                 
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
+                const lang = getUserLanguage(userId);
                 
                 const args = match[1].trim().split(/\s+/);
                 if (args.length < 2) {
-                    await bot.sendMessage(chatId, `Format: /info ID_USER ID_SERVER`);
+                    const msgText = texts.info_command.format[lang];
+                    await bot.sendMessage(chatId, msgText);
                     return;
                 }
                 
@@ -1378,26 +1689,28 @@ if (IS_WORKER) {
                 const serverId = args[1];
                 
                 if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-                    await bot.sendMessage(chatId, 'ID dan Server harus angka.');
+                    const msgText = texts.cek_command.wrong_format[lang];
+                    await bot.sendMessage(chatId, msgText);
                     return;
                 }
                 
                 if (!db.feature?.info && !isAdmin(userId)) {
-                    await bot.sendMessage(chatId, 'Fitur info sedang dinonaktifkan oleh admin.');
+                    const msgText = texts.group.feature_disabled[lang];
+                    await bot.sendMessage(chatId, msgText);
                     return;
                 }
                 
                 const joined = await checkJoin(bot, userId);
                 
                 if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-                    let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`;
+                    let message = texts.join_required[lang];
                     
                     const buttons = [];
-                    if (!joined.channel) {
-                        buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
+                    if (!joined.channel && CHANNEL) {
+                        buttons.push([{ text: texts.join_channel[lang], url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
                     }
-                    if (!joined.group) {
-                        buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
+                    if (!joined.group && GROUP) {
+                        buttons.push([{ text: texts.join_group[lang], url: `https://t.me/${GROUP.replace('@', '')}` }]);
                     }
                     
                     await bot.sendMessage(chatId, message, { 
@@ -1409,7 +1722,8 @@ if (IS_WORKER) {
                 const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', null);
                 
                 if (!sent) {
-                    await bot.sendMessage(chatId, 'Terjadi kesalahan. Silakan coba lagi.');
+                    const errorMsg = texts.error[lang];
+                    await bot.sendMessage(chatId, errorMsg);
                     return;
                 }
                 
@@ -1421,7 +1735,9 @@ if (IS_WORKER) {
             } catch (error) {
                 console.log('Error /info:', error.message);
                 try {
-                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
+                    const lang = getUserLanguage(msg.from.id);
+                    const errorMsg = texts.error[lang];
+                    await bot.sendMessage(msg.chat.id, errorMsg);
                 } catch (e) {}
             }
         });
@@ -1431,11 +1747,9 @@ if (IS_WORKER) {
                 if (msg.chat.type !== 'private') return;
                 
                 if (!match || !match[1]) {
-                    await bot.sendMessage(msg.chat.id,
-                        `DETAIL ACCOUNT\n\n` +
-                        `Format: /cek ID_USER ID_SERVER\n` +
-                        `Contoh: /cek 123456789 1234`
-                    );
+                    const lang = getUserLanguage(msg.from.id);
+                    const msgText = texts.cek_command.format[lang];
+                    await bot.sendMessage(msg.chat.id, msgText);
                     return;
                 }
                 
@@ -1443,6 +1757,7 @@ if (IS_WORKER) {
                 
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
+                const lang = getUserLanguage(userId);
                 
                 await checkAndUpdateExpiredSubscription(userId);
                 
@@ -1450,13 +1765,8 @@ if (IS_WORKER) {
                 const parts = input.split(/\s+/).filter(p => p.length > 0);
                 
                 if (parts.length < 2) {
-                    await bot.sendMessage(chatId,
-                        `FORMAT SALAH\n\n` +
-                        `Format yang benar:\n` +
-                        `/cek ID_USER ID_SERVER\n\n` +
-                        `Contoh: /cek 123456789 1234\n\n` +
-                        `ID dan Server harus berupa angka.`
-                    );
+                    const msgText = texts.cek_command.wrong_format[lang];
+                    await bot.sendMessage(chatId, msgText);
                     return;
                 }
                 
@@ -1464,23 +1774,20 @@ if (IS_WORKER) {
                 const serverId = parts[1];
                 
                 if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-                    await bot.sendMessage(chatId,
-                        `FORMAT SALAH\n\n` +
-                        `ID dan Server harus berupa angka.\n\n` +
-                        `Contoh: /cek 123456789 1234`
-                    );
+                    const msgText = texts.cek_command.wrong_format[lang];
+                    await bot.sendMessage(chatId, msgText);
                     return;
                 }
                 
                 const joined = await checkJoin(bot, userId);
                 if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-                    let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`;
+                    let message = texts.join_required[lang];
                     const buttons = [];
                     if (!joined.channel && CHANNEL) {
-                        buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
+                        buttons.push([{ text: texts.join_channel[lang], url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
                     }
                     if (!joined.group && GROUP) {
-                        buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
+                        buttons.push([{ text: texts.join_group[lang], url: `https://t.me/${GROUP.replace('@', '')}` }]);
                     }
                     await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
                     return;
@@ -1488,25 +1795,19 @@ if (IS_WORKER) {
                 
                 const credits = getUserCredits(userId, msg.from.username || '');
                 if (credits < 5000 && !isAdmin(userId) && !hasActiveSubscription(userId)) {
-                    await bot.sendMessage(chatId,
-                        `SALDO TIDAK CUKUP\n\n` +
-                        `Saldo Anda: Rp ${credits.toLocaleString()}\n` +
-                        `Biaya: Rp 5.000\n` +
-                        `Kekurangan: Rp ${(5000 - credits).toLocaleString()}\n\n` +
-                        `Silakan isi saldo atau berlangganan:`,
-                        {
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'TOP UP', callback_data: 'topup_menu' }],
-                                    [{ text: 'LANGGANAN', callback_data: 'langganan_menu' }]
-                                ]
-                            }
+                    const msgText = texts.insufficient_balance[lang](credits, 5000);
+                    await bot.sendMessage(chatId, msgText, {
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.topup[lang], callback_data: 'topup_menu' }],
+                                [{ text: texts.buttons.subscription[lang], callback_data: 'langganan_menu' }]
+                            ]
                         }
-                    );
+                    });
                     return;
                 }
                 
-                const loadingMsg = await bot.sendMessage(chatId, 'Mengambil data akun...');
+                const loadingMsg = await bot.sendMessage(chatId, texts.loading.fetching[lang]);
                 
                 try {
                     let detailData = null;
@@ -1518,7 +1819,8 @@ if (IS_WORKER) {
                         retryCount++;
                         
                         if (retryCount > 1) {
-                            await bot.editMessageText(`Mengambil data detail... (Percobaan ${retryCount}/${maxRetries})`, {
+                            const retryMsg = texts.loading.retry[lang](retryCount, maxRetries);
+                            await bot.editMessageText(retryMsg, {
                                 chat_id: chatId,
                                 message_id: loadingMsg.message_id
                             });
@@ -1537,10 +1839,10 @@ if (IS_WORKER) {
                     }
                     
                     if (!lookupSuccess) {
-                        let errorMessage = 'REQUEST SEDANG ERROR\n\nSILAHKAN COBA LAGI NANTI';
+                        let errorMessage = texts.error[lang];
                         
                         if (detailData && detailData.message === 'not_found') {
-                            errorMessage = `AKUN TIDAK DITEMUKAN\n\nID: ${targetId}\nServer: ${serverId}\n\nPastikan ID dan Server yang dimasukkan benar.`;
+                            errorMessage = texts.not_found[lang]('ID', targetId, serverId);
                         }
                         
                         await bot.editMessageText(errorMessage, {
@@ -1558,7 +1860,7 @@ if (IS_WORKER) {
                     
                     await bot.deleteMessage(chatId, loadingMsg.message_id);
                     
-                    await sendDetailAccountInfo(bot, chatId, userId, detailData, targetId, serverId);
+                    await sendDetailAccountInfo(bot, chatId, userId, detailData, targetId, serverId, lang);
                     
                     db.users[userId].success += 1;
                     db.total_success += 1;
@@ -1566,19 +1868,19 @@ if (IS_WORKER) {
                     
                 } catch (error) {
                     console.log('Error saat memproses:', error.message);
-                    await bot.editMessageText(
-                        'REQUEST SEDANG ERROR\n\nSILAHKAN COBA LAGI NANTI',
-                        {
-                            chat_id: chatId,
-                            message_id: loadingMsg.message_id
-                        }
-                    );
+                    const errorMsg = texts.error[lang];
+                    await bot.editMessageText(errorMsg, {
+                        chat_id: chatId,
+                        message_id: loadingMsg.message_id
+                    });
                 }
                 
             } catch (error) {
                 console.log('Error /cek:', error.message);
                 try {
-                    await bot.sendMessage(msg.chat.id, 'REQUEST SEDANG ERROR\n\nSILAHKAN COBA LAGI NANTI');
+                    const lang = getUserLanguage(msg.from.id);
+                    const errorMsg = texts.error[lang];
+                    await bot.sendMessage(msg.chat.id, errorMsg);
                 } catch (e) {}
             }
         });
@@ -1588,13 +1890,9 @@ if (IS_WORKER) {
                 if (msg.chat.type !== 'private') return;
                 
                 if (!match || !match[1]) {
-                    await bot.sendMessage(msg.chat.id,
-                        `CARI ID VIA NICKNAME\n\n` +
-                        `Gunakan format:\n` +
-                        `/find NICKNAME SERVER\n\n` +
-                        `Contoh:\n` +
-                        `/find RRQ Jule 15707`
-                    );
+                    const lang = getUserLanguage(msg.from.id);
+                    const msgText = texts.find_command.format[lang];
+                    await bot.sendMessage(msg.chat.id, msgText);
                     return;
                 }
                 
@@ -1602,6 +1900,7 @@ if (IS_WORKER) {
                 
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
+                const lang = getUserLanguage(userId);
                 
                 await checkAndUpdateExpiredSubscription(userId);
                 
@@ -1609,22 +1908,15 @@ if (IS_WORKER) {
                 const parts = input.split(/\s+/).filter(p => p.length > 0);
                 
                 if (parts.length < 2) {
-                    await bot.sendMessage(chatId,
-                        `FORMAT SALAH\n\n` +
-                        `Format yang benar:\n` +
-                        `/find NICKNAME SERVER\n\n` +
-                        `Contoh: /find RRQ Jule 15707`
-                    );
+                    const msgText = texts.find_command.wrong_format[lang];
+                    await bot.sendMessage(chatId, msgText);
                     return;
                 }
                 
                 const serverFilter = parts[parts.length - 1];
                 if (!/^\d+$/.test(serverFilter)) {
-                    await bot.sendMessage(chatId,
-                        `FORMAT SALAH\n\n` +
-                        `Server harus berupa angka.\n\n` +
-                        `Contoh: /find RRQ Jule 15707`
-                    );
+                    const msgText = texts.find_command.wrong_format[lang];
+                    await bot.sendMessage(chatId, msgText);
                     return;
                 }
                 
@@ -1632,13 +1924,13 @@ if (IS_WORKER) {
                 
                 const joined = await checkJoin(bot, userId);
                 if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-                    let message = `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`;
+                    let message = texts.join_required[lang];
                     const buttons = [];
                     if (!joined.channel && CHANNEL) {
-                        buttons.push([{ text: `Bergabung ke Channel`, url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
+                        buttons.push([{ text: texts.join_channel[lang], url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
                     }
                     if (!joined.group && GROUP) {
-                        buttons.push([{ text: `Bergabung ke Group`, url: `https://t.me/${GROUP.replace('@', '')}` }]);
+                        buttons.push([{ text: texts.join_group[lang], url: `https://t.me/${GROUP.replace('@', '')}` }]);
                     }
                     await bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: buttons } });
                     return;
@@ -1646,52 +1938,40 @@ if (IS_WORKER) {
                 
                 const credits = getUserCredits(userId, msg.from.username || '');
                 if (credits < 5000 && !isAdmin(userId) && !hasActiveSubscription(userId)) {
-                    await bot.sendMessage(chatId,
-                        `SALDO TIDAK CUKUP\n\n` +
-                        `Saldo Anda: Rp ${credits.toLocaleString()}\n` +
-                        `Biaya: Rp 5.000\n` +
-                        `Kekurangan: Rp ${(5000 - credits).toLocaleString()}\n\n` +
-                        `Silakan isi saldo atau berlangganan:`,
-                        {
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'TOP UP', callback_data: 'topup_menu' }],
-                                    [{ text: 'LANGGANAN', callback_data: 'langganan_menu' }]
-                                ]
-                            }
+                    const msgText = texts.insufficient_balance[lang](credits, 5000);
+                    await bot.sendMessage(chatId, msgText, {
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.topup[lang], callback_data: 'topup_menu' }],
+                                [{ text: texts.buttons.subscription[lang], callback_data: 'langganan_menu' }]
+                            ]
                         }
-                    );
+                    });
                     return;
                 }
                 
-                const loadingMsg = await bot.sendMessage(chatId, 'Mencari akun...');
+                const loadingMsg = await bot.sendMessage(chatId, texts.loading.searching[lang]);
                 
                 try {
                     let foundAccounts = await findPlayerByName(searchQuery);
                     
                     if (!foundAccounts || foundAccounts.length === 0) {
-                        await bot.editMessageText(
-                            `AKUN TIDAK DITEMUKAN\n\n` +
-                            `Tidak ada akun dengan nickname "${searchQuery}" ditemukan.`,
-                            {
-                                chat_id: chatId,
-                                message_id: loadingMsg.message_id
-                            }
-                        );
+                        const notFoundMsg = `AKUN TIDAK DITEMUKAN\n\nTidak ada akun dengan nickname "${searchQuery}" ditemukan.`;
+                        await bot.editMessageText(notFoundMsg, {
+                            chat_id: chatId,
+                            message_id: loadingMsg.message_id
+                        });
                         return;
                     }
                     
                     foundAccounts = foundAccounts.filter(a => String(a.zone_id) === serverFilter);
                     
                     if (foundAccounts.length === 0) {
-                        await bot.editMessageText(
-                            `AKUN TIDAK DITEMUKAN\n\n` +
-                            `Tidak ada akun dengan nickname "${searchQuery}" di server ${serverFilter}.`,
-                            {
-                                chat_id: chatId,
-                                message_id: loadingMsg.message_id
-                            }
-                        );
+                        const notFoundMsg = `AKUN TIDAK DITEMUKAN\n\nTidak ada akun dengan nickname "${searchQuery}" di server ${serverFilter}.`;
+                        await bot.editMessageText(notFoundMsg, {
+                            chat_id: chatId,
+                            message_id: loadingMsg.message_id
+                        });
                         return;
                     }
                     
@@ -1724,9 +2004,10 @@ if (IS_WORKER) {
                             output += `\n[${i+1}/${foundAccounts.length}]`;
                         }
                         
+                        const stockText = texts.buttons.stock_admin[lang];
                         await bot.sendMessage(chatId, output, {
                             reply_markup: { 
-                                inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
+                                inline_keyboard: [[{ text: stockText, url: STOK_ADMIN }]] 
                             }
                         });
                     }
@@ -1738,14 +2019,11 @@ if (IS_WORKER) {
                     
                 } catch (error) {
                     console.log('Error /find:', error.message);
-                    await bot.editMessageText(
-                        `ERROR\n\n` +
-                        `Terjadi kesalahan saat mencari data. Silakan coba lagi nanti.`,
-                        {
-                            chat_id: chatId,
-                            message_id: loadingMsg.message_id
-                        }
-                    );
+                    const errorMsg = texts.error[lang];
+                    await bot.editMessageText(errorMsg, {
+                        chat_id: chatId,
+                        message_id: loadingMsg.message_id
+                    });
                 }
                 
             } catch (error) {
@@ -1756,29 +2034,28 @@ if (IS_WORKER) {
         async function editToMainMenu(bot, chatId, messageId, userId) {
             try {
                 await loadDB();
+                const lang = getUserLanguage(userId);
                 
-                let message = `SELAMAT DATANG DI BOT NCUS\n\n`;
-                message += `Daftar layanan dan harga:\n`;
-                message += `• CHECK BIND - GRATIS\n`;
-                message += `• FULL INFO - Rp 5.000\n`;
-                message += `• CARI ID VIA NICKNAME - Rp 5.000\n`;
-                message += `• Langganan akses /find dan /cek unlimited\n`;
+                const message = texts.welcome[lang];
                 
                 const baseKeyboard = [
                     [
-                        { text: 'FULL INFO', callback_data: 'full_info' },
-                        { text: 'CHECK BIND', callback_data: 'check_info' }
+                        { text: texts.buttons.full_info[lang], callback_data: 'full_info' },
+                        { text: texts.buttons.check_info[lang], callback_data: 'check_info' }
                     ],
-                    [{ text: 'CARI ID VIA NICKNAME', callback_data: 'find_id' }],
+                    [{ text: texts.buttons.find_id[lang], callback_data: 'find_id' }],
                     [
-                        { text: 'TOP UP', callback_data: 'topup_menu' },
-                        { text: 'LANGGANAN', callback_data: 'langganan_menu' }
+                        { text: texts.buttons.topup[lang], callback_data: 'topup_menu' },
+                        { text: texts.buttons.subscription[lang], callback_data: 'langganan_menu' }
                     ],
-                    [{ text: 'PROFILE', callback_data: 'profile_menu' }]
+                    [
+                        { text: texts.buttons.profile[lang], callback_data: 'profile_menu' },
+                        { text: texts.buttons.language[lang], callback_data: 'language_menu' }
+                    ]
                 ];
                 
                 if (isAdmin(userId)) {
-                    baseKeyboard.push([{ text: 'ADMIN MENU', callback_data: 'admin_menu' }]);
+                    baseKeyboard.push([{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]);
                 }
                 
                 const replyMarkup = {
@@ -1797,13 +2074,14 @@ if (IS_WORKER) {
 
         async function editToTopupMenu(bot, chatId, messageId, userId) {
             await loadDB();
+            const lang = getUserLanguage(userId);
             
             const credits = getUserCredits(userId);
             
             const message = 
-                `TOP UP SALDO\n\n` +
-                `Saldo Anda: Rp ${credits.toLocaleString()}\n\n` +
-                `Pilih nominal top up:`;
+                `${texts.topup.title[lang]}\n\n` +
+                `${texts.topup.your_balance[lang]}: Rp ${credits.toLocaleString()}\n\n` +
+                `${texts.topup.select_amount[lang]}`;
             
             const replyMarkup = {
                 inline_keyboard: [
@@ -1823,7 +2101,7 @@ if (IS_WORKER) {
                         { text: 'Rp 500.000', callback_data: 'topup_500000' },
                         { text: 'Rp 1.000.000', callback_data: 'topup_1000000' }
                     ],
-                    [{ text: 'Kembali ke Menu', callback_data: 'kembali_ke_menu' }]
+                    [{ text: texts.buttons.back_to_menu[lang], callback_data: 'kembali_ke_menu' }]
                 ]
             };
             
@@ -1835,27 +2113,29 @@ if (IS_WORKER) {
         }
 
         async function showSubscriptionMenu(bot, chatId, messageId, userId) {
-    await loadDB();
-    
-    const message = `Akses unlimited untuk fitur /cek dan /find tanpa limit\nsilahkan pilih paket:`;
-    
-    const replyMarkup = {
-        inline_keyboard: [
-            [{ text: '7 Hari (Rp 50.000)', callback_data: 'langganan_7days' }],
-            [{ text: '30 Hari (Rp 100.000)', callback_data: 'langganan_30days' }],
-            [{ text: 'Kembali ke Menu', callback_data: 'kembali_ke_menu' }]
-        ]
-    };
-    
-    await bot.editMessageText(message, {
-        chat_id: chatId,
-        message_id: messageId,
-        reply_markup: replyMarkup
-    });
-}
+            await loadDB();
+            const lang = getUserLanguage(userId);
+            
+            const message = texts.subscription.title[lang];
+            
+            const replyMarkup = {
+                inline_keyboard: [
+                    [{ text: texts.subscription.days7[lang], callback_data: 'langganan_7days' }],
+                    [{ text: texts.subscription.days30[lang], callback_data: 'langganan_30days' }],
+                    [{ text: texts.buttons.back_to_menu[lang], callback_data: 'kembali_ke_menu' }]
+                ]
+            };
+            
+            await bot.editMessageText(message, {
+                chat_id: chatId,
+                message_id: messageId,
+                reply_markup: replyMarkup
+            });
+        }
 
         async function showProfileMenu(bot, chatId, messageId, userId) {
             await loadDB();
+            const lang = getUserLanguage(userId);
             
             await checkAndUpdateExpiredSubscription(userId);
             
@@ -1865,26 +2145,48 @@ if (IS_WORKER) {
             const username = user.username || '-';
             const totalCheck = user.success || 0;
             
-            let subscriptionText = 'Tidak aktif';
+            let subscriptionText = texts.profile.inactive[lang];
             let expiryText = '';
             
             if (hasSub) {
                 const sub = db.users[userId].subscription;
                 const endDate = moment(sub.end_date).tz('Asia/Jakarta');
-                subscriptionText = `Aktif`;
-                expiryText = `\nBerlaku sampai: ${endDate.format('DD/MM/YYYY HH:mm')} WIB`;
+                subscriptionText = texts.profile.active[lang];
+                expiryText = `\n${texts.profile.valid_until[lang]}: ${endDate.format('DD/MM/YYYY HH:mm')} WIB`;
             }
             
-            const message = `PROFILE USER\n\n` +
-                `User ID: ${userId}\n` +
-                `Username: @${username}\n` +
-                `Saldo: Rp ${credits.toLocaleString()}\n` +
-                `Status Langganan: ${subscriptionText}${expiryText}\n` +
-                `Total Pengecekan: ${totalCheck} kali`;
+            const message = `${texts.profile.title[lang]}\n\n` +
+                `${texts.profile.user_id[lang]}: ${userId}\n` +
+                `${texts.profile.username[lang]}: @${username}\n` +
+                `${texts.profile.balance[lang]}: Rp ${credits.toLocaleString()}\n` +
+                `${texts.profile.subscription_status[lang]}: ${subscriptionText}${expiryText}\n` +
+                `${texts.profile.total_checks[lang]}: ${totalCheck} ${texts.profile.times[lang]}`;
             
             const replyMarkup = {
                 inline_keyboard: [
-                    [{ text: 'Kembali ke Menu', callback_data: 'kembali_ke_menu' }]
+                    [{ text: texts.buttons.back_to_menu[lang], callback_data: 'kembali_ke_menu' }]
+                ]
+            };
+            
+            await bot.editMessageText(message, {
+                chat_id: chatId,
+                message_id: messageId,
+                reply_markup: replyMarkup
+            });
+        }
+
+        async function showLanguageMenu(bot, chatId, messageId, userId) {
+            const lang = getUserLanguage(userId);
+            
+            const message = texts.language_menu.title;
+            
+            const replyMarkup = {
+                inline_keyboard: [
+                    [
+                        { text: texts.language_menu.indonesian, callback_data: 'lang_id' },
+                        { text: texts.language_menu.english, callback_data: 'lang_en' }
+                    ],
+                    [{ text: texts.buttons.back_to_menu[lang], callback_data: 'kembali_ke_menu' }]
                 ]
             };
             
@@ -1898,20 +2200,19 @@ if (IS_WORKER) {
         async function showAdminMenu(bot, chatId, messageId, userId) {
             try {
                 await loadDB();
+                const lang = getUserLanguage(userId);
                 
                 if (!isAdmin(userId)) {
-                    await bot.editMessageText(
-                        `Akses ditolak. Anda bukan admin.`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Kembali ke Menu', callback_data: 'kembali_ke_menu' }]
-                                ]
-                            }
+                    const msgText = texts.admin.access_denied[lang];
+                    await bot.editMessageText(msgText, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.back_to_menu[lang], callback_data: 'kembali_ke_menu' }]
+                            ]
                         }
-                    );
+                    });
                     return;
                 }
                 
@@ -1923,13 +2224,13 @@ if (IS_WORKER) {
                     .filter(([_, u]) => u.subscription && u.subscription.active && new Date(u.subscription.end_date) > new Date())
                     .length;
                 
-                let message = `ADMIN MENU\n\n`;
-                message += `STATISTIK\n`;
-                message += `Total User: ${totalUsers}\n`;
-                message += `Total Pengecekan: ${totalSuccess}\n`;
-                message += `Total Saldo: Rp ${totalSaldo.toLocaleString()}\n`;
-                message += `Total Langganan Aktif: ${usersWithSubscription}\n\n`;
-                message += `Pilih menu di bawah:`;
+                let message = `${texts.admin_menu.title[lang]}\n\n`;
+                message += `${texts.admin_menu.stats[lang]}\n`;
+                message += `${texts.admin_menu.total_users[lang]}: ${totalUsers}\n`;
+                message += `${texts.admin_menu.total_checks[lang]}: ${totalSuccess}\n`;
+                message += `${texts.admin_menu.total_balance[lang]}: Rp ${totalSaldo.toLocaleString()}\n`;
+                message += `${texts.admin_menu.total_subscriptions[lang]}: ${usersWithSubscription}\n\n`;
+                message += `${texts.admin_menu.select_menu[lang]}`;
                 
                 const replyMarkup = {
                     inline_keyboard: [
@@ -1948,7 +2249,7 @@ if (IS_WORKER) {
                             { text: 'Nonaktifkan Info', callback_data: 'admin_offinfo' },
                             { text: 'Aktifkan Info', callback_data: 'admin_oninfo' }
                         ],
-                        [{ text: 'Kembali ke Menu', callback_data: 'kembali_ke_menu' }]
+                        [{ text: texts.buttons.back_to_menu[lang], callback_data: 'kembali_ke_menu' }]
                     ]
                 };
                 
@@ -1964,19 +2265,19 @@ if (IS_WORKER) {
 
         async function showAdminListTopup(bot, chatId, messageId, userId) {
             try {
+                const lang = getUserLanguage(userId);
+                
                 if (!isAdmin(userId)) {
-                    await bot.editMessageText(
-                        `Akses ditolak. Anda bukan admin.`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
-                                ]
-                            }
+                    const msgText = texts.admin.access_denied[lang];
+                    await bot.editMessageText(msgText, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                            ]
                         }
-                    );
+                    });
                     return;
                 }
                 
@@ -2006,7 +2307,7 @@ if (IS_WORKER) {
                 
                 const replyMarkup = {
                     inline_keyboard: [
-                        [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
+                        [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
                     ]
                 };
                 
@@ -2022,19 +2323,19 @@ if (IS_WORKER) {
 
         async function showAdminListLangganan(bot, chatId, messageId, userId) {
             try {
+                const lang = getUserLanguage(userId);
+                
                 if (!isAdmin(userId)) {
-                    await bot.editMessageText(
-                        `Akses ditolak. Anda bukan admin.`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
-                                ]
-                            }
+                    const msgText = texts.admin.access_denied[lang];
+                    await bot.editMessageText(msgText, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                            ]
                         }
-                    );
+                    });
                     return;
                 }
                 
@@ -2065,7 +2366,7 @@ if (IS_WORKER) {
                 
                 const replyMarkup = {
                     inline_keyboard: [
-                        [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
+                        [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
                     ]
                 };
                 
@@ -2081,35 +2382,33 @@ if (IS_WORKER) {
 
         async function showAdminListGroup(bot, chatId, messageId, userId) {
             try {
+                const lang = getUserLanguage(userId);
+                
                 if (!isAdmin(userId)) {
-                    await bot.editMessageText(
-                        `Akses ditolak. Anda bukan admin.`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
-                                ]
-                            }
+                    const msgText = texts.admin.access_denied[lang];
+                    await bot.editMessageText(msgText, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                            ]
                         }
-                    );
+                    });
                     return;
                 }
                 
                 if (!db.allowed_groups || db.allowed_groups.length === 0) {
-                    await bot.editMessageText(
-                        `Belum ada grup terdaftar.`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
-                                ]
-                            }
+                    const msgText = texts.admin.no_groups[lang];
+                    await bot.editMessageText(msgText, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                            ]
                         }
-                    );
+                    });
                     return;
                 }
                 
@@ -2120,7 +2419,7 @@ if (IS_WORKER) {
                 
                 const replyMarkup = {
                     inline_keyboard: [
-                        [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
+                        [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
                     ]
                 };
                 
@@ -2134,7 +2433,7 @@ if (IS_WORKER) {
             }
         }
 
-        async function sendDetailAccountInfo(bot, chatId, userId, detailData, targetId, serverId) {
+        async function sendDetailAccountInfo(bot, chatId, userId, detailData, targetId, serverId, lang) {
             try {
                 let output = '';
                 
@@ -2271,6 +2570,8 @@ if (IS_WORKER) {
                 
                 output += `Sisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
                 
+                const stockText = texts.buttons.stock_admin[lang];
+                
                 if (output.length > 4000) {
                     let splitPoint = output.indexOf('MATCH STATS');
                     if (splitPoint === -1) splitPoint = 3000;
@@ -2280,7 +2581,7 @@ if (IS_WORKER) {
                     
                     await bot.sendMessage(chatId, part1, {
                         reply_markup: { 
-                            inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
+                            inline_keyboard: [[{ text: stockText, url: STOK_ADMIN }]] 
                         }
                     });
                     
@@ -2290,13 +2591,14 @@ if (IS_WORKER) {
                 } else {
                     await bot.sendMessage(chatId, output, {
                         reply_markup: { 
-                            inline_keyboard: [[{ text: 'Stok Admin', url: STOK_ADMIN }]] 
+                            inline_keyboard: [[{ text: stockText, url: STOK_ADMIN }]] 
                         }
                     });
                 }
             } catch (error) {
                 console.log('Error sendDetailAccountInfo:', error.message);
-                await bot.sendMessage(chatId, 'Terjadi kesalahan saat menampilkan data.');
+                const errorMsg = texts.error[lang];
+                await bot.sendMessage(chatId, errorMsg);
             }
         }
 
@@ -2314,6 +2616,7 @@ if (IS_WORKER) {
                 const userId = cb.from.id;
                 const data = cb.data;
                 const messageId = msg.message_id;
+                const lang = getUserLanguage(userId);
 
                 if (data === 'kembali_ke_menu') {
                     await editToMainMenu(bot, chatId, messageId, userId);
@@ -2323,89 +2626,69 @@ if (IS_WORKER) {
 
                 if (data === 'full_info') {
                     await bot.answerCallbackQuery(cb.id);
-                    await bot.editMessageText(
-                        `FULL INFO\n\n` +
-                        `Perintah ini digunakan untuk melihat detail lengkap akun MLBB.\n\n` +
-                        `Cara Penggunaan:\n` +
-                        `Kirim perintah:\n` +
-                        `/cek ID SERVER\n\n` +
-                        `Contoh:\n` +
-                        `/cek 123456789 1234\n\n` +
-                        `Bot akan menampilkan informasi akun dengan detail seperti tanggal pembuatan akun dll.\n\n` +
-                        `Biaya Rp 5.000`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Kembali ke Menu', callback_data: 'kembali_ke_menu' }]
-                                ]
-                            }
+                    await bot.editMessageText(texts.full_info_menu[lang], {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.back_to_menu[lang], callback_data: 'kembali_ke_menu' }]
+                            ]
                         }
-                    );
+                    });
                     return;
                 }
 
                 if (data === 'check_info') {
                     await bot.answerCallbackQuery(cb.id);
-                    await bot.editMessageText(
-                        `CHECK BIND\n\n` +
-                        `Perintah ini digunakan untuk melihat informasi akun terhubung pada MLBB.\n\n` +
-                        `Cara Penggunaan:\n` +
-                        `Kirim perintah:\n` +
-                        `/info ID SERVER\n\n` +
-                        `Contoh:\n` +
-                        `/info 123456789 1234\n\n` +
-                        `Bot akan menampilkan email, Facebook, dan akun sosial lainnya yang terhubung.\n\n` +
-                        `CHECK BIND VIA GROUP\n\n` +
-                        `Tambahkan bot @mahsuselitzbot ke group dan jadikan admin group\n` +
-                        `Cara Penggunaan di dalam group:\n` +
-                        `Kirim perintah:\n` +
-                        `/cekinfo ID SERVER\n\n` +
-                        `Contoh:\n` +
-                        `/cekinfo 123456789 1234\n\n` +
-                        `Biaya Rp 0`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Kembali ke Menu', callback_data: 'kembali_ke_menu' }]
-                                ]
-                            }
+                    await bot.editMessageText(texts.check_info_menu[lang], {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.back_to_menu[lang], callback_data: 'kembali_ke_menu' }]
+                            ]
                         }
-                    );
+                    });
                     return;
                 }
 
                 if (data === 'find_id') {
                     await bot.answerCallbackQuery(cb.id);
-                    await bot.editMessageText(
-                        `CARI ID VIA NICKNAME\n\n` +
-                        `Perintah ini digunakan untuk mencari ID akun MLBB berdasarkan nickname.\n\n` +
-                        `Cara Penggunaan:\n` +
-                        `Kirim perintah:\n` +
-                        `/find NICKNAME SERVER\n\n` +
-                        `Contoh:\n` +
-                        `/find RRQ Jule 15707\n\n` +
-                        `Bot akan menampilkan pemain dengan format ID, lokasi dan negara terakhir login.\n\n` +
-                        `Biaya Rp 5.000`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Kembali ke Menu', callback_data: 'kembali_ke_menu' }]
-                                ]
-                            }
+                    await bot.editMessageText(texts.find_id_menu[lang], {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.back_to_menu[lang], callback_data: 'kembali_ke_menu' }]
+                            ]
                         }
-                    );
+                    });
                     return;
                 }
 
                 if (data === 'profile_menu') {
                     await showProfileMenu(bot, chatId, messageId, userId);
                     await bot.answerCallbackQuery(cb.id);
+                    return;
+                }
+
+                if (data === 'language_menu') {
+                    await showLanguageMenu(bot, chatId, messageId, userId);
+                    await bot.answerCallbackQuery(cb.id);
+                    return;
+                }
+
+                if (data === 'lang_id') {
+                    await setUserLanguage(userId, LANGUAGES.id);
+                    await editToMainMenu(bot, chatId, messageId, userId);
+                    await bot.answerCallbackQuery(cb.id, { text: texts.language_menu.changed_id });
+                    return;
+                }
+
+                if (data === 'lang_en') {
+                    await setUserLanguage(userId, LANGUAGES.en);
+                    await editToMainMenu(bot, chatId, messageId, userId);
+                    await bot.answerCallbackQuery(cb.id, { text: texts.language_menu.changed_en });
                     return;
                 }
 
@@ -2446,118 +2729,85 @@ if (IS_WORKER) {
                 }
 
                 if (data === 'admin_addtopup_start') {
-                    await bot.editMessageText(
-                        `TAMBAH SALDO USER\n\n` +
-                        `Masukkan User ID:\n\n` +
-                        `Contoh: 123456789`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Batal', callback_data: 'admin_batal' }]
-                                ]
-                            }
+                    await bot.editMessageText(texts.admin.add_topup[lang], {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
+                            ]
                         }
-                    );
+                    });
                     await setAdminState(userId, 'addtopup', 'waiting_userid');
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
 
                 if (data === 'admin_addgroup_start') {
-                    await bot.editMessageText(
-                        `TAMBAH GROUP\n\n` +
-                        `Masukkan Group ID:\n\n` +
-                        `Contoh: -1001234567890\n\n` +
-                        `(Gunakan /idgrup di grup untuk mengetahui ID grup)`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Batal', callback_data: 'admin_batal' }]
-                                ]
-                            }
+                    await bot.editMessageText(texts.admin.add_group[lang], {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
+                            ]
                         }
-                    );
+                    });
                     await setAdminState(userId, 'addgroup', 'waiting_groupid');
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
 
                 if (data === 'admin_removegroup_start') {
-                    await bot.editMessageText(
-                        `HAPUS GROUP\n\n` +
-                        `Masukkan Group ID yang ingin dihapus:\n\n` +
-                        `Contoh: -1001234567890`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Batal', callback_data: 'admin_batal' }]
-                                ]
-                            }
+                    await bot.editMessageText(texts.admin.remove_group[lang], {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
+                            ]
                         }
-                    );
+                    });
                     await setAdminState(userId, 'removegroup', 'waiting_groupid');
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
 
                 if (data === 'admin_broadcast_start') {
-    await bot.editMessageText(
-        `BROADCAST PESAN\n\n` +
-        `Kirim pesan yang ingin disebarkan ke semua user.\n\n` +
-        `Format yang didukung:\n` +
-        `• Teks biasa\n` +
-        `• Foto (bisa dengan caption)\n` +
-        `• Video (bisa dengan caption)\n` +
-        `• Dokumen (bisa dengan caption)\n` +
-        `• Audio (bisa dengan caption)\n` +
-        `• Voice Note\n` +
-        `• Sticker\n` +
-        `• GIF/Animation (bisa dengan caption)\n\n` +
-        `Ketik pesan atau kirim media sekarang.`,
-        {
-            chat_id: chatId,
-            message_id: messageId,
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: 'Batal', callback_data: 'admin_batal' }]
-                ]
-            }
-        }
-    );
-    await setAdminState(userId, 'broadcast', 'waiting_message');
-    await bot.answerCallbackQuery(cb.id);
-    return;
-}
+                    await bot.editMessageText(texts.admin.broadcast_start[lang], {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
+                            ]
+                        }
+                    });
+                    await setAdminState(userId, 'broadcast', 'waiting_message');
+                    await bot.answerCallbackQuery(cb.id);
+                    return;
+                }
 
-if (data === 'admin_batal') {
-    clearAdminState(userId);
-    await showAdminMenu(bot, chatId, messageId, userId);
-    await bot.answerCallbackQuery(cb.id);
-    return;
-}
+                if (data === 'admin_batal') {
+                    clearAdminState(userId);
+                    await showAdminMenu(bot, chatId, messageId, userId);
+                    await bot.answerCallbackQuery(cb.id);
+                    return;
+                }
 
                 if (data === 'admin_offinfo') {
                     if (!db.feature) db.feature = {};
                     db.feature.info = false;
                     await saveDB();
-                    await bot.editMessageText(
-                        `Fitur info telah dinonaktifkan.`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
-                                ]
-                            }
+                    await bot.editMessageText(texts.admin.feature_off[lang], {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                            ]
                         }
-                    );
+                    });
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
@@ -2566,18 +2816,15 @@ if (data === 'admin_batal') {
                     if (!db.feature) db.feature = {};
                     db.feature.info = true;
                     await saveDB();
-                    await bot.editMessageText(
-                        `Fitur info telah diaktifkan.`,
-                        {
-                            chat_id: chatId,
-                            message_id: messageId,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [{ text: 'Kembali ke Admin Menu', callback_data: 'admin_menu' }]
-                                ]
-                            }
+                    await bot.editMessageText(texts.admin.feature_on[lang], {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                            ]
                         }
-                    );
+                    });
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
@@ -2589,59 +2836,43 @@ if (data === 'admin_batal') {
                     
                     const credits = getUserCredits(userId);
                     if (credits < amount) {
-                        await bot.editMessageText(
-                            `Saldo tidak cukup\n\n` +
-                            `Saldo Anda: Rp ${credits.toLocaleString()}\n` +
-                            `Butuh: Rp ${amount.toLocaleString()}\n` +
-                            `Kekurangan: Rp ${(amount - credits).toLocaleString()}\n\n` +
-                            `Silakan top up terlebih dahulu.`,
-                            {
-                                chat_id: chatId,
-                                message_id: messageId,
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: 'TOP UP', callback_data: 'topup_menu' }],
-                                        [{ text: 'KEMBALI', callback_data: 'langganan_menu' }]
-                                    ]
-                                }
+                        const msgText = texts.subscription_messages.not_enough_balance[lang](credits, amount);
+                        await bot.editMessageText(msgText, {
+                            chat_id: chatId,
+                            message_id: messageId,
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: texts.buttons.topup[lang], callback_data: 'topup_menu' }],
+                                    [{ text: texts.buttons.back_to_menu[lang], callback_data: 'langganan_menu' }]
+                                ]
                             }
-                        );
+                        });
                         return;
                     }
                     
                     const result = await buySubscriptionWithBalance(userId, subscriptionType);
                     if (result.success) {
                         const endDate = moment(result.endDate).tz('Asia/Jakarta');
-                        await bot.editMessageText(
-                            `LANGGANAN AKTIF\n\n` +
-                            `Paket: ${subscriptionType === '7days' ? '7 Hari' : '30 Hari'}\n` +
-                            `Biaya: Rp ${amount.toLocaleString()}\n` +
-                            `Sisa saldo: Rp ${result.newBalance.toLocaleString()}\n` +
-                            `Berlaku sampai: ${endDate.format('DD MMMM YYYY HH:mm')} WIB\n\n` +
-                            `Terima kasih telah berlangganan!`,
-                            {
-                                chat_id: chatId,
-                                message_id: messageId,
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: 'Kembali ke Menu', callback_data: 'kembali_ke_menu' }]
-                                    ]
-                                }
+                        const successMsg = texts.subscription_messages.new[lang](subscriptionType, amount, result.newBalance, endDate.format('DD MMMM YYYY HH:mm'));
+                        await bot.editMessageText(successMsg, {
+                            chat_id: chatId,
+                            message_id: messageId,
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: texts.buttons.back_to_menu[lang], callback_data: 'kembali_ke_menu' }]
+                                ]
                             }
-                        );
+                        });
                     } else {
-                        await bot.editMessageText(
-                            `Gagal: ${result.error}`,
-                            {
-                                chat_id: chatId,
-                                message_id: messageId,
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: 'KEMBALI', callback_data: 'langganan_menu' }]
-                                    ]
-                                }
+                        await bot.editMessageText(`Gagal: ${result.error}`, {
+                            chat_id: chatId,
+                            message_id: messageId,
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: texts.buttons.back_to_menu[lang], callback_data: 'langganan_menu' }]
+                                ]
                             }
-                        );
+                        });
                     }
                     return;
                 }
@@ -2658,25 +2889,25 @@ if (data === 'admin_batal') {
                         await bot.deleteMessage(chatId, messageId);
                     } catch (e) {}
                     
-                    await bot.answerCallbackQuery(cb.id, { text: 'Pembayaran dibatalkan' });
+                    await bot.answerCallbackQuery(cb.id, { text: texts.cancel_topup[lang] });
                     return;
                 }
 
                 if (data.startsWith('topup_')) {
-                    await bot.answerCallbackQuery(cb.id, { text: 'Memproses topup...' });
+                    await bot.answerCallbackQuery(cb.id, { text: texts.processing[lang] });
                     
                     const amount = parseInt(data.replace('topup_', ''));
                     
                     const validAmounts = [5000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000];
                     if (!validAmounts.includes(amount)) {
-                        await bot.editMessageText('Nominal tidak valid.', {
+                        await bot.editMessageText(texts.invalid_amount[lang], {
                             chat_id: chatId,
                             message_id: messageId
                         });
                         return;
                     }
                     
-                    await bot.editMessageText('Membuat pembayaran...', {
+                    await bot.editMessageText(texts.loading.creating_payment[lang], {
                         chat_id: chatId,
                         message_id: messageId
                     });
@@ -2690,7 +2921,7 @@ if (data === 'admin_batal') {
                             message_id: messageId,
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{ text: 'KEMBALI', callback_data: 'topup_menu' }]
+                                    [{ text: texts.buttons.back_to_menu[lang], callback_data: 'topup_menu' }]
                                 ]
                             }
                         });
@@ -2706,17 +2937,12 @@ if (data === 'admin_batal') {
                         
                         await bot.deleteMessage(chatId, messageId);
                         
+                        const caption = texts.payment.qr_caption[lang](amount, payment.orderId, payment.expiredAt);
                         const sentMessage = await bot.sendPhoto(chatId, qrBuffer, {
-                            caption: 
-                                `TOP UP SALDO\n\n` +
-                                `Nominal: Rp ${amount.toLocaleString()}\n` +
-                                `Saldo didapat: Rp ${amount.toLocaleString()}\n\n` +
-                                `Order ID: ${payment.orderId}\n` +
-                                `Berlaku sampai: ${payment.expiredAt} WIB\n\n` +
-                                `Scan QR code di atas untuk membayar.`,
+                            caption: caption,
                             reply_markup: {
                                 inline_keyboard: [
-                                    [{ text: 'BATALKAN', callback_data: `cancel_topup_${payment.orderId}` }]
+                                    [{ text: texts.buttons.cancel[lang], callback_data: `cancel_topup_${payment.orderId}` }]
                                 ]
                             }
                         });
@@ -2730,17 +2956,15 @@ if (data === 'admin_batal') {
                         
                     } catch (qrError) {
                         console.log('Error kirim QR:', qrError.message);
+                        const qrText = texts.payment.qr_caption[lang](amount, payment.orderId, payment.expiredAt);
                         await bot.editMessageText(
-                            `TOP UP SALDO\n\n` +
-                            `Nominal: Rp ${amount.toLocaleString()}\n\n` +
-                            `QR Code:\n${payment.qrString}\n\n` +
-                            `Order ID: ${payment.orderId}`,
+                            `${qrText}\n\nQR Code:\n${payment.qrString}`,
                             {
                                 chat_id: chatId,
                                 message_id: messageId,
                                 reply_markup: {
                                     inline_keyboard: [
-                                        [{ text: 'BATALKAN', callback_data: `cancel_topup_${payment.orderId}` }]
+                                        [{ text: texts.buttons.cancel[lang], callback_data: `cancel_topup_${payment.orderId}` }]
                                     ]
                                 }
                             }
@@ -2750,12 +2974,13 @@ if (data === 'admin_batal') {
                     return;
                 }
                 
-                await bot.answerCallbackQuery(cb.id, { text: 'Perintah tidak dikenal' });
+                await bot.answerCallbackQuery(cb.id, { text: texts.command_not_recognized[lang] });
                 
             } catch (error) {
                 console.log('Error callback:', error.message);
                 try {
-                    await bot.answerCallbackQuery(cb.id, { text: 'Terjadi kesalahan' });
+                    const lang = getUserLanguage(cb.from.id);
+                    await bot.answerCallbackQuery(cb.id, { text: texts.error_occurred[lang] });
                 } catch (e) {}
             }
         });
