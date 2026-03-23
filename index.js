@@ -1682,69 +1682,75 @@ if (IS_WORKER) {
         });
 
         bot.onText(/\/start/, async (msg) => {
-            try {
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const chatType = msg.chat.type;
-                const username = msg.from.username;
-                
-                await loadDB();
-                getUserCredits(userId, username || '');
-                const lang = getUserLanguage(userId);
-                
-                // TAMPILAN DI GRUP
-                if (chatType === 'group' || chatType === 'supergroup') {
-                    const groupName = msg.chat.title || 'GRUP INI';
-                    
-                    const message = texts.group_welcome[lang](groupName);
-                    
-                    const replyMarkup = {
-                        inline_keyboard: [
-                            [{ text: 'CHECK BIND', callback_data: 'group_check_bind' }]
-                        ]
-                    };
-                    
-                    await bot.sendMessage(chatId, message, { reply_markup: replyMarkup });
-                    return;
-                }
-                
-                // TAMPILAN DI PRIVATE CHAT
-                const message = texts.welcome[lang];
-                
-                const baseKeyboard = [
-                    [
-                        { text: texts.buttons.full_info[lang], callback_data: 'full_info' },
-                        { text: texts.buttons.check_info[lang], callback_data: 'check_info' }
-                    ],
-                    [{ text: texts.buttons.find_id[lang], callback_data: 'find_id' }],
-                    [
-                        { text: texts.buttons.topup[lang], callback_data: 'topup_menu' },
-                        { text: texts.buttons.subscription[lang], callback_data: 'langganan_menu' }
-                    ],
-                    [
-                        { text: texts.buttons.profile[lang], callback_data: 'profile_menu' },
-                        { text: texts.buttons.language[lang], callback_data: 'language_menu' }
-                    ],
-                    [{ text: texts.buttons.group_menu[lang], callback_data: 'group_menu_private' }]
-                ];
-                
-                if (isAdmin(userId)) {
-                    baseKeyboard.push([{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]);
-                }
-                
-                const replyMarkup = {
-                    inline_keyboard: baseKeyboard
-                };
-                
-                await bot.sendMessage(chatId, message, { reply_markup: replyMarkup });
-                
-            } catch (error) {
-                console.log('Error /start:', error.message);
-                try {
-                    await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
-                } catch (e) {}
-            }
-        });
+    try {
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        const chatType = msg.chat.type;
+        const username = msg.from.username;
+        const messageId = msg.message_id; // ID pesan user yang menjalankan /start
+        
+        await loadDB();
+        getUserCredits(userId, username || '');
+        const lang = getUserLanguage(userId);
+        
+        // ========== TAMPILAN DI GRUP (DENGAN REPLY) ==========
+        if (chatType === 'group' || chatType === 'supergroup') {
+            const groupName = msg.chat.title || 'GRUP INI';
+            
+            const message = texts.group_welcome[lang](groupName);
+            
+            const replyMarkup = {
+                inline_keyboard: [
+                    [{ text: 'CHECK BIND', callback_data: 'group_check_bind' }]
+                ]
+            };
+            
+            // Menggunakan reply_to_message_id untuk membalas pesan user
+            await bot.sendMessage(chatId, message, { 
+                reply_markup: replyMarkup,
+                reply_to_message_id: messageId  // INI YANG DITAMBAHKAN
+            });
+            return;
+        }
+        
+        // ========== TAMPILAN DI PRIVATE CHAT ==========
+        const message = texts.welcome[lang];
+        
+        const baseKeyboard = [
+            [
+                { text: texts.buttons.full_info[lang], callback_data: 'full_info' },
+                { text: texts.buttons.check_info[lang], callback_data: 'check_info' }
+            ],
+            [{ text: texts.buttons.find_id[lang], callback_data: 'find_id' }],
+            [
+                { text: texts.buttons.topup[lang], callback_data: 'topup_menu' },
+                { text: texts.buttons.subscription[lang], callback_data: 'langganan_menu' }
+            ],
+            [
+                { text: texts.buttons.profile[lang], callback_data: 'profile_menu' },
+                { text: texts.buttons.language[lang], callback_data: 'language_menu' }
+            ],
+            [{ text: texts.buttons.group_menu[lang], callback_data: 'group_menu_private' }]
+        ];
+        
+        if (isAdmin(userId)) {
+            baseKeyboard.push([{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]);
+        }
+        
+        const replyMarkup = {
+            inline_keyboard: baseKeyboard
+        };
+        
+        // Di private chat tidak perlu reply
+        await bot.sendMessage(chatId, message, { reply_markup: replyMarkup });
+        
+    } catch (error) {
+        console.log('Error /start:', error.message);
+        try {
+            await bot.sendMessage(msg.chat.id, 'Terjadi kesalahan. Silakan coba lagi.');
+        } catch (e) {}
+    }
+});
 
         bot.onText(/\/idgrup/, async (msg) => {
             try {
@@ -2968,24 +2974,25 @@ if (IS_WORKER) {
                 }
                 
                 // KEMBALI KE MENU GRUP
-                if (data === 'back_to_group_menu') {
-                    await bot.answerCallbackQuery(cb.id);
-                    
-                    const groupName = msg.chat.title || 'GRUP INI';
-                    const groupMenuMsg = texts.group_welcome[lang](groupName);
-                    const replyMarkup = {
-                        inline_keyboard: [
-                            [{ text: 'CHECK BIND', callback_data: 'group_check_bind' }]
-                        ]
-                    };
-                    
-                    await bot.editMessageText(groupMenuMsg, {
-                        chat_id: chatId,
-                        message_id: messageId,
-                        reply_markup: replyMarkup
-                    });
-                    return;
-                }
+if (data === 'back_to_group_menu') {
+    await bot.answerCallbackQuery(cb.id);
+    
+    const groupName = msg.chat.title || 'GRUP INI';
+    const groupMenuMsg = texts.group_welcome[lang](groupName);
+    const replyMarkup = {
+        inline_keyboard: [
+            [{ text: 'CHECK BIND', callback_data: 'group_check_bind' }]
+        ]
+    };
+    
+    // Edit pesan yang sudah ada (tidak perlu reply karena ini edit)
+    await bot.editMessageText(groupMenuMsg, {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: replyMarkup
+    });
+    return;
+}
                 
                 // KEMBALI KE MENU UTAMA
                 if (data === 'kembali_ke_menu') {
