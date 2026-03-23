@@ -303,6 +303,7 @@ const texts = {
         select_menu: { id: 'Pilih menu di bawah:', en: 'Select menu below:' }
     },
     
+    // [TAMBAHAN] all_command dengan bahasa Indonesia
     all_command: {
         admin_only: {
             id: `Hanya admin grup yang dapat menggunakan perintah ini!`,
@@ -338,111 +339,6 @@ const texts = {
                 } else {
                     return `*ATTENTION FROM ${adminName}*\n\n${mentionText}\n\n*Time:* ${time} WIB`;
                 }
-            }
-        }
-    },
-    
-    addmember_command: {
-        help: {
-            id: `*Tambah Member Manual*\n\nCara menambahkan member lama:\n` +
-                `/addmember [user_id] [nama]\n\n` +
-                `Contoh:\n` +
-                `/addmember 123456789 John Doe\n\n` +
-                `Atau reply ke pesan member:\n` +
-                `Reply pesan member lalu ketik /addmember\n\n` +
-                `*Catatan:* Member yang ditambahkan akan bisa di-mention dengan /all`,
-            en: `*Add Member Manually*\n\nHow to add existing members:\n` +
-                `/addmember [user_id] [name]\n\n` +
-                `Example:\n` +
-                `/addmember 123456789 John Doe\n\n` +
-                `Or reply to member's message:\n` +
-                `Reply to member's message then type /addmember\n\n` +
-                `*Note:* Added members can be mentioned with /all`
-        },
-        success: {
-            id: (userId, name, totalMembers) => {
-                return `*Member Added Successfully*\n\n` +
-                    `User ID: ${userId}\n` +
-                    `Name: ${name}\n` +
-                    `Total members in group: ${totalMembers}\n\n` +
-                    `Member can now be mentioned using /all command.`;
-            },
-            en: (userId, name, totalMembers) => {
-                return `*Member Added Successfully*\n\n` +
-                    `User ID: ${userId}\n` +
-                    `Name: ${name}\n` +
-                    `Total members in group: ${totalMembers}\n\n` +
-                    `Member can now be mentioned using /all command.`;
-            }
-        },
-        error: {
-            id: (error) => `*Error:* ${error}`,
-            en: (error) => `*Error:* ${error}`
-        },
-        user_id_required: {
-            id: `*Error:* User ID diperlukan.\nContoh: /addmember 123456789 Nama Member`,
-            en: `*Error:* User ID required.\nExample: /addmember 123456789 Member Name`
-        },
-        user_id_invalid: {
-            id: `*Error:* User ID harus berupa angka.`,
-            en: `*Error:* User ID must be a number.`
-        }
-    },
-    
-    listmembers_command: {
-        title: {
-            id: (count) => `*Registered Members in this Group*\n\nTotal: ${count} members\n\n`,
-            en: (count) => `*Registered Members in this Group*\n\nTotal: ${count} members\n\n`
-        },
-        no_members: {
-            id: `*No members registered in this group.*\n\nUse /addmember to add members manually.`,
-            en: `*No members registered in this group.*\n\nUse /addmember to add members manually.`
-        },
-        footer: {
-            id: `\n\nTo add more members: /addmember [user_id] [name]`,
-            en: `\n\nTo add more members: /addmember [user_id] [name]`
-        }
-    },
-    
-    sync_command: {
-        title: {
-            id: `*Sinkronisasi Member*\n\nMenyinkronkan anggota grup...`,
-            en: `*Sync Members*\n\nSyncing group members...`
-        },
-        success: {
-            id: (groupTitle, totalMembers, newMembers, updatedMembers) => {
-                return `*Sinkronisasi Selesai*\n\n` +
-                    `Grup: ${groupTitle}\n` +
-                    `Total anggota terdaftar: ${totalMembers}\n` +
-                    `Anggota baru ditambahkan: ${newMembers}\n` +
-                    `Anggota yang diperbarui: ${updatedMembers}\n\n` +
-                    `*Catatan:* Hanya admin grup yang bisa disinkronkan otomatis.\n` +
-                    `Anggota biasa akan ditambahkan saat mereka mengirim pesan atau bergabung setelah bot menjadi admin.`;
-            },
-            en: (groupTitle, totalMembers, newMembers, updatedMembers) => {
-                return `*Sync Completed*\n\n` +
-                    `Group: ${groupTitle}\n` +
-                    `Total members tracked: ${totalMembers}\n` +
-                    `New members added: ${newMembers}\n` +
-                    `Existing members updated: ${updatedMembers}\n\n` +
-                    `*Note:* Only group admins can be synced automatically.\n` +
-                    `Regular members will be added when they send a message or join after bot becomes admin.`;
-            }
-        },
-        failed: {
-            id: (error) => {
-                return `*Sinkronisasi Gagal*\n\n` +
-                    `Error: ${error}\n\n` +
-                    `Pastikan bot adalah admin grup dengan izin:\n` +
-                    `- Get member list\n` +
-                    `- Get chat administrators`;
-            },
-            en: (error) => {
-                return `*Sync Failed*\n\n` +
-                    `Error: ${error}\n\n` +
-                    `Make sure bot is group admin with permissions:\n` +
-                    `- Get member list\n` +
-                    `- Get chat administrators`;
             }
         }
     }
@@ -617,8 +513,7 @@ function getUserCredits(userId, username = '') {
                 success: 0, 
                 credits: 0, 
                 topup_history: [],
-                language: DEFAULT_LANG,
-                groups: []
+                language: DEFAULT_LANG
             };
             console.log(`User baru dibuat: ${userId} dengan username ${username}`);
             
@@ -635,10 +530,6 @@ function getUserCredits(userId, username = '') {
         if (!db.users[userId].language) {
             db.users[userId].language = DEFAULT_LANG;
             saveDB().catch(err => console.log('Error saving language:', err.message));
-        }
-        
-        if (!db.users[userId].groups) {
-            db.users[userId].groups = [];
         }
         
         return db.users[userId].credits || 0;
@@ -667,8 +558,7 @@ async function setUserLanguage(userId, language) {
                 success: 0, 
                 credits: 0, 
                 topup_history: [],
-                language: language,
-                groups: []
+                language: language
             };
         } else {
             db.users[userId].language = language;
@@ -691,8 +581,7 @@ async function addCredits(userId, amount, orderId = null) {
                 success: 0, 
                 credits: 0, 
                 topup_history: [],
-                language: DEFAULT_LANG,
-                groups: []
+                language: DEFAULT_LANG
             };
         }
         
@@ -767,7 +656,7 @@ async function activateSubscription(userId, type) {
     }
     
     if (!db.users[userId]) {
-        db.users[userId] = { username: '', success: 0, credits: 0, topup_history: [], language: DEFAULT_LANG, groups: [] };
+        db.users[userId] = { username: '', success: 0, credits: 0, topup_history: [], language: DEFAULT_LANG };
     }
     db.users[userId].subscription = {
         active: true,
@@ -1006,38 +895,7 @@ function formatLocations(locations, maxItems = 5) {
     }
 }
 
-// ========== FUNGSI UNTUK DETEKSI COMMAND DENGAN PRESISI ==========
-function isExactCommand(text, commandName) {
-    if (!text) return false;
-    
-    const lowerText = text.toLowerCase();
-    const lowerCommand = commandName.toLowerCase();
-    
-    // Pattern: command harus di awal pesan, diikuti oleh spasi atau akhir pesan
-    const pattern = new RegExp(`^${lowerCommand}(\\s|$)`);
-    
-    return pattern.test(lowerText);
-}
-
-function getCommandFromText(text) {
-    if (!text || !text.startsWith('/')) return null;
-    
-    const lowerText = text.toLowerCase();
-    const validCommands = [
-        '/start', '/info', '/cek', '/cekinfo', '/find',
-        '/idgrup', '/all', '/addmember', '/listmembers', '/sync'
-    ];
-    
-    for (const cmd of validCommands) {
-        if (isExactCommand(lowerText, cmd)) {
-            return cmd;
-        }
-    }
-    
-    return null;
-}
-
-// ========== FUNGSI UNTUK GET ALL GROUP MEMBERS ==========
+// [TAMBAHAN] Fungsi untuk mendapatkan semua anggota grup dari database
 async function getAllGroupMembers(groupId) {
     try {
         const members = [];
@@ -1051,13 +909,12 @@ async function getAllGroupMembers(groupId) {
                     first_name: userData.first_name,
                     last_name: userData.last_name,
                     joined_at: userData.joined_at,
-                    last_active: userData.last_active,
-                    synced_at: userData.synced_at
+                    last_active: userData.last_active
                 });
             }
         }
         
-        members.sort((a, b) => (b.synced_at || b.joined_at || 0) - (a.synced_at || a.joined_at || 0));
+        members.sort((a, b) => (b.joined_at || 0) - (a.joined_at || 0));
         
         console.log(`[MEMBERS] Found ${members.length} members for group ${groupId}`);
         
@@ -1065,24 +922,6 @@ async function getAllGroupMembers(groupId) {
     } catch (error) {
         console.log('Error getting group members:', error.message);
         return [];
-    }
-}
-
-async function getTotalGroupMembers(groupId) {
-    try {
-        let count = 0;
-        const users = db.users || {};
-        
-        for (const [userId, userData] of Object.entries(users)) {
-            if (userData.groups && userData.groups.includes(groupId)) {
-                count++;
-            }
-        }
-        
-        return count;
-    } catch (error) {
-        console.log('Error getting total group members:', error.message);
-        return 0;
     }
 }
 
@@ -1097,8 +936,7 @@ async function createPakasirTopup(amount, userId, username = '') {
                 success: 0, 
                 credits: 0, 
                 topup_history: [],
-                language: DEFAULT_LANG,
-                groups: []
+                language: DEFAULT_LANG
             };
             console.log(`USER BARU DIBUAT SAAT TOPUP: ${userId} (${username})`);
             await saveDB();
@@ -1346,7 +1184,7 @@ if (IS_WORKER) {
             console.log('Polling error:', error.message);
         });
 
-        // ========== MAIN MESSAGE HANDLER ==========
+        // [UPDATE] bot.on('message') dengan tracking member join/leave
         bot.on('message', async (msg) => {
             try {
                 const chatId = msg.chat.id;
@@ -1354,9 +1192,8 @@ if (IS_WORKER) {
                 const username = msg.from.username;
                 const firstName = msg.from.first_name;
                 const chatType = msg.chat.type;
-                const text = msg.text;
                 
-                // ========== CAPTURE NEW MEMBERS ==========
+                // ========== [TAMBAHAN] CAPTURE NEW MEMBERS FROM SERVICE MESSAGE ==========
                 if (msg.new_chat_members && msg.new_chat_members.length > 0) {
                     for (const newMember of msg.new_chat_members) {
                         const newUserId = newMember.id;
@@ -1408,7 +1245,7 @@ if (IS_WORKER) {
                     }
                 }
                 
-                // ========== CAPTURE MEMBERS LEAVING ==========
+                // ========== [TAMBAHAN] CAPTURE MEMBERS LEAVING ==========
                 if (msg.left_chat_member) {
                     const leftUserId = msg.left_chat_member.id;
                     
@@ -1424,7 +1261,7 @@ if (IS_WORKER) {
                     }
                 }
                 
-                // ========== TRACK ACTIVE USERS ==========
+                // ========== [TAMBAHAN] TRACK ACTIVE USERS ==========
                 if (chatType === 'group' || chatType === 'supergroup') {
                     if (!db.users[userId]) {
                         db.users[userId] = {
@@ -1451,37 +1288,380 @@ if (IS_WORKER) {
                     db.users[userId].last_active = Date.now();
                     await saveDB();
                 }
+                // ========== AKHIR TAMBAHAN ==========
                 
-                // ========== DETEKSI COMMAND DENGAN PRESISI ==========
+                const text = msg.text;
                 if (!text) return;
                 
-                // Dapatkan command yang tepat dari pesan
-                const detectedCommand = getCommandFromText(text);
+                const state = getAdminState(userId);
+                const lang = getUserLanguage(userId);
                 
-                if (detectedCommand) {
-                    console.log(`[COMMAND DETECTED] Command: ${detectedCommand}, Full text: ${text}`);
-                    // Biarkan handler masing-masing yang memproses
-                    return;
+                if (state && isAdmin(userId)) {
+                    if (state.action === 'addtopup' && state.step === 'waiting_userid') {
+                        const targetId = parseInt(text);
+                        if (isNaN(targetId)) {
+                            await bot.sendMessage(chatId, texts.user_not_found[lang], {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
+                                    ]
+                                }
+                            });
+                            return;
+                        }
+                        await setAdminState(userId, 'addtopup', 'waiting_amount', { targetId });
+                        const msgText = texts.admin.add_topup_amount[lang](targetId);
+                        await bot.sendMessage(chatId, msgText, {
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
+                                ]
+                            }
+                        });
+                        return;
+                    }
+                    
+                    if (state.action === 'addtopup' && state.step === 'waiting_amount') {
+                        const amount = parseInt(text);
+                        const targetId = state.data.targetId;
+                        
+                        if (isNaN(amount) || amount < 1 || amount > 1000000) {
+                            await bot.sendMessage(chatId, texts.amount_invalid[lang], {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
+                                    ]
+                                }
+                            });
+                            return;
+                        }
+                        
+                        const newBalance = await addCredits(targetId, amount, null);
+                        const successMsg = texts.admin.add_topup_success[lang](targetId, amount, newBalance);
+                        
+                        await bot.sendMessage(chatId, successMsg, {
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                                ]
+                            }
+                        });
+                        
+                        try {
+                            const targetLang = getUserLanguage(targetId);
+                            const userMsg = texts.admin.add_topup_success[targetLang](targetId, amount, newBalance);
+                            await bot.sendMessage(targetId, userMsg);
+                        } catch (e) {}
+                        
+                        clearAdminState(userId);
+                        return;
+                    }
+                    
+                    if (state.action === 'addgroup' && state.step === 'waiting_groupid') {
+                        const groupId = parseInt(text);
+                        if (isNaN(groupId)) {
+                            await bot.sendMessage(chatId, texts.group_id_invalid[lang], {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
+                                    ]
+                                }
+                            });
+                            return;
+                        }
+                        
+                        if (!db.allowed_groups) db.allowed_groups = [];
+                        
+                        if (db.allowed_groups.includes(groupId)) {
+                            const msgText = texts.admin.group_already_exists[lang](groupId);
+                            await bot.sendMessage(chatId, msgText, {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                                    ]
+                                }
+                            });
+                            clearAdminState(userId);
+                            return;
+                        }
+                        
+                        db.allowed_groups.push(groupId);
+                        await saveDB();
+                        
+                        const msgText = texts.admin.group_added[lang](groupId);
+                        await bot.sendMessage(chatId, msgText, {
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                                ]
+                            }
+                        });
+                        clearAdminState(userId);
+                        return;
+                    }
+                    
+                    if (state.action === 'removegroup' && state.step === 'waiting_groupid') {
+                        const groupId = parseInt(text);
+                        if (isNaN(groupId)) {
+                            await bot.sendMessage(chatId, texts.group_id_invalid[lang], {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
+                                    ]
+                                }
+                            });
+                            return;
+                        }
+                        
+                        if (!db.allowed_groups) db.allowed_groups = [];
+                        
+                        const index = db.allowed_groups.indexOf(groupId);
+                        if (index === -1) {
+                            const msgText = texts.admin.group_not_found[lang](groupId);
+                            await bot.sendMessage(chatId, msgText, {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                                    ]
+                                }
+                            });
+                            clearAdminState(userId);
+                            return;
+                        }
+                        
+                        db.allowed_groups.splice(index, 1);
+                        await saveDB();
+                        
+                        const msgText = texts.admin.group_removed[lang](groupId);
+                        await bot.sendMessage(chatId, msgText, {
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                                ]
+                            }
+                        });
+                        clearAdminState(userId);
+                        return;
+                    }
+                    
+                    if (state.action === 'broadcast' && state.step === 'waiting_message') {
+                        const hasPhoto = msg.photo && msg.photo.length > 0;
+                        const hasVideo = msg.video;
+                        const hasDocument = msg.document;
+                        const hasAudio = msg.audio;
+                        const hasVoice = msg.voice;
+                        const hasSticker = msg.sticker;
+                        const hasAnimation = msg.animation;
+                        const hasText = msg.text && msg.text.length > 0;
+                        
+                        if (!hasPhoto && !hasVideo && !hasDocument && !hasAudio && !hasVoice && !hasSticker && !hasAnimation && !hasText) {
+                            await bot.sendMessage(chatId, texts.admin.broadcast_start[lang].split('\n')[0], {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: texts.buttons.cancel[lang], callback_data: 'admin_batal' }]
+                                    ]
+                                }
+                            });
+                            return;
+                        }
+                        
+                        const users = Object.keys(db.users || {}).map(id => parseInt(id));
+                        if (users.length === 0) {
+                            await bot.sendMessage(chatId, texts.admin.no_users[lang], {
+                                reply_markup: {
+                                    inline_keyboard: [
+                                        [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                                    ]
+                                }
+                            });
+                            clearAdminState(userId);
+                            return;
+                        }
+                        
+                        const statusMsg = await bot.sendMessage(chatId, `Memulai broadcast ke ${users.length} pengguna...`);
+                        
+                        let success = 0, failed = 0;
+                        const concurrency = 5;
+                        let mediaType = '';
+                        let mediaInfo = '';
+                        
+                        if (hasPhoto) {
+                            mediaType = 'Foto';
+                            if (msg.caption) mediaInfo = ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+                        } else if (hasVideo) {
+                            mediaType = 'Video';
+                            if (msg.caption) mediaInfo = ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+                        } else if (hasDocument) {
+                            mediaType = 'Dokumen';
+                            const fileName = msg.document.file_name || 'tanpa nama';
+                            mediaInfo = ` (${fileName})`;
+                            if (msg.caption) mediaInfo += ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+                        } else if (hasAudio) {
+                            mediaType = 'Audio';
+                            const title = msg.audio.title || msg.audio.file_name || 'tanpa judul';
+                            mediaInfo = ` (${title})`;
+                            if (msg.caption) mediaInfo += ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+                        } else if (hasVoice) {
+                            mediaType = 'Voice Note';
+                            mediaInfo = '';
+                        } else if (hasSticker) {
+                            mediaType = 'Sticker';
+                            mediaInfo = '';
+                        } else if (hasAnimation) {
+                            mediaType = 'GIF/Animation';
+                            if (msg.caption) mediaInfo = ` dengan caption: "${msg.caption.substring(0, 50)}${msg.caption.length > 50 ? '...' : ''}"`;
+                        } else {
+                            mediaType = 'Teks';
+                            mediaInfo = ` "${msg.text.substring(0, 100)}${msg.text.length > 100 ? '...' : ''}"`;
+                        }
+                        
+                        for (let i = 0; i < users.length; i += concurrency) {
+                            const batch = users.slice(i, i + concurrency);
+                            
+                            await Promise.all(batch.map(async (targetUserId) => {
+                                try {
+                                    if (hasPhoto) {
+                                        const photoFileId = msg.photo[msg.photo.length - 1].file_id;
+                                        const caption = msg.caption || '';
+                                        await bot.sendPhoto(targetUserId, photoFileId, { 
+                                            caption: caption, 
+                                            parse_mode: 'HTML' 
+                                        });
+                                    } else if (hasVideo) {
+                                        const videoFileId = msg.video.file_id;
+                                        const caption = msg.caption || '';
+                                        await bot.sendVideo(targetUserId, videoFileId, { 
+                                            caption: caption, 
+                                            parse_mode: 'HTML' 
+                                        });
+                                    } else if (hasDocument) {
+                                        const documentFileId = msg.document.file_id;
+                                        const caption = msg.caption || '';
+                                        await bot.sendDocument(targetUserId, documentFileId, { 
+                                            caption: caption, 
+                                            parse_mode: 'HTML' 
+                                        });
+                                    } else if (hasAudio) {
+                                        const audioFileId = msg.audio.file_id;
+                                        const caption = msg.caption || '';
+                                        await bot.sendAudio(targetUserId, audioFileId, { 
+                                            caption: caption, 
+                                            parse_mode: 'HTML' 
+                                        });
+                                    } else if (hasVoice) {
+                                        const voiceFileId = msg.voice.file_id;
+                                        await bot.sendVoice(targetUserId, voiceFileId);
+                                    } else if (hasSticker) {
+                                        const stickerFileId = msg.sticker.file_id;
+                                        await bot.sendSticker(targetUserId, stickerFileId);
+                                    } else if (hasAnimation) {
+                                        const animationFileId = msg.animation.file_id;
+                                        const caption = msg.caption || '';
+                                        await bot.sendAnimation(targetUserId, animationFileId, { 
+                                            caption: caption, 
+                                            parse_mode: 'HTML' 
+                                        });
+                                    } else {
+                                        await bot.sendMessage(targetUserId, msg.text, { 
+                                            parse_mode: 'HTML' 
+                                        });
+                                    }
+                                    success++;
+                                } catch (error) {
+                                    if (error.response && error.response.statusCode === 429) {
+                                        const retryAfter = error.response.body.parameters?.retry_after || 1;
+                                        await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                                        try {
+                                            if (hasPhoto) {
+                                                const photoFileId = msg.photo[msg.photo.length - 1].file_id;
+                                                const caption = msg.caption || '';
+                                                await bot.sendPhoto(targetUserId, photoFileId, { 
+                                                    caption: caption, 
+                                                    parse_mode: 'HTML' 
+                                                });
+                                            } else if (hasVideo) {
+                                                const videoFileId = msg.video.file_id;
+                                                const caption = msg.caption || '';
+                                                await bot.sendVideo(targetUserId, videoFileId, { 
+                                                    caption: caption, 
+                                                    parse_mode: 'HTML' 
+                                                });
+                                            } else if (hasDocument) {
+                                                const documentFileId = msg.document.file_id;
+                                                const caption = msg.caption || '';
+                                                await bot.sendDocument(targetUserId, documentFileId, { 
+                                                    caption: caption, 
+                                                    parse_mode: 'HTML' 
+                                                });
+                                            } else if (hasAudio) {
+                                                const audioFileId = msg.audio.file_id;
+                                                const caption = msg.caption || '';
+                                                await bot.sendAudio(targetUserId, audioFileId, { 
+                                                    caption: caption, 
+                                                    parse_mode: 'HTML' 
+                                                });
+                                            } else if (hasVoice) {
+                                                const voiceFileId = msg.voice.file_id;
+                                                await bot.sendVoice(targetUserId, voiceFileId);
+                                            } else if (hasSticker) {
+                                                const stickerFileId = msg.sticker.file_id;
+                                                await bot.sendSticker(targetUserId, stickerFileId);
+                                            } else if (hasAnimation) {
+                                                const animationFileId = msg.animation.file_id;
+                                                const caption = msg.caption || '';
+                                                await bot.sendAnimation(targetUserId, animationFileId, { 
+                                                    caption: caption, 
+                                                    parse_mode: 'HTML' 
+                                                });
+                                            } else {
+                                                await bot.sendMessage(targetUserId, msg.text, { 
+                                                    parse_mode: 'HTML' 
+                                                });
+                                            }
+                                            success++;
+                                        } catch (retryError) {
+                                            failed++;
+                                        }
+                                    } else {
+                                        failed++;
+                                        console.log(`Gagal kirim ke ${targetUserId}:`, error.message);
+                                    }
+                                }
+                            }));
+                            
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                        }
+                        
+                        const resultMsg = texts.admin.broadcast_result[lang](success, failed, mediaType, mediaInfo);
+                        
+                        await bot.editMessageText(resultMsg, {
+                            chat_id: chatId,
+                            message_id: statusMsg.message_id,
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [{ text: texts.buttons.admin_menu[lang], callback_data: 'admin_menu' }]
+                                ]
+                            }
+                        });
+                        
+                        clearAdminState(userId);
+                        return;
+                    }
                 }
                 
-                // Jika ada command yang tidak valid (dimulai / tapi tidak dikenal)
-                if (text.startsWith('/')) {
-                    console.log(`[IGNORED] Invalid command: ${text.split(' ')[0]}`);
-                    return;
-                }
+                if (isAdmin(userId)) return;
                 
-                // Pesan biasa - abaikan
-                console.log(`[IGNORED] Regular message: ${text.substring(0, 50)}`);
+                const command = text.split(' ')[0];
+                const allowedCommands = ['/start', '/info', '/cek', '/cekinfo', '/find'];
+                if (allowedCommands.includes(command)) return;
                 
             } catch (error) {
-                console.log('Error in message handler:', error.message);
+                console.log('Middleware error:', error.message);
             }
         });
 
-        // ========== HANDLER /start ==========
-        bot.onText(/^\/start$/, async (msg) => {
+        bot.onText(/\/start/, async (msg) => {
             try {
-                if (!isExactCommand(msg.text, '/start')) return;
                 if (msg.chat.type !== 'private') return;
                 
                 const chatId = msg.chat.id;
@@ -1528,11 +1708,8 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== HANDLER /idgrup ==========
-        bot.onText(/^\/idgrup$/, async (msg) => {
+        bot.onText(/\/idgrup/, async (msg) => {
             try {
-                if (!isExactCommand(msg.text, '/idgrup')) return;
-                
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
                 const chatType = msg.chat.type;
@@ -1555,16 +1732,9 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== HANDLER /cekinfo ==========
-        bot.onText(/^\/cekinfo/, async (msg, match) => {
+        bot.onText(/\/cekinfo(?:\s+(.+))?/i, async (msg, match) => {
             try {
-                if (!isExactCommand(msg.text, '/cekinfo')) {
-                    console.log(`[CEKINFO] Ignored: not exact command. Text: ${msg.text}`);
-                    return;
-                }
-                
                 if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
-                    console.log(`[CEKINFO] Ignored: not a group chat`);
                     return;
                 }
                 
@@ -1579,8 +1749,7 @@ if (IS_WORKER) {
                     return;
                 }
                 
-                const args = match[1] ? match[1].trim().split(/\s+/) : [];
-                if (args.length < 2) {
+                if (!match || !match[1]) {
                     const msgText = texts.group.format[lang];
                     await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
                     return;
@@ -1588,6 +1757,13 @@ if (IS_WORKER) {
                 
                 if (!db.feature?.info && !isAdmin(userId)) {
                     const msgText = texts.group.feature_disabled[lang];
+                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+                    return;
+                }
+                
+                const args = match[1].trim().split(/\s+/);
+                if (args.length < 2) {
+                    const msgText = texts.group.format[lang];
                     await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
                     return;
                 }
@@ -1624,14 +1800,8 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== HANDLER /info ==========
-        bot.onText(/^\/info/, async (msg, match) => {
+        bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
             try {
-                if (!isExactCommand(msg.text, '/info')) {
-                    console.log(`[INFO] Ignored: not exact command. Text: ${msg.text}`);
-                    return;
-                }
-                
                 if (msg.chat.type !== 'private') return;
                 
                 if (!match || !match[1]) {
@@ -1711,14 +1881,8 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== HANDLER /cek ==========
-        bot.onText(/^\/cek/, async (msg, match) => {
+        bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             try {
-                if (!isExactCommand(msg.text, '/cek')) {
-                    console.log(`[CEK] Ignored: not exact command. Text: ${msg.text}`);
-                    return;
-                }
-                
                 if (msg.chat.type !== 'private') return;
                 
                 if (!match || !match[1]) {
@@ -1860,14 +2024,8 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== HANDLER /find ==========
-        bot.onText(/^\/find/, async (msg, match) => {
+        bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             try {
-                if (!isExactCommand(msg.text, '/find')) {
-                    console.log(`[FIND] Ignored: not exact command. Text: ${msg.text}`);
-                    return;
-                }
-                
                 if (msg.chat.type !== 'private') return;
                 
                 if (!match || !match[1]) {
@@ -2012,519 +2170,174 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== HANDLER /all ==========
-        bot.onText(/^\/all/, async (msg, match) => {
-            try {
-                if (!isExactCommand(msg.text, '/all')) {
-                    console.log(`[ALL] Ignored: not exact command. Text: ${msg.text}`);
-                    return;
-                }
-                
-                if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
-                    console.log(`[ALL] Ignored: not a group chat`);
-                    return;
-                }
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const messageId = msg.message_id;
-                const lang = getUserLanguage(userId);
-                
-                if (!isGroupAllowed(chatId) && !isAdmin(userId)) {
-                    const msgText = texts.group.not_allowed[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                let isGroupAdmin = false;
-                try {
-                    const chatMember = await bot.getChatMember(chatId, userId);
-                    isGroupAdmin = ['administrator', 'creator'].includes(chatMember.status);
-                } catch (e) {
-                    console.log('Failed to check admin status:', e.message);
-                }
-                
-                if (!isGroupAdmin && !isAdmin(userId)) {
-                    const adminOnlyMsg = texts.all_command.admin_only[lang];
-                    await bot.sendMessage(chatId, adminOnlyMsg, { 
-                        parse_mode: 'Markdown',
-                        reply_to_message_id: messageId 
-                    });
-                    return;
-                }
-                
-                let adminMessage = match && match[1] ? match[1].trim() : '';
-                
-                const loadingMsg = await bot.sendMessage(chatId, texts.all_command.fetching_members[lang], { 
-                    parse_mode: 'Markdown',
-                    reply_to_message_id: messageId 
-                });
-                
-                try {
-                    const allMembers = await getAllGroupMembers(chatId);
-                    
-                    if (!allMembers || allMembers.length === 0) {
-                        await bot.editMessageText(texts.all_command.no_members[lang], {
-                            chat_id: chatId,
-                            message_id: loadingMsg.message_id,
-                            parse_mode: 'Markdown'
-                        });
-                        return;
-                    }
-                    
-                    let mentions = [];
-                    const botInfo = await bot.getMe();
-                    const botId = botInfo.id;
-                    
-                    for (const member of allMembers) {
-                        const memberId = member.user_id;
-                        
-                        if (memberId !== botId && memberId !== userId) {
-                            mentions.push(`[\u200B](tg://user?id=${memberId})`);
-                        }
-                    }
-                    
-                    if (!mentions.some(m => m.includes(`id=${userId}`))) {
-                        const currentUser = await bot.getChatMember(chatId, userId);
-                        if (currentUser && currentUser.user && currentUser.user.id !== botId) {
-                            mentions.unshift(`[\u200B](tg://user?id=${currentUser.user.id})`);
-                        }
-                    }
-                    
-                    if (mentions.length === 0) {
-                        await bot.editMessageText(texts.all_command.no_members[lang], {
-                            chat_id: chatId,
-                            message_id: loadingMsg.message_id,
-                            parse_mode: 'Markdown'
-                        });
-                        return;
-                    }
-                    
-                    const currentTime = moment().tz('Asia/Jakarta').format('HH:mm:ss');
-                    const adminName = msg.from.first_name || msg.from.username || 'Admin';
-                    
-                    await bot.deleteMessage(chatId, loadingMsg.message_id);
-                    
-                    const mentionChunks = [];
-                    const chunkSize = 100;
-                    
-                    for (let i = 0; i < mentions.length; i += chunkSize) {
-                        mentionChunks.push(mentions.slice(i, i + chunkSize).join(' '));
-                    }
-                    
-                    let finalMessage;
-                    if (adminMessage) {
-                        finalMessage = texts.all_command.announcement_format[lang](adminName, adminMessage, mentionChunks[0], currentTime);
-                    } else {
-                        finalMessage = texts.all_command.announcement_format[lang](adminName, '', mentionChunks[0], currentTime);
-                    }
-                    
-                    await bot.sendMessage(chatId, finalMessage, {
-                        parse_mode: 'Markdown',
-                        disable_web_page_preview: true
-                    });
-                    
-                    for (let i = 1; i < mentionChunks.length; i++) {
-                        await bot.sendMessage(chatId, mentionChunks[i], {
-                            parse_mode: 'Markdown',
-                            disable_web_page_preview: true
-                        });
-                    }
-                    
-                    console.log(`[ALL] Mentioned ${mentions.length} members in group ${chatId}`);
-                    
-                } catch (error) {
-                    console.log('Error /all:', error.message);
-                    
-                    let errorMessage = texts.all_command.error_permission[lang];
-                    
-                    await bot.editMessageText(errorMessage, {
-                        chat_id: chatId,
-                        message_id: loadingMsg.message_id,
-                        parse_mode: 'Markdown'
-                    });
-                }
-                
-            } catch (error) {
-                console.log('Error /all handler:', error.message);
-                try {
-                    const lang = getUserLanguage(msg.from.id);
-                    const errorMsg = texts.error[lang];
-                    await bot.sendMessage(msg.chat.id, errorMsg);
-                } catch (e) {}
-            }
+        // ========== HANDLER /all - INVISIBLE MENTION ==========
+bot.onText(/^\/all/, async (msg, match) => {
+    try {
+        // Validasi command harus di awal
+        if (!isExactCommand(msg.text, '/all')) {
+            console.log(`[ALL] Ignored: not exact command. Text: ${msg.text}`);
+            return;
+        }
+        
+        // Hanya di grup
+        if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
+            console.log(`[ALL] Ignored: not a group chat`);
+            return;
+        }
+        
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        const messageId = msg.message_id;
+        const lang = getUserLanguage(userId);
+        
+        // Cek izin grup
+        if (!isGroupAllowed(chatId) && !isAdmin(userId)) {
+            const msgText = texts.group.not_allowed[lang];
+            await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+            return;
+        }
+        
+        // Cek admin grup
+        let isGroupAdmin = false;
+        try {
+            const chatMember = await bot.getChatMember(chatId, userId);
+            isGroupAdmin = ['administrator', 'creator'].includes(chatMember.status);
+        } catch (e) {
+            console.log('Failed to check admin status:', e.message);
+        }
+        
+        if (!isGroupAdmin && !isAdmin(userId)) {
+            const adminOnlyMsg = texts.all_command.admin_only[lang];
+            await bot.sendMessage(chatId, adminOnlyMsg, { 
+                parse_mode: 'Markdown',
+                reply_to_message_id: messageId 
+            });
+            return;
+        }
+        
+        // Ambil pesan admin (semua text setelah /all)
+        let adminMessage = '';
+        if (match && match[1]) {
+            adminMessage = match[1].trim();
+        }
+        
+        console.log(`[ALL] Admin message: "${adminMessage}"`);
+        
+        const loadingMsg = await bot.sendMessage(chatId, texts.all_command.fetching_members[lang], { 
+            parse_mode: 'Markdown',
+            reply_to_message_id: messageId 
         });
-
-        // ========== HANDLER /addmember ==========
-        bot.onText(/^\/addmember/, async (msg, match) => {
-            try {
-                if (!isExactCommand(msg.text, '/addmember')) {
-                    console.log(`[ADDMEMBER] Ignored: not exact command. Text: ${msg.text}`);
-                    return;
-                }
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const chatType = msg.chat.type;
-                const messageId = msg.message_id;
-                const lang = getUserLanguage(userId);
-                
-                if (chatType !== 'group' && chatType !== 'supergroup') {
-                    await bot.sendMessage(chatId, texts.group_id_instruction[lang], { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                if (!isGroupAllowed(chatId) && !isAdmin(userId)) {
-                    const msgText = texts.group.not_allowed[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                let isGroupAdmin = false;
-                try {
-                    const chatMember = await bot.getChatMember(chatId, userId);
-                    isGroupAdmin = ['administrator', 'creator'].includes(chatMember.status);
-                } catch (e) {
-                    console.log('Failed to check admin status:', e.message);
-                }
-                
-                if (!isGroupAdmin && !isAdmin(userId)) {
-                    const adminOnlyMsg = `*Only group admins can use this command!*`;
-                    await bot.sendMessage(chatId, adminOnlyMsg, { 
-                        parse_mode: 'Markdown',
-                        reply_to_message_id: messageId 
-                    });
-                    return;
-                }
-                
-                if (!match || !match[1]) {
-                    const helpMsg = texts.addmember_command.help[lang];
-                    await bot.sendMessage(chatId, helpMsg, { 
-                        parse_mode: 'Markdown',
-                        reply_to_message_id: messageId 
-                    });
-                    return;
-                }
-                
-                let targetUserId = null;
-                let targetName = '';
-                
-                if (msg.reply_to_message && msg.reply_to_message.from) {
-                    targetUserId = msg.reply_to_message.from.id;
-                    targetName = msg.reply_to_message.from.first_name || msg.reply_to_message.from.username || 'Member';
-                    
-                    const params = match[1].trim();
-                    if (params) {
-                        targetName = params;
-                    }
-                } else {
-                    const params = match[1].trim().split(/\s+/);
-                    if (params.length < 1) {
-                        await bot.sendMessage(chatId, texts.addmember_command.user_id_required[lang], { 
-                            parse_mode: 'Markdown',
-                            reply_to_message_id: messageId 
+        
+        try {
+            // Ambil semua member dari database
+            let allMembers = await getAllGroupMembers(chatId);
+            
+            // Jika tidak ada member, coba ambil dari admin grup sebagai fallback
+            if (!allMembers || allMembers.length === 0) {
+                console.log(`[ALL] No members in database, trying to get admins`);
+                const admins = await bot.getChatAdministrators(chatId);
+                for (const admin of admins) {
+                    const adminId = admin.user.id;
+                    if (adminId !== (await bot.getMe()).id) {
+                        allMembers.push({
+                            user_id: adminId,
+                            first_name: admin.user.first_name,
+                            username: admin.user.username
                         });
-                        return;
-                    }
-                    
-                    targetUserId = parseInt(params[0]);
-                    if (isNaN(targetUserId)) {
-                        await bot.sendMessage(chatId, texts.addmember_command.user_id_invalid[lang], { 
-                            parse_mode: 'Markdown',
-                            reply_to_message_id: messageId 
-                        });
-                        return;
-                    }
-                    
-                    if (params.length > 1) {
-                        targetName = params.slice(1).join(' ');
-                    } else {
-                        targetName = `Member_${targetUserId}`;
                     }
                 }
-                
-                const loadingMsg = await bot.sendMessage(chatId, `*Adding member...*`, { 
-                    parse_mode: 'Markdown',
-                    reply_to_message_id: messageId 
-                });
-                
-                try {
-                    if (!db.users[targetUserId]) {
-                        db.users[targetUserId] = {
-                            username: '',
-                            first_name: targetName,
-                            last_name: '',
-                            success: 0,
-                            credits: 0,
-                            topup_history: [],
-                            language: DEFAULT_LANG,
-                            groups: [],
-                            joined_at: Date.now(),
-                            last_active: Date.now(),
-                            manually_added: true,
-                            added_by: userId,
-                            added_at: Date.now()
-                        };
-                    }
-                    
-                    if (!db.users[targetUserId].groups) {
-                        db.users[targetUserId].groups = [];
-                    }
-                    
-                    if (!db.users[targetUserId].groups.includes(chatId)) {
-                        db.users[targetUserId].groups.push(chatId);
-                    }
-                    
-                    if (targetName && !db.users[targetUserId].first_name) {
-                        db.users[targetUserId].first_name = targetName;
-                    }
-                    
-                    db.users[targetUserId].manually_added = true;
-                    db.users[targetUserId].added_by = userId;
-                    db.users[targetUserId].added_at = Date.now();
-                    
-                    await saveDB();
-                    
-                    const totalMembers = await getTotalGroupMembers(chatId);
-                    
-                    const successMsg = texts.addmember_command.success[lang](targetUserId, targetName, totalMembers);
-                    
-                    await bot.editMessageText(successMsg, {
-                        chat_id: chatId,
-                        message_id: loadingMsg.message_id,
-                        parse_mode: 'Markdown'
-                    });
-                    
-                    try {
-                        await bot.sendMessage(targetUserId, `You have been added to group member list. You can now be mentioned using /all command in the group.`);
-                    } catch (e) {
-                        console.log(`Cannot send welcome message to ${targetUserId}: user may have blocked bot`);
-                    }
-                    
-                } catch (error) {
-                    console.log('Error /addmember:', error.message);
-                    
-                    await bot.editMessageText(texts.addmember_command.error[lang](error.message), {
-                        chat_id: chatId,
-                        message_id: loadingMsg.message_id,
-                        parse_mode: 'Markdown'
-                    });
-                }
-                
-            } catch (error) {
-                console.log('Error /addmember handler:', error.message);
-                try {
-                    await bot.sendMessage(msg.chat.id, 'Error occurred');
-                } catch (e) {}
             }
-        });
-
-        // ========== HANDLER /listmembers ==========
-        bot.onText(/^\/listmembers$/, async (msg) => {
-            try {
-                if (!isExactCommand(msg.text, '/listmembers')) return;
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const chatType = msg.chat.type;
-                const messageId = msg.message_id;
-                const lang = getUserLanguage(userId);
-                
-                if (chatType !== 'group' && chatType !== 'supergroup') {
-                    await bot.sendMessage(chatId, texts.group_id_instruction[lang], { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                if (!isGroupAllowed(chatId) && !isAdmin(userId)) {
-                    const msgText = texts.group.not_allowed[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                let isGroupAdmin = false;
-                try {
-                    const chatMember = await bot.getChatMember(chatId, userId);
-                    isGroupAdmin = ['administrator', 'creator'].includes(chatMember.status);
-                } catch (e) {
-                    console.log('Failed to check admin status:', e.message);
-                }
-                
-                if (!isGroupAdmin && !isAdmin(userId)) {
-                    const adminOnlyMsg = `*Only group admins can use this command!*`;
-                    await bot.sendMessage(chatId, adminOnlyMsg, { 
-                        parse_mode: 'Markdown',
-                        reply_to_message_id: messageId 
-                    });
-                    return;
-                }
-                
-                const allMembers = await getAllGroupMembers(chatId);
-                
-                if (allMembers.length === 0) {
-                    await bot.sendMessage(chatId, texts.listmembers_command.no_members[lang], { 
-                        parse_mode: 'Markdown',
-                        reply_to_message_id: messageId 
-                    });
-                    return;
-                }
-                
-                let message = texts.listmembers_command.title[lang](allMembers.length);
-                
-                const displayCount = Math.min(allMembers.length, 30);
-                for (let i = 0; i < displayCount; i++) {
-                    const m = allMembers[i];
-                    const name = m.first_name || m.username || `User ${m.user_id}`;
-                    const addedBy = m.manually_added ? `(added manually)` : `(auto)`;
-                    message += `${i+1}. ${name} - \`${m.user_id}\` ${addedBy}\n`;
-                }
-                
-                if (allMembers.length > 30) {
-                    message += `\n... and ${allMembers.length - 30} more members.`;
-                }
-                
-                message += texts.listmembers_command.footer[lang];
-                
-                await bot.sendMessage(chatId, message, { 
-                    parse_mode: 'Markdown',
-                    reply_to_message_id: messageId,
-                    disable_web_page_preview: true
+            
+            if (!allMembers || allMembers.length === 0) {
+                await bot.editMessageText(texts.all_command.no_members[lang], {
+                    chat_id: chatId,
+                    message_id: loadingMsg.message_id,
+                    parse_mode: 'Markdown'
                 });
-                
-            } catch (error) {
-                console.log('Error /listmembers:', error.message);
-                try {
-                    await bot.sendMessage(msg.chat.id, 'Error occurred');
-                } catch (e) {}
+                return;
             }
-        });
-
-        // ========== HANDLER /sync ==========
-        bot.onText(/^\/sync$/, async (msg) => {
-            try {
-                if (!isExactCommand(msg.text, '/sync')) return;
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const chatType = msg.chat.type;
-                const messageId = msg.message_id;
-                const lang = getUserLanguage(userId);
-                
-                if (chatType !== 'group' && chatType !== 'supergroup') {
-                    await bot.sendMessage(chatId, texts.group_id_instruction[lang], { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                if (!isGroupAllowed(chatId) && !isAdmin(userId)) {
-                    const msgText = texts.group.not_allowed[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                let isGroupAdmin = false;
-                try {
-                    const chatMember = await bot.getChatMember(chatId, userId);
-                    isGroupAdmin = ['administrator', 'creator'].includes(chatMember.status);
-                } catch (e) {
-                    console.log('Failed to check admin status:', e.message);
-                }
-                
-                if (!isGroupAdmin && !isAdmin(userId)) {
-                    const adminOnlyMsg = `*Only group admins can use this command!*`;
-                    await bot.sendMessage(chatId, adminOnlyMsg, { 
-                        parse_mode: 'Markdown',
-                        reply_to_message_id: messageId 
-                    });
-                    return;
-                }
-                
-                const loadingMsg = await bot.sendMessage(chatId, texts.sync_command.title[lang], { 
-                    parse_mode: 'Markdown',
-                    reply_to_message_id: messageId 
+            
+            // Filter bot dan user yang menjalankan command
+            const botInfo = await bot.getMe();
+            const botId = botInfo.id;
+            
+            const validMembers = allMembers.filter(m => {
+                const memberId = m.user_id;
+                return memberId !== botId && memberId !== userId;
+            });
+            
+            if (validMembers.length === 0) {
+                await bot.editMessageText(texts.all_command.no_members[lang], {
+                    chat_id: chatId,
+                    message_id: loadingMsg.message_id,
+                    parse_mode: 'Markdown'
                 });
-                
-                try {
-                    const admins = await bot.getChatAdministrators(chatId);
-                    const chatInfo = await bot.getChat(chatId);
-                    
-                    let syncedCount = 0;
-                    let existingCount = 0;
-                    
-                    for (const admin of admins) {
-                        const adminId = admin.user.id;
-                        const adminUsername = admin.user.username || '';
-                        const adminFirstName = admin.user.first_name || '';
-                        const adminLastName = admin.user.last_name || '';
-                        
-                        if (!db.users[adminId]) {
-                            db.users[adminId] = {
-                                username: adminUsername,
-                                first_name: adminFirstName,
-                                last_name: adminLastName,
-                                success: 0,
-                                credits: 0,
-                                topup_history: [],
-                                language: DEFAULT_LANG,
-                                groups: [],
-                                last_active: Date.now(),
-                                synced_at: Date.now()
-                            };
-                            syncedCount++;
-                        }
-                        
-                        if (!db.users[adminId].groups) {
-                            db.users[adminId].groups = [];
-                        }
-                        
-                        if (!db.users[adminId].groups.includes(chatId)) {
-                            db.users[adminId].groups.push(chatId);
-                        }
-                        
-                        if (adminUsername && db.users[adminId].username !== adminUsername) {
-                            db.users[adminId].username = adminUsername;
-                        }
-                        if (adminFirstName && db.users[adminId].first_name !== adminFirstName) {
-                            db.users[adminId].first_name = adminFirstName;
-                        }
-                        if (adminLastName && db.users[adminId].last_name !== adminLastName) {
-                            db.users[adminId].last_name = adminLastName;
-                        }
-                        
-                        existingCount++;
-                    }
-                    
-                    await saveDB();
-                    
-                    const totalMembers = await getTotalGroupMembers(chatId);
-                    
-                    const resultMsg = texts.sync_command.success[lang](chatInfo.title || chatId, totalMembers, syncedCount, existingCount);
-                    
-                    await bot.editMessageText(resultMsg, {
-                        chat_id: chatId,
-                        message_id: loadingMsg.message_id,
-                        parse_mode: 'Markdown'
-                    });
-                    
-                } catch (error) {
-                    console.log('Error /sync:', error.message);
-                    
-                    const errorMessage = texts.sync_command.failed[lang](error.message);
-                    
-                    await bot.editMessageText(errorMessage, {
-                        chat_id: chatId,
-                        message_id: loadingMsg.message_id,
-                        parse_mode: 'Markdown'
-                    });
-                }
-                
-            } catch (error) {
-                console.log('Error /sync handler:', error.message);
-                try {
-                    await bot.sendMessage(msg.chat.id, 'Error occurred');
-                } catch (e) {}
+                return;
             }
-        });
+            
+            // Buat invisible mentions (tidak menampilkan nama)
+            // Menggunakan zero-width space sebagai placeholder
+            const invisibleMentions = [];
+            for (const member of validMembers) {
+                const memberId = member.user_id;
+                // Invisible mention dengan zero-width space
+                invisibleMentions.push(`<a href="tg://user?id=${memberId}">\u200B</a>`);
+            }
+            
+            const currentTime = moment().tz('Asia/Jakarta').format('HH:mm:ss');
+            const adminName = msg.from.first_name || msg.from.username || 'Admin';
+            
+            await bot.deleteMessage(chatId, loadingMsg.message_id);
+            
+            // Format pesan final (hanya pesan admin dan waktu)
+            let finalMessage = '';
+            if (adminMessage) {
+                finalMessage = `<b>PENGUMUMAN DARI ${adminName}</b>\n\n${adminMessage}\n\n<i>Waktu: ${currentTime} WIB</i>`;
+            } else {
+                finalMessage = `<b>PERHATIAN DARI ${adminName}</b>\n\n<i>Waktu: ${currentTime} WIB</i>`;
+            }
+            
+            // Kirim pesan dengan invisible mentions
+            // Mentions ditempatkan di akhir pesan agar tidak terlihat
+            const mentionChunks = [];
+            const chunkSize = 100;
+            
+            for (let i = 0; i < invisibleMentions.length; i += chunkSize) {
+                mentionChunks.push(invisibleMentions.slice(i, i + chunkSize).join(''));
+            }
+            
+            // Kirim pesan utama dengan mentions di dalamnya
+            // Gabungkan mentions di akhir pesan agar tidak mengganggu tampilan
+            const messageWithMentions = finalMessage + mentionChunks.join('');
+            
+            await bot.sendMessage(chatId, messageWithMentions, {
+                parse_mode: 'HTML',
+                disable_web_page_preview: true
+            });
+            
+            console.log(`[ALL] Mentioned ${validMembers.length} members in group ${chatId} with message: "${adminMessage}"`);
+            
+        } catch (error) {
+            console.log('Error /all:', error.message);
+            
+            let errorMessage = texts.all_command.error_permission[lang];
+            
+            await bot.sendMessage(chatId, errorMessage, {
+                parse_mode: 'Markdown',
+                reply_to_message_id: messageId
+            });
+        }
+        
+    } catch (error) {
+        console.log('Error /all handler:', error.message);
+        try {
+            const lang = getUserLanguage(msg.from.id);
+            const errorMsg = texts.error[lang];
+            await bot.sendMessage(msg.chat.id, errorMsg);
+        } catch (e) {}
+    }
+});
 
-        // ========== MENU FUNCTIONS ==========
         async function editToMainMenu(bot, chatId, messageId, userId) {
             try {
                 await loadDB();
@@ -3096,7 +2909,6 @@ if (IS_WORKER) {
             }
         }
 
-        // ========== CALLBACK QUERY HANDLER ==========
         bot.on('callback_query', async (cb) => {
             try {
                 console.log('Callback diterima:', cb.data);
@@ -3480,7 +3292,6 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== POSTGRES LISTENER ==========
         const listenerPool = new Pool({
             connectionString: process.env.DATABASE_URL,
             ssl: { rejectUnauthorized: false }
