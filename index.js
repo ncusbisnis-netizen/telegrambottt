@@ -2170,8 +2170,8 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== HANDLER /all - VERSI SEDERHANA (TANPA isExactCommand) ==========
-bot.onText(/^\/all/, async (msg, match) => {
+        // ========== HANDLER /all - WAJIB DENGAN PESAN ==========
+bot.onText(/^\/all\s+(.+)$/, async (msg, match) => {
     try {
         // Hanya di grup
         if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
@@ -2200,7 +2200,7 @@ bot.onText(/^\/all/, async (msg, match) => {
         }
         
         if (!isGroupAdmin && !isAdmin(userId)) {
-            const adminOnlyMsg = texts.all_command.admin_only[lang];
+            const adminOnlyMsg = `*Only group admins can use this command!*`;
             await bot.sendMessage(chatId, adminOnlyMsg, { 
                 parse_mode: 'Markdown',
                 reply_to_message_id: messageId 
@@ -2208,15 +2208,25 @@ bot.onText(/^\/all/, async (msg, match) => {
             return;
         }
         
-        // Ambil pesan admin (bisa kosong)
+        // Ambil pesan admin (WAJIB ADA)
         let adminMessage = '';
         if (match && match[1]) {
             adminMessage = match[1].trim();
         }
         
-        console.log(`[ALL] Admin message: "${adminMessage || '(empty)'}"`);
+        // Jika tidak ada pesan, kirim peringatan
+        if (!adminMessage) {
+            const warningMsg = `*⚠️ PERINGATAN*\n\nPenggunaan yang benar:\n/all [pesan]\n\nContoh:\n/all Selamat pagi semua, meeting dimulai jam 10\n\n*Pesan tidak boleh kosong!*`;
+            await bot.sendMessage(chatId, warningMsg, { 
+                parse_mode: 'Markdown',
+                reply_to_message_id: messageId 
+            });
+            return;
+        }
         
-        const loadingMsg = await bot.sendMessage(chatId, texts.all_command.fetching_members[lang], { 
+        console.log(`[ALL] Admin message: "${adminMessage}"`);
+        
+        const loadingMsg = await bot.sendMessage(chatId, `*Mengambil daftar anggota...*`, { 
             parse_mode: 'Markdown',
             reply_to_message_id: messageId 
         });
@@ -2242,7 +2252,7 @@ bot.onText(/^\/all/, async (msg, match) => {
             }
             
             if (!allMembers || allMembers.length === 0) {
-                await bot.editMessageText(texts.all_command.no_members[lang], {
+                await bot.editMessageText(`*Tidak ada anggota yang dapat di-mention.*`, {
                     chat_id: chatId,
                     message_id: loadingMsg.message_id,
                     parse_mode: 'Markdown'
@@ -2260,7 +2270,7 @@ bot.onText(/^\/all/, async (msg, match) => {
             });
             
             if (validMembers.length === 0) {
-                await bot.editMessageText(texts.all_command.no_members[lang], {
+                await bot.editMessageText(`*Tidak ada anggota yang dapat di-mention.*`, {
                     chat_id: chatId,
                     message_id: loadingMsg.message_id,
                     parse_mode: 'Markdown'
@@ -2281,12 +2291,7 @@ bot.onText(/^\/all/, async (msg, match) => {
             await bot.deleteMessage(chatId, loadingMsg.message_id);
             
             // Format pesan
-            let finalMessage = '';
-            if (adminMessage) {
-                finalMessage = `<b>PENGUMUMAN DARI ${adminName}</b>\n\n${adminMessage}\n\n<i>Waktu: ${currentTime} WIB</i>`;
-            } else {
-                finalMessage = `<b>PERHATIAN DARI ${adminName}</b>\n\n<i>Waktu: ${currentTime} WIB</i>`;
-            }
+            const finalMessage = `<b>PENGUMUMAN DARI ${adminName}</b>\n\n${adminMessage}\n\n<i>Waktu: ${currentTime} WIB</i>`;
             
             // Gabungkan mentions
             const allMentions = invisibleMentions.join('');
@@ -2297,12 +2302,12 @@ bot.onText(/^\/all/, async (msg, match) => {
                 disable_web_page_preview: true
             });
             
-            console.log(`[ALL] Mentioned ${validMembers.length} members in group ${chatId}`);
+            console.log(`[ALL] Mentioned ${validMembers.length} members in group ${chatId} with message: "${adminMessage}"`);
             
         } catch (error) {
             console.log('Error /all:', error.message);
             
-            let errorMessage = texts.all_command.error_permission[lang];
+            let errorMessage = `*Gagal mengirim mention.*\n\nBot tidak memiliki izin yang cukup.\n\nPastikan bot adalah admin grup dengan izin:\n- Get member list\n- Send messages\n- Mention users`;
             
             await bot.sendMessage(chatId, errorMessage, {
                 parse_mode: 'Markdown',
