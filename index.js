@@ -2170,18 +2170,11 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== HANDLER /all - INVISIBLE MENTION ==========
+        // ========== HANDLER /all - VERSI SEDERHANA (TANPA isExactCommand) ==========
 bot.onText(/^\/all/, async (msg, match) => {
     try {
-        // Validasi command harus di awal
-        if (!isExactCommand(msg.text, '/all')) {
-            console.log(`[ALL] Ignored: not exact command. Text: ${msg.text}`);
-            return;
-        }
-        
         // Hanya di grup
         if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
-            console.log(`[ALL] Ignored: not a group chat`);
             return;
         }
         
@@ -2215,13 +2208,13 @@ bot.onText(/^\/all/, async (msg, match) => {
             return;
         }
         
-        // Ambil pesan admin (semua text setelah /all)
+        // Ambil pesan admin (bisa kosong)
         let adminMessage = '';
         if (match && match[1]) {
             adminMessage = match[1].trim();
         }
         
-        console.log(`[ALL] Admin message: "${adminMessage}"`);
+        console.log(`[ALL] Admin message: "${adminMessage || '(empty)'}"`);
         
         const loadingMsg = await bot.sendMessage(chatId, texts.all_command.fetching_members[lang], { 
             parse_mode: 'Markdown',
@@ -2232,7 +2225,7 @@ bot.onText(/^\/all/, async (msg, match) => {
             // Ambil semua member dari database
             let allMembers = await getAllGroupMembers(chatId);
             
-            // Jika tidak ada member, coba ambil dari admin grup sebagai fallback
+            // Jika tidak ada member, ambil dari admin grup
             if (!allMembers || allMembers.length === 0) {
                 console.log(`[ALL] No members in database, trying to get admins`);
                 const admins = await bot.getChatAdministrators(chatId);
@@ -2257,7 +2250,7 @@ bot.onText(/^\/all/, async (msg, match) => {
                 return;
             }
             
-            // Filter bot dan user yang menjalankan command
+            // Filter bot dan user sendiri
             const botInfo = await bot.getMe();
             const botId = botInfo.id;
             
@@ -2275,12 +2268,10 @@ bot.onText(/^\/all/, async (msg, match) => {
                 return;
             }
             
-            // Buat invisible mentions (tidak menampilkan nama)
-            // Menggunakan zero-width space sebagai placeholder
+            // Buat invisible mentions
             const invisibleMentions = [];
             for (const member of validMembers) {
                 const memberId = member.user_id;
-                // Invisible mention dengan zero-width space
                 invisibleMentions.push(`<a href="tg://user?id=${memberId}">\u200B</a>`);
             }
             
@@ -2289,7 +2280,7 @@ bot.onText(/^\/all/, async (msg, match) => {
             
             await bot.deleteMessage(chatId, loadingMsg.message_id);
             
-            // Format pesan final (hanya pesan admin dan waktu)
+            // Format pesan
             let finalMessage = '';
             if (adminMessage) {
                 finalMessage = `<b>PENGUMUMAN DARI ${adminName}</b>\n\n${adminMessage}\n\n<i>Waktu: ${currentTime} WIB</i>`;
@@ -2297,25 +2288,16 @@ bot.onText(/^\/all/, async (msg, match) => {
                 finalMessage = `<b>PERHATIAN DARI ${adminName}</b>\n\n<i>Waktu: ${currentTime} WIB</i>`;
             }
             
-            // Kirim pesan dengan invisible mentions
-            // Mentions ditempatkan di akhir pesan agar tidak terlihat
-            const mentionChunks = [];
-            const chunkSize = 100;
+            // Gabungkan mentions
+            const allMentions = invisibleMentions.join('');
             
-            for (let i = 0; i < invisibleMentions.length; i += chunkSize) {
-                mentionChunks.push(invisibleMentions.slice(i, i + chunkSize).join(''));
-            }
-            
-            // Kirim pesan utama dengan mentions di dalamnya
-            // Gabungkan mentions di akhir pesan agar tidak mengganggu tampilan
-            const messageWithMentions = finalMessage + mentionChunks.join('');
-            
-            await bot.sendMessage(chatId, messageWithMentions, {
+            // Kirim pesan
+            await bot.sendMessage(chatId, finalMessage + allMentions, {
                 parse_mode: 'HTML',
                 disable_web_page_preview: true
             });
             
-            console.log(`[ALL] Mentioned ${validMembers.length} members in group ${chatId} with message: "${adminMessage}"`);
+            console.log(`[ALL] Mentioned ${validMembers.length} members in group ${chatId}`);
             
         } catch (error) {
             console.log('Error /all:', error.message);
