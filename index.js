@@ -1777,49 +1777,46 @@ if (IS_WORKER) {
         });
 
         bot.onText(/\/cekinfo(?:\s+(.+))?/i, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
-                    return;
-                }
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const messageId = msg.message_id;
-                const lang = getUserLanguage(userId);
+    try {
+        if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
+            return;
+        }
+        
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        const messageId = msg.message_id;
+        const lang = getUserLanguage(userId);
 
-                if (!isGroupAllowed(chatId)) {
-                    const msgText = texts.group.not_allowed[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                if (!match || !match[1]) {
-                    const msgText = texts.group.format[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                if (!db.feature?.info && !isAdmin(userId)) {
-                    const msgText = texts.group.feature_disabled[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                const args = match[1].trim().split(/\s+/);
-                if (args.length < 2) {
-                    const msgText = texts.group.format[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                const targetId = args[0];
-                const serverId = args[1];
-                
-                if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-                    const msgText = texts.cek_command.wrong_format[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
+        if (!isGroupAllowed(chatId)) {
+            const msgText = texts.group.not_allowed[lang];
+            await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+            return;
+        }
+        
+        // HAPUS CEK FORMAT DI SINI - LANGSUNG CEK INPUT
+        const input = match[1] ? match[1].trim() : '';
+        
+        if (!input) {
+            return;
+        }
+        
+        if (!db.feature?.info && !isAdmin(userId)) {
+            const msgText = texts.group.feature_disabled[lang];
+            await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+            return;
+        }
+        
+        const args = input.split(/\s+/);
+        if (args.length < 2) {
+            return;
+        }
+        
+        const targetId = args[0];
+        const serverId = args[1];
+        
+        if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
+            return;
+        }
                 
                 const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', messageId);
                 
@@ -1845,37 +1842,32 @@ if (IS_WORKER) {
         });
 
         bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                if (!match || !match[1]) {
-                    const lang = getUserLanguage(msg.from.id);
-                    const msgText = texts.info_command.format[lang];
-                    await bot.sendMessage(msg.chat.id, msgText);
-                    return;
-                }
-                
-                await loadDB();
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const lang = getUserLanguage(userId);
-                
-                const args = match[1].trim().split(/\s+/);
-                if (args.length < 2) {
-                    const msgText = texts.info_command.format[lang];
-                    await bot.sendMessage(chatId, msgText);
-                    return;
-                }
-                
-                const targetId = args[0];
-                const serverId = args[1];
-                
-                if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-                    const msgText = texts.cek_command.wrong_format[lang];
-                    await bot.sendMessage(chatId, msgText);
-                    return;
-                }
+    try {
+        if (msg.chat.type !== 'private') return;
+        
+        await loadDB();
+        
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        const lang = getUserLanguage(userId);
+        
+        const input = match[1] ? match[1].trim() : '';
+        
+        if (!input) {
+            return;
+        }
+        
+        const args = input.split(/\s+/);
+        if (args.length < 2) {
+            return;
+        }
+        
+        const targetId = args[0];
+        const serverId = args[1];
+        
+        if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
+            return;
+        }
                 
                 if (!db.feature?.info && !isAdmin(userId)) {
                     const msgText = texts.group.feature_disabled[lang];
@@ -1926,41 +1918,35 @@ if (IS_WORKER) {
         });
 
         bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                if (!match || !match[1]) {
-                    const lang = getUserLanguage(msg.from.id);
-                    const msgText = texts.cek_command.format[lang];
-                    await bot.sendMessage(msg.chat.id, msgText);
-                    return;
-                }
-                
-                await loadDB();
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const lang = getUserLanguage(userId);
-                
-                await checkAndUpdateExpiredSubscription(userId);
-                
-                const input = match[1].trim();
-                const parts = input.split(/\s+/).filter(p => p.length > 0);
-                
-                if (parts.length < 2) {
-                    const msgText = texts.cek_command.wrong_format[lang];
-                    await bot.sendMessage(chatId, msgText);
-                    return;
-                }
-                
-                const targetId = parts[0];
-                const serverId = parts[1];
-                
-                if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-                    const msgText = texts.cek_command.wrong_format[lang];
-                    await bot.sendMessage(chatId, msgText);
-                    return;
-                }
+    try {
+        if (msg.chat.type !== 'private') return;
+        
+        await loadDB();
+        
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        const lang = getUserLanguage(userId);
+        
+        await checkAndUpdateExpiredSubscription(userId);
+        
+        const input = match[1] ? match[1].trim() : '';
+        
+        if (!input) {
+            return;
+        }
+        
+        const parts = input.split(/\s+/).filter(p => p.length > 0);
+        
+        if (parts.length < 2) {
+            return;
+        }
+        
+        const targetId = parts[0];
+        const serverId = parts[1];
+        
+        if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
+            return;
+        }
                 
                 const joined = await checkJoin(bot, userId);
                 if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
@@ -2069,41 +2055,35 @@ if (IS_WORKER) {
         });
 
         bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                if (!match || !match[1]) {
-                    const lang = getUserLanguage(msg.from.id);
-                    const msgText = texts.find_command.format[lang];
-                    await bot.sendMessage(msg.chat.id, msgText);
-                    return;
-                }
-                
-                await loadDB();
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const lang = getUserLanguage(userId);
-                
-                await checkAndUpdateExpiredSubscription(userId);
-                
-                const input = match[1].trim();
-                const parts = input.split(/\s+/).filter(p => p.length > 0);
-                
-                if (parts.length < 2) {
-                    const msgText = texts.find_command.wrong_format[lang];
-                    await bot.sendMessage(chatId, msgText);
-                    return;
-                }
-                
-                const serverFilter = parts[parts.length - 1];
-                if (!/^\d+$/.test(serverFilter)) {
-                    const msgText = texts.find_command.wrong_format[lang];
-                    await bot.sendMessage(chatId, msgText);
-                    return;
-                }
-                
-                const searchQuery = parts.slice(0, -1).join(' ');
+    try {
+        if (msg.chat.type !== 'private') return;
+        
+        await loadDB();
+        
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        const lang = getUserLanguage(userId);
+        
+        await checkAndUpdateExpiredSubscription(userId);
+        
+        const input = match[1] ? match[1].trim() : '';
+        
+        if (!input) {
+            return;
+        }
+        
+        const parts = input.split(/\s+/).filter(p => p.length > 0);
+        
+        if (parts.length < 2) {
+            return;
+        }
+        
+        const serverFilter = parts[parts.length - 1];
+        if (!/^\d+$/.test(serverFilter)) {
+            return;
+        }
+        
+        const searchQuery = parts.slice(0, -1).join(' ');
                 
                 const joined = await checkJoin(bot, userId);
                 if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
