@@ -2207,6 +2207,16 @@ bot.onText(/^\/all/, async (msg, match) => {
         const messageId = msg.message_id;
         const lang = getUserLanguage(userId);
         
+        // ========== TAMBAHAN: WAJIB ADA PESAN ==========
+        // Cek apakah ada pesan setelah /all
+        const input = match[1] ? match[1].trim() : '';
+        
+        if (!input) {
+            // Tidak ada pesan, diam saja (tidak merespon)
+            return;
+        }
+        // ========== END TAMBAHAN ==========
+        
         // Cek izin grup
         if (!isGroupAllowed(chatId) && !isAdmin(userId)) {
             const msgText = texts.group.not_allowed[lang];
@@ -2232,13 +2242,10 @@ bot.onText(/^\/all/, async (msg, match) => {
             return;
         }
         
-        // Ambil pesan admin (bisa kosong)
-        let adminMessage = '';
-        if (match && match[1]) {
-            adminMessage = match[1].trim();
-        }
+        // Ambil pesan admin (sudah ada di input)
+        let adminMessage = input;
         
-        console.log(`[ALL] Admin message: "${adminMessage || '(empty)'}"`);
+        console.log(`[ALL] Admin message: "${adminMessage}"`);
         
         const loadingMsg = await bot.sendMessage(chatId, texts.all_command.fetching_members[lang], { 
             parse_mode: 'Markdown',
