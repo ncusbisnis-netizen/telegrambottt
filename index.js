@@ -2194,8 +2194,7 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== HANDLER /all - VERSI SEDERHANA (TANPA isExactCommand) ==========
-bot.onText(/^\/all/, async (msg, match) => {
+        bot.onText(/^\/all(?:\s+(.+))?/i, async (msg, match) => {
     try {
         // Hanya di grup
         if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
@@ -2207,15 +2206,13 @@ bot.onText(/^\/all/, async (msg, match) => {
         const messageId = msg.message_id;
         const lang = getUserLanguage(userId);
         
-        // ========== TAMBAHAN: WAJIB ADA PESAN ==========
-        // Cek apakah ada pesan setelah /all
+        // Ambil pesan setelah /all
         const input = match[1] ? match[1].trim() : '';
         
+        // WAJIB ADA PESAN
         if (!input) {
-            // Tidak ada pesan, diam saja (tidak merespon)
             return;
         }
-        // ========== END TAMBAHAN ==========
         
         // Cek izin grup
         if (!isGroupAllowed(chatId) && !isAdmin(userId)) {
@@ -2242,8 +2239,7 @@ bot.onText(/^\/all/, async (msg, match) => {
             return;
         }
         
-        // Ambil pesan admin (sudah ada di input)
-        let adminMessage = input;
+        const adminMessage = input;
         
         console.log(`[ALL] Admin message: "${adminMessage}"`);
         
