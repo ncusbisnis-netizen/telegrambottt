@@ -52,8 +52,8 @@ const DEFAULT_LANG = LANGUAGES.en;
 
 const texts = {
     welcome: {
-        id: `SELAMAT DATANG DI NCUS BOT\n\nDaftar layanan dan harga:\n- CHECK BIND - GRATIS\n- FULL INFO - Rp 5.000\n- CARI ID VIA NICKNAME - Rp 5.000\n- Langganan akses /find dan /cek unlimited`,
-        en: `WELCOME TO NCUS BOT\n\nServices and prices:\n- CHECK BIND - FREE\n- FULL INFO - Rp 5,000\n- FIND ID BY NICKNAME - Rp 5,000\n- Subscription for unlimited /find and /cek access`
+        id: `SELAMAT DATANG DI NCUS BOT\n\nDaftar layanan dan harga:\n- CHECK BIND - GRATIS\n- GROUP MENU - GRATIS\n- FULL INFO - Rp 5.000\n- CARI ID VIA NICKNAME - Rp 5.000\n- Langganan akses /find dan /cek unlimited`,
+        en: `WELCOME TO NCUS BOT\n\nServices and prices:\n- CHECK BIND - FREE\n- GROUP MENU - FREE\n- FULL INFO - Rp 5,000\n- FIND ID BY NICKNAME - Rp 5,000\n- Subscription for unlimited /find and /cek access`
     },
     
     group_welcome: {
@@ -62,13 +62,13 @@ const texts = {
     },
     
     group_check_bind_info: {
-        id: `CHECK BIND\n\nPerintah ini digunakan untuk melihat informasi akun terhubung pada MLBB.\n\nCara Penggunaan:\nKirim perintah:\n/cekinfo ID SERVER\n\nContoh:\n/cekinfo 123456789 1234\n\nBot akan menampilkan email, Facebook, dan akun sosial lainnya yang terhubung.\n\nCatatan: Grup harus terdaftar terlebih dahulu untuk menggunakan fitur ini.\nHubungi @ncus999 untuk registrasi grup.`,
-        en: `CHECK BIND\n\nThis command is used to view connected account information on MLBB.\n\nHow to use:\nSend command:\n/cekinfo ID SERVER\n\nExample:\n/cekinfo 123456789 1234\n\nThe bot will display email, Facebook, and other connected social accounts.\n\nNote: Group must be registered first to use this feature.\nContact @ncus999 for group registration.`
+        id: `CHECK BIND\n\nPerintah ini digunakan untuk melihat informasi akun terhubung pada MLBB.\n\nCara Penggunaan:\nKirim perintah:\n/cekinfo ID SERVER\n\nContoh:\n/cekinfo 123456789 1234\n\nBot akan menampilkan email, Facebook, dan akun sosial lainnya yang terhubung.\n\Gratis digunakan`,
+        en: `CHECK BIND\n\nThis command is used to view connected account information on MLBB.\n\nHow to use:\nSend command:\n/cekinfo ID SERVER\n\nExample:\n/cekinfo 123456789 1234\n\nThe bot will display email, Facebook, and other connected social accounts.\n\Free to use`
     },
     
     group_menu_private: {
-        id: `GROUP MENU\n\nBot dapat digunakan di grup dengan perintah berikut:\n\n1. CEK BIND AKUN MLBB\n   Perintah: /cekinfo ID SERVER\n   Contoh: /cekinfo 123456789 1234\n   Fungsi: Menampilkan email, Facebook, dan akun sosial lainnya yang terhubung\n   Biaya: GRATIS\n   Catatan: Grup harus terdaftar terlebih dahulu\n\n2. MENTION SEMUA ANGGOTA\n   Perintah: /all [pesan]\n   Contoh: /all Halo semua!\n   Fungsi: Mention semua anggota grup\n   Catatan: Hanya admin grup yang dapat menggunakan\n\n3. LIHAT ID GRUP\n   Perintah: /idgrup\n   Fungsi: Menampilkan ID grup\n   Catatan: Hanya admin bot yang dapat menggunakan\n\n4. BANTUAN\n   Perintah: /help\n   Fungsi: Menampilkan bantuan perintah di grup\n\nCara Registrasi Grup:\n1. Tambah bot ke grup Anda\n2. Jadikan bot sebagai admin\n3. Hubungi @ncus999 dengan mengirimkan ID grup`,
-        en: `GROUP MENU\n\nBot can be used in groups with the following commands:\n\n1. CHECK MLBB ACCOUNT BIND\n   Command: /cekinfo ID SERVER\n   Example: /cekinfo 123456789 1234\n   Function: Display email, Facebook, and other connected social accounts\n   Cost: FREE\n   Note: Group must be registered first\n\n2. MENTION ALL MEMBERS\n   Command: /all [message]\n   Example: /all Hello everyone!\n   Function: Mention all group members\n   Note: Only group admins can use\n\n3. VIEW GROUP ID\n   Command: /idgrup\n   Function: Display group ID\n   Note: Only bot admin can use\n\n4. HELP\n   Command: /help\n   Function: Display help commands in group\n\nHow to Register Group:\n1. Add bot to your group\n2. Make bot an admin\n3. Contact @ncus999 with your group ID`
+        id: `GROUP MENU\n\nBot dapat digunakan di grup dengan perintah berikut:\n\n1. CEK BIND AKUN MLBB\n   Perintah: /cekinfo ID SERVER\n   Contoh: /cekinfo 123456789 1234\n   Fungsi: Menampilkan email, Facebook, dan akun sosial lainnya yang terhubung\n   Biaya: GRATIS\n   Catatan: Grup harus terdaftar terlebih dahulu\n\n2. MENTION SEMUA ANGGOTA\n   Perintah: /all [pesan]\n   Contoh: /all Halo semua!\n   Fungsi: Mention semua anggota grup\n   Catatan: Hanya admin grup yang dapat menggunakan\n\n3. LIHAT ID GRUP\n   Perintah: /idgrup\n   Fungsi: Menampilkan ID grup\n   Catatan: Hanya admin bot yang dapat menggunakan\n\n4. BANTUAN\n   Perintah: /help\n   Fungsi: Menampilkan bantuan perintah di grup\n\nCara Registrasi Grup:\n1. Tambah bot ke grup Anda\n2. Jadikan bot sebagai admin\n3. Hubungi @ncus999 untuk daftarkan group`,
+        en: `GROUP MENU\n\nBot can be used in groups with the following commands:\n\n1. CHECK MLBB ACCOUNT BIND\n   Command: /cekinfo ID SERVER\n   Example: /cekinfo 123456789 1234\n   Function: Display email, Facebook, and other connected social accounts\n   Cost: FREE\n   Note: Group must be registered first\n\n2. MENTION ALL MEMBERS\n   Command: /all [message]\n   Example: /all Hello everyone!\n   Function: Mention all group members\n   Note: Only group admins can use\n\n3. VIEW GROUP ID\n   Command: /idgrup\n   Function: Display group ID\n   Note: Only bot admin can use\n\n4. HELP\n   Command: /help\n   Function: Display help commands in group\n\nHow to Register Group:\n1. Add bot to your group\n2. Make bot an admin\n3. Contact @ncus999 to register a group`
     },
     
     buttons: {
@@ -92,8 +92,8 @@ const texts = {
     },
     
     check_info_menu: {
-        id: `CHECK BIND\n\nPerintah ini digunakan untuk melihat informasi akun terhubung pada MLBB.\n\nCara Penggunaan:\nKirim perintah:\n/info ID SERVER\n\nContoh:\n/info 123456789 1234\n\nBot akan menampilkan email, Facebook, dan akun sosial lainnya yang terhubung.\n\nCHECK BIND VIA GROUP\n\nTambahkan bot @mahsuselitzbot ke group dan jadikan admin group\nCara Penggunaan di dalam group:\nKirim perintah:\n/cekinfo ID SERVER\n\nContoh:\n/cekinfo 123456789 1234\n\nBiaya Rp 0`,
-        en: `CHECK BIND\n\nThis command is used to view connected account information on MLBB.\n\nHow to use:\nSend command:\n/info ID SERVER\n\nExample:\n/info 123456789 1234\n\nThe bot will display email, Facebook, and other connected social accounts.\n\nCHECK BIND VIA GROUP\n\nAdd bot @mahsuselitzbot to group and make it admin\nHow to use in group:\nSend command:\n/cekinfo ID SERVER\n\nExample:\n/cekinfo 123456789 1234\n\nCost Rp 0`
+        id: `CHECK BIND\n\nPerintah ini digunakan untuk melihat informasi akun terhubung pada MLBB.\n\nCara Penggunaan:\nKirim perintah:\n/info ID SERVER\n\nContoh:\n/info 123456789 1234\n\nBot akan menampilkan email, Facebook, dan akun sosial lainnya yang terhubung.\n\nBiaya Rp 0`,
+        en: `CHECK BIND\n\nThis command is used to view connected account information on MLBB.\n\nHow to use:\nSend command:\n/info ID SERVER\n\nExample:\n/info 123456789 1234\n\nThe bot will display email, Facebook, and other connected social accounts.\n\nCost Rp 0`
     },
     
     find_id_menu: {
