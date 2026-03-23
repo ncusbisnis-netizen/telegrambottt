@@ -1793,9 +1793,10 @@ if (IS_WORKER) {
             return;
         }
         
-        // HANYA CEK JIKA TIDAK ADA ARGUMEN SAMA SEKALI
-        if (!match || !match[1]) {
-            // DIAM SAJA, TIDAK KIRIM PESAN
+        // HAPUS CEK FORMAT DI SINI - LANGSUNG CEK INPUT
+        const input = match[1] ? match[1].trim() : '';
+        
+        if (!input) {
             return;
         }
         
@@ -1805,57 +1806,44 @@ if (IS_WORKER) {
             return;
         }
         
-        const args = match[1].trim().split(/\s+/);
-        
-        // CEK JUMLAH ARGUMEN
+        const args = input.split(/\s+/);
         if (args.length < 2) {
-            const msgText = texts.group.format[lang];
-            await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
             return;
         }
         
         const targetId = args[0];
         const serverId = args[1];
         
-        // CEK FORMAT ANGKA
         if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-            const msgText = texts.cek_command.wrong_format[lang];
-            await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
             return;
         }
-        
-        const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', messageId);
-        
-        if (!sent) {
-            const errorMsg = texts.error[lang];
-            await bot.sendMessage(chatId, errorMsg, { reply_to_message_id: messageId });
-            return;
-        }
-        
-        getUserCredits(userId, msg.from.username || '');
-        db.users[userId].success += 1;
-        db.total_success += 1;
-        await saveDB();
-        
-    } catch (error) {
-        console.log('Error /cekinfo:', error.message);
-        try {
-            const lang = getUserLanguage(msg.from.id);
-            const errorMsg = texts.error[lang];
-            await bot.sendMessage(msg.chat.id, errorMsg, { reply_to_message_id: msg.message_id });
-        } catch (e) {}
-    }
-});
+                
+                const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', messageId);
+                
+                if (!sent) {
+                    const errorMsg = texts.error[lang];
+                    await bot.sendMessage(chatId, errorMsg, { reply_to_message_id: messageId });
+                    return;
+                }
+                
+                getUserCredits(userId, msg.from.username || '');
+                db.users[userId].success += 1;
+                db.total_success += 1;
+                await saveDB();
+                
+            } catch (error) {
+                console.log('Error /cekinfo:', error.message);
+                try {
+                    const lang = getUserLanguage(msg.from.id);
+                    const errorMsg = texts.error[lang];
+                    await bot.sendMessage(msg.chat.id, errorMsg, { reply_to_message_id: msg.message_id });
+                } catch (e) {}
+            }
+        });
 
         bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
     try {
         if (msg.chat.type !== 'private') return;
-        
-        // HANYA CEK JIKA TIDAK ADA ARGUMEN SAMA SEKALI
-        if (!match || !match[1]) {
-            // DIAM SAJA, TIDAK KIRIM PESAN
-            return;
-        }
         
         await loadDB();
         
@@ -1863,22 +1851,21 @@ if (IS_WORKER) {
         const userId = msg.from.id;
         const lang = getUserLanguage(userId);
         
-        const args = match[1].trim().split(/\s+/);
+        const input = match[1] ? match[1].trim() : '';
         
-        // CEK JUMLAH ARGUMEN
+        if (!input) {
+            return;
+        }
+        
+        const args = input.split(/\s+/);
         if (args.length < 2) {
-            const msgText = texts.info_command.format[lang];
-            await bot.sendMessage(chatId, msgText);
             return;
         }
         
         const targetId = args[0];
         const serverId = args[1];
         
-        // CEK FORMAT ANGKA
         if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-            const msgText = texts.cek_command.wrong_format[lang];
-            await bot.sendMessage(chatId, msgText);
             return;
         }
                 
@@ -1934,12 +1921,6 @@ if (IS_WORKER) {
     try {
         if (msg.chat.type !== 'private') return;
         
-        // HANYA CEK JIKA TIDAK ADA ARGUMEN SAMA SEKALI
-        if (!match || !match[1]) {
-            // DIAM SAJA, TIDAK KIRIM PESAN
-            return;
-        }
-        
         await loadDB();
         
         const chatId = msg.chat.id;
@@ -1948,23 +1929,22 @@ if (IS_WORKER) {
         
         await checkAndUpdateExpiredSubscription(userId);
         
-        const input = match[1].trim();
+        const input = match[1] ? match[1].trim() : '';
+        
+        if (!input) {
+            return;
+        }
+        
         const parts = input.split(/\s+/).filter(p => p.length > 0);
         
-        // CEK JUMLAH ARGUMEN
         if (parts.length < 2) {
-            const msgText = texts.cek_command.wrong_format[lang];
-            await bot.sendMessage(chatId, msgText);
             return;
         }
         
         const targetId = parts[0];
         const serverId = parts[1];
         
-        // CEK FORMAT ANGKA
         if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-            const msgText = texts.cek_command.wrong_format[lang];
-            await bot.sendMessage(chatId, msgText);
             return;
         }
                 
@@ -2078,12 +2058,6 @@ if (IS_WORKER) {
     try {
         if (msg.chat.type !== 'private') return;
         
-        // HANYA CEK JIKA TIDAK ADA ARGUMEN SAMA SEKALI
-        if (!match || !match[1]) {
-            // DIAM SAJA, TIDAK KIRIM PESAN
-            return;
-        }
-        
         await loadDB();
         
         const chatId = msg.chat.id;
@@ -2092,22 +2066,20 @@ if (IS_WORKER) {
         
         await checkAndUpdateExpiredSubscription(userId);
         
-        const input = match[1].trim();
+        const input = match[1] ? match[1].trim() : '';
+        
+        if (!input) {
+            return;
+        }
+        
         const parts = input.split(/\s+/).filter(p => p.length > 0);
         
-        // CEK JUMLAH ARGUMEN
         if (parts.length < 2) {
-            const msgText = texts.find_command.wrong_format[lang];
-            await bot.sendMessage(chatId, msgText);
             return;
         }
         
         const serverFilter = parts[parts.length - 1];
-        
-        // CEK FORMAT ANGKA UNTUK SERVER
         if (!/^\d+$/.test(serverFilter)) {
-            const msgText = texts.find_command.wrong_format[lang];
-            await bot.sendMessage(chatId, msgText);
             return;
         }
         
