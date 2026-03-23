@@ -2194,143 +2194,155 @@ if (IS_WORKER) {
             }
         });
 
-        bot.onText(/^\/all/, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
-                    return;
-                }
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const messageId = msg.message_id;
-                const lang = getUserLanguage(userId);
-                
-                if (!isGroupAllowed(chatId) && !isAdmin(userId)) {
-                    const msgText = texts.group.not_allowed[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                let isGroupAdmin = false;
-                try {
-                    const chatMember = await bot.getChatMember(chatId, userId);
-                    isGroupAdmin = ['administrator', 'creator'].includes(chatMember.status);
-                } catch (e) {
-                    console.log('Failed to check admin status:', e.message);
-                }
-                
-                if (!isGroupAdmin && !isAdmin(userId)) {
-                    const adminOnlyMsg = texts.all_command.admin_only[lang];
-                    await bot.sendMessage(chatId, adminOnlyMsg, { 
-                        parse_mode: 'Markdown',
-                        reply_to_message_id: messageId 
-                    });
-                    return;
-                }
-                
-                let adminMessage = '';
-                if (match && match[1]) {
-                    adminMessage = match[1].trim();
-                }
-                
-                console.log(`[ALL] Admin message: "${adminMessage || '(empty)'}"`);
-                
-                const loadingMsg = await bot.sendMessage(chatId, texts.all_command.fetching_members[lang], { 
-                    parse_mode: 'Markdown',
-                    reply_to_message_id: messageId 
-                });
-                
-                try {
-                    let allMembers = await getAllGroupMembers(chatId);
-                    
-                    if (!allMembers || allMembers.length === 0) {
-                        console.log(`[ALL] No members in database, trying to get admins`);
-                        const admins = await bot.getChatAdministrators(chatId);
-                        for (const admin of admins) {
-                            const adminId = admin.user.id;
-                            if (adminId !== (await bot.getMe()).id) {
-                                allMembers.push({
-                                    user_id: adminId,
-                                    first_name: admin.user.first_name,
-                                    username: admin.user.username
-                                });
-                            }
-                        }
-                    }
-                    
-                    if (!allMembers || allMembers.length === 0) {
-                        await bot.editMessageText(texts.all_command.no_members[lang], {
-                            chat_id: chatId,
-                            message_id: loadingMsg.message_id,
-                            parse_mode: 'Markdown'
-                        });
-                        return;
-                    }
-                    
-                    const botInfo = await bot.getMe();
-                    const botId = botInfo.id;
-                    
-                    const validMembers = allMembers.filter(m => {
-                        const memberId = m.user_id;
-                        return memberId !== botId && memberId !== userId;
-                    });
-                    
-                    if (validMembers.length === 0) {
-                        await bot.editMessageText(texts.all_command.no_members[lang], {
-                            chat_id: chatId,
-                            message_id: loadingMsg.message_id,
-                            parse_mode: 'Markdown'
-                        });
-                        return;
-                    }
-                    
-                    const invisibleMentions = [];
-                    for (const member of validMembers) {
-                        const memberId = member.user_id;
-                        invisibleMentions.push(`<a href="tg://user?id=${memberId}">\u200B</a>`);
-                    }
-                    
-                    const currentTime = moment().tz('Asia/Jakarta').format('HH:mm:ss');
-                    const adminName = msg.from.first_name || msg.from.username || 'Admin';
-                    
-                    await bot.deleteMessage(chatId, loadingMsg.message_id);
-                    
-                    let finalMessage = '';
-                    if (adminMessage) {
-                        finalMessage = `<b>PENGUMUMAN DARI ${adminName}</b>\n\n${adminMessage}\n\n<i>Waktu: ${currentTime} WIB</i>`;
-                    } else {
-                        finalMessage = `<b>PERHATIAN DARI ${adminName}</b>\n\n<i>Waktu: ${currentTime} WIB</i>`;
-                    }
-                    
-                    const allMentions = invisibleMentions.join('');
-                    
-                    await bot.sendMessage(chatId, finalMessage + allMentions, {
-                        parse_mode: 'HTML',
-                        disable_web_page_preview: true
-                    });
-                    
-                    console.log(`[ALL] Mentioned ${validMembers.length} members in group ${chatId}`);
-                    
-                } catch (error) {
-                    console.log('Error /all:', error.message);
-                    
-                    let errorMessage = texts.all_command.error_permission[lang];
-                    
-                    await bot.sendMessage(chatId, errorMessage, {
-                        parse_mode: 'Markdown',
-                        reply_to_message_id: messageId
-                    });
-                }
-                
-            } catch (error) {
-                console.log('Error /all handler:', error.message);
-                try {
-                    const lang = getUserLanguage(msg.from.id);
-                    const errorMsg = texts.error[lang];
-                    await bot.sendMessage(msg.chat.id, errorMsg);
-                } catch (e) {}
-            }
+        // ========== HANDLER /all - VERSI SEDERHANA (TANPA isExactCommand) ==========
+bot.onText(/^\/all/, async (msg, match) => {
+    try {
+        // Hanya di grup
+        if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
+            return;
+        }
+        
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        const messageId = msg.message_id;
+        const lang = getUserLanguage(userId);
+        
+        // Cek izin grup
+        if (!isGroupAllowed(chatId) && !isAdmin(userId)) {
+            const msgText = texts.group.not_allowed[lang];
+            await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+            return;
+        }
+        
+        // Cek admin grup
+        let isGroupAdmin = false;
+        try {
+            const chatMember = await bot.getChatMember(chatId, userId);
+            isGroupAdmin = ['administrator', 'creator'].includes(chatMember.status);
+        } catch (e) {
+            console.log('Failed to check admin status:', e.message);
+        }
+        
+        if (!isGroupAdmin && !isAdmin(userId)) {
+            const adminOnlyMsg = texts.all_command.admin_only[lang];
+            await bot.sendMessage(chatId, adminOnlyMsg, { 
+                parse_mode: 'Markdown',
+                reply_to_message_id: messageId 
+            });
+            return;
+        }
+        
+        // Ambil pesan admin (bisa kosong)
+        let adminMessage = '';
+        if (match && match[1]) {
+            adminMessage = match[1].trim();
+        }
+        
+        console.log(`[ALL] Admin message: "${adminMessage || '(empty)'}"`);
+        
+        const loadingMsg = await bot.sendMessage(chatId, texts.all_command.fetching_members[lang], { 
+            parse_mode: 'Markdown',
+            reply_to_message_id: messageId 
         });
+        
+        try {
+            // Ambil semua member dari database
+            let allMembers = await getAllGroupMembers(chatId);
+            
+            // Jika tidak ada member, ambil dari admin grup
+            if (!allMembers || allMembers.length === 0) {
+                console.log(`[ALL] No members in database, trying to get admins`);
+                const admins = await bot.getChatAdministrators(chatId);
+                for (const admin of admins) {
+                    const adminId = admin.user.id;
+                    if (adminId !== (await bot.getMe()).id) {
+                        allMembers.push({
+                            user_id: adminId,
+                            first_name: admin.user.first_name,
+                            username: admin.user.username
+                        });
+                    }
+                }
+            }
+            
+            if (!allMembers || allMembers.length === 0) {
+                await bot.editMessageText(texts.all_command.no_members[lang], {
+                    chat_id: chatId,
+                    message_id: loadingMsg.message_id,
+                    parse_mode: 'Markdown'
+                });
+                return;
+            }
+            
+            // Filter bot dan user sendiri
+            const botInfo = await bot.getMe();
+            const botId = botInfo.id;
+            
+            const validMembers = allMembers.filter(m => {
+                const memberId = m.user_id;
+                return memberId !== botId && memberId !== userId;
+            });
+            
+            if (validMembers.length === 0) {
+                await bot.editMessageText(texts.all_command.no_members[lang], {
+                    chat_id: chatId,
+                    message_id: loadingMsg.message_id,
+                    parse_mode: 'Markdown'
+                });
+                return;
+            }
+            
+            // Buat invisible mentions
+            const invisibleMentions = [];
+            for (const member of validMembers) {
+                const memberId = member.user_id;
+                invisibleMentions.push(`<a href="tg://user?id=${memberId}">\u200B</a>`);
+            }
+            
+            const currentTime = moment().tz('Asia/Jakarta').format('HH:mm:ss');
+            const adminName = msg.from.first_name || msg.from.username || 'Admin';
+            
+            await bot.deleteMessage(chatId, loadingMsg.message_id);
+            
+            // Format pesan
+            let finalMessage = '';
+            if (adminMessage) {
+                finalMessage = `<b>PENGUMUMAN DARI ${adminName}</b>\n\n${adminMessage}\n\n<i>Waktu: ${currentTime} WIB</i>`;
+            } else {
+                finalMessage = `<b>PERHATIAN DARI ${adminName}</b>\n\n<i>Waktu: ${currentTime} WIB</i>`;
+            }
+            
+            // Gabungkan mentions
+            const allMentions = invisibleMentions.join('');
+            
+            // Kirim pesan
+            await bot.sendMessage(chatId, finalMessage + allMentions, {
+                parse_mode: 'HTML',
+                disable_web_page_preview: true
+            });
+            
+            console.log(`[ALL] Mentioned ${validMembers.length} members in group ${chatId}`);
+            
+        } catch (error) {
+            console.log('Error /all:', error.message);
+            
+            let errorMessage = texts.all_command.error_permission[lang];
+            
+            await bot.sendMessage(chatId, errorMessage, {
+                parse_mode: 'Markdown',
+                reply_to_message_id: messageId
+            });
+        }
+        
+    } catch (error) {
+        console.log('Error /all handler:', error.message);
+        try {
+            const lang = getUserLanguage(msg.from.id);
+            const errorMsg = texts.error[lang];
+            await bot.sendMessage(msg.chat.id, errorMsg);
+        } catch (e) {}
+    }
+});
 
         async function editToMainMenu(bot, chatId, messageId, userId) {
             try {
