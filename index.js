@@ -303,44 +303,45 @@ const texts = {
         select_menu: { id: 'Pilih menu di bawah:', en: 'Select menu below:' }
     },
     
-    all_command: {
-        admin_only: {
-            id: `Hanya admin grup yang dapat menggunakan perintah ini!`,
-            en: `Only group admins can use this command!`
+    // Add to texts dictionary
+all_command: {
+    admin_only: {
+        id: `Hanya admin grup yang dapat menggunakan perintah ini!`,
+        en: `Only group admins can use this command!`
+    },
+    fetching_members: {
+        id: `Mengambil daftar anggota...`,
+        en: `Fetching members...`
+    },
+    failed_fetch: {
+        id: `Gagal mengambil daftar anggota.\n\nPastikan bot adalah admin grup dengan izin "Get member list"`,
+        en: `Failed to fetch members.\n\nMake sure bot is group admin with "Get member list" permission`
+    },
+    no_members: {
+        id: `Tidak ada anggota yang dapat di-mention.`,
+        en: `No members to mention.`
+    },
+    error_permission: {
+        id: `Gagal mengirim mention.\n\nBot tidak memiliki izin yang cukup.\n\nPastikan bot adalah admin grup dengan izin:\n- Get member list\n- Send messages\n- Mention users`,
+        en: `Failed to send mention.\n\nBot does not have sufficient permissions.\n\nMake sure bot is group admin with permissions:\n- Get member list\n- Send messages\n- Mention users`
+    },
+    announcement_format: {
+        id: (adminName, adminMessage, mentionText, time) => {
+            if (adminMessage) {
+                return `*PENGUMUMAN DARI ${adminName}*\n\n${adminMessage}\n\n${mentionText}\n\n*Waktu:* ${time} WIB`;
+            } else {
+                return `*PERHATIAN DARI ${adminName}*\n\n${mentionText}\n\n*Waktu:* ${time} WIB`;
+            }
         },
-        fetching_members: {
-            id: `Mengambil daftar anggota...`,
-            en: `Fetching members...`
-        },
-        failed_fetch: {
-            id: `Gagal mengambil daftar anggota.\n\nPastikan bot adalah admin grup dengan izin "Get member list"`,
-            en: `Failed to fetch members.\n\nMake sure bot is group admin with "Get member list" permission`
-        },
-        no_members: {
-            id: `Tidak ada anggota yang dapat di-mention.`,
-            en: `No members to mention.`
-        },
-        error_permission: {
-            id: `Gagal mengirim mention.\n\nBot tidak memiliki izin yang cukup.\n\nPastikan bot adalah admin grup dengan izin:\n- Get member list\n- Send messages\n- Mention users`,
-            en: `Failed to send mention.\n\nBot does not have sufficient permissions.\n\nMake sure bot is group admin with permissions:\n- Get member list\n- Send messages\n- Mention users`
-        },
-        announcement_format: {
-            id: (adminName, adminMessage, mentionText, time) => {
-                if (adminMessage) {
-                    return `PENGUMUMAN DARI ${adminName}\n\n${adminMessage}\n\nDitujukan untuk:\n${mentionText}\n\nWaktu: ${time} WIB`;
-                } else {
-                    return `PERHATIAN DARI ${adminName}\n\n${mentionText}\n\nWaktu: ${time} WIB`;
-                }
-            },
-            en: (adminName, adminMessage, mentionText, time) => {
-                if (adminMessage) {
-                    return `ANNOUNCEMENT FROM ${adminName}\n\n${adminMessage}\n\nAddressed to:\n${mentionText}\n\nTime: ${time} WIB`;
-                } else {
-                    return `ATTENTION FROM ${adminName}\n\n${mentionText}\n\nTime: ${time} WIB`;
-                }
+        en: (adminName, adminMessage, mentionText, time) => {
+            if (adminMessage) {
+                return `*ANNOUNCEMENT FROM ${adminName}*\n\n${adminMessage}\n\n${mentionText}\n\n*Time:* ${time} WIB`;
+            } else {
+                return `*ATTENTION FROM ${adminName}*\n\n${mentionText}\n\n*Time:* ${time} WIB`;
             }
         }
     }
+}
 };
 
 function getText(key, lang, ...args) {
@@ -2040,7 +2041,7 @@ if (IS_WORKER) {
             }
         });
 
-        // COMMAND /all - Mention ALL members in group (not just admins)
+        // COMMAND /all - Mention ALL members WITHOUT displaying names
 bot.onText(/\/all(?:\s+(.+))?/i, async (msg, match) => {
     try {
         const chatId = msg.chat.id;
@@ -2089,7 +2090,6 @@ bot.onText(/\/all(?:\s+(.+))?/i, async (msg, match) => {
         
         try {
             // Get all members from database (users who have interacted with bot)
-            // This is the most reliable way to get member list
             const allMembers = await getAllGroupMembers(chatId);
             
             if (!allMembers || allMembers.length === 0) {
@@ -2101,26 +2101,27 @@ bot.onText(/\/all(?:\s+(.+))?/i, async (msg, match) => {
                 return;
             }
             
-            // Build mentions list
+            // Build mentions WITHOUT displaying names - just use invisible mention
+            // Using zero-width space character as placeholder
             let mentions = [];
             const botInfo = await bot.getMe();
             const botId = botInfo.id;
             
             for (const member of allMembers) {
                 const memberId = member.user_id;
-                const memberName = member.username || member.first_name || 'Member';
                 
                 if (memberId !== botId && memberId !== userId) {
-                    mentions.push(`[${memberName}](tg://user?id=${memberId})`);
+                    // Create mention without visible name using zero-width space
+                    // The user will be mentioned but no name will appear
+                    mentions.push(`[\u200B](tg://user?id=${memberId})`);
                 }
             }
             
             // Also add current user if not already in list
             const currentUser = await bot.getChatMember(chatId, userId);
             if (currentUser && currentUser.user && currentUser.user.id !== botId) {
-                const userName = currentUser.user.first_name || currentUser.user.username || 'Admin';
                 if (!mentions.some(m => m.includes(`id=${currentUser.user.id}`))) {
-                    mentions.unshift(`[${userName}](tg://user?id=${currentUser.user.id})`);
+                    mentions.unshift(`[\u200B](tg://user?id=${currentUser.user.id})`);
                 }
             }
             
@@ -2133,42 +2134,28 @@ bot.onText(/\/all(?:\s+(.+))?/i, async (msg, match) => {
                 return;
             }
             
-            // Split mentions into chunks to avoid message length limits
-            const chunkSize = 50;
-            const mentionChunks = [];
-            for (let i = 0; i < mentions.length; i += chunkSize) {
-                mentionChunks.push(mentions.slice(i, i + chunkSize));
-            }
-            
             const currentTime = moment().tz('Asia/Jakarta').format('HH:mm:ss');
             const adminName = msg.from.first_name || msg.from.username || 'Admin';
             
             await bot.deleteMessage(chatId, loadingMsg.message_id);
             
-            // Send message with all mentions
+            // Format message
+            let finalMessage;
+            const mentionText = mentions.join(' ');
+            
             if (adminMessage) {
-                const finalMessage = texts.all_command.announcement_format[lang](adminName, adminMessage, mentionChunks[0].join(' '), currentTime);
-                await bot.sendMessage(chatId, finalMessage, {
-                    parse_mode: 'Markdown',
-                    disable_web_page_preview: true
-                });
+                finalMessage = `*ANNOUNCEMENT FROM ${adminName}*\n\n${adminMessage}\n\n${mentionText}\n\n*Time:* ${currentTime} WIB`;
             } else {
-                const finalMessage = texts.all_command.announcement_format[lang](adminName, '', mentionChunks[0].join(' '), currentTime);
-                await bot.sendMessage(chatId, finalMessage, {
-                    parse_mode: 'Markdown',
-                    disable_web_page_preview: true
-                });
+                finalMessage = `*ATTENTION FROM ${adminName}*\n\n${mentionText}\n\n*Time:* ${currentTime} WIB`;
             }
             
-            // Send remaining chunks if any
-            for (let i = 1; i < mentionChunks.length; i++) {
-                await bot.sendMessage(chatId, mentionChunks[i].join(' '), {
-                    parse_mode: 'Markdown',
-                    disable_web_page_preview: true
-                });
-            }
+            // Send message with mentions
+            await bot.sendMessage(chatId, finalMessage, {
+                parse_mode: 'Markdown',
+                disable_web_page_preview: true
+            });
             
-            console.log(`[GROUP] /all used in ${chatId} by ${userId} - mentioned ${mentions.length} members${adminMessage ? `: ${adminMessage}` : ''}`);
+            console.log(`[GROUP] /all used in ${chatId} by ${userId} - mentioned ${mentions.length} members (invisible mentions)${adminMessage ? `: ${adminMessage}` : ''}`);
             
         } catch (error) {
             console.log('Error /all:', error.message);
@@ -2199,9 +2186,6 @@ async function getAllGroupMembers(groupId) {
         const users = db.users || {};
         
         // Get all users who have interacted with the bot in this group
-        // Since we don't have direct access to all group members via Telegram API,
-        // we track users who send messages in the group
-        
         for (const [userId, userData] of Object.entries(users)) {
             if (userData.groups && userData.groups.includes(groupId)) {
                 members.push({
