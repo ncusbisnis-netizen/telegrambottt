@@ -1732,77 +1732,86 @@ if (IS_WORKER) {
             }
         });
 
-        bot.onText(/\/cekinfo(?:\s+(.+))?/i, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
-                    return;
-                }
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const messageId = msg.message_id;
-                const lang = getUserLanguage(userId);
+        // ========== HANDLER /cekinfo - PERBAIKAN ==========
+// Gunakan pattern yang lebih ketat: harus diawali dengan /cekinfo dan diikuti spasi
+bot.onText(/^\/cekinfo\s+(.+)$/, async (msg, match) => {
+    try {
+        // Cek apakah command tepat di awal pesan
+        // Pattern ^\/cekinfo\s+(.+)$ sudah memastikan command di awal
+        
+        // Hanya di grup
+        if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
+            console.log(`[CEKINFO] Ignored: not a group chat`);
+            return;
+        }
+        
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        const messageId = msg.message_id;
+        const lang = getUserLanguage(userId);
 
-                if (!isGroupAllowed(chatId)) {
-                    const msgText = texts.group.not_allowed[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                if (!match || !match[1]) {
-                    const msgText = texts.group.format[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                if (!db.feature?.info && !isAdmin(userId)) {
-                    const msgText = texts.group.feature_disabled[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                const args = match[1].trim().split(/\s+/);
-                if (args.length < 2) {
-                    const msgText = texts.group.format[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                const targetId = args[0];
-                const serverId = args[1];
-                
-                if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-                    const msgText = texts.cek_command.wrong_format[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', messageId);
-                
-                if (!sent) {
-                    const errorMsg = texts.error[lang];
-                    await bot.sendMessage(chatId, errorMsg, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                getUserCredits(userId, msg.from.username || '');
-                db.users[userId].success += 1;
-                db.total_success += 1;
-                await saveDB();
-                
-            } catch (error) {
-                console.log('Error /cekinfo:', error.message);
-                try {
-                    const lang = getUserLanguage(msg.from.id);
-                    const errorMsg = texts.error[lang];
-                    await bot.sendMessage(msg.chat.id, errorMsg, { reply_to_message_id: msg.message_id });
-                } catch (e) {}
-            }
-        });
+        // Cek grup terdaftar
+        if (!isGroupAllowed(chatId)) {
+            const msgText = texts.group.not_allowed[lang];
+            await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+            return;
+        }
+        
+        // Parse parameter (sudah pasti ada karena pattern \s+(.+))
+        const args = match[1].trim().split(/\s+/);
+        if (args.length < 2) {
+            const msgText = texts.group.format[lang];
+            await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+            return;
+        }
+        
+        const targetId = args[0];
+        const serverId = args[1];
+        
+        // Validasi ID dan Server harus angka
+        if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
+            const msgText = texts.cek_command.wrong_format[lang];
+            await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+            return;
+        }
+        
+        // Cek fitur info
+        if (!db.feature?.info && !isAdmin(userId)) {
+            const msgText = texts.group.feature_disabled[lang];
+            await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+            return;
+        }
+        
+        console.log(`[CEKINFO] Processing: ${targetId} ${serverId} in group ${chatId}`);
+        
+        // Proses request
+        const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', messageId);
+        
+        if (!sent) {
+            const errorMsg = texts.error[lang];
+            await bot.sendMessage(chatId, errorMsg, { reply_to_message_id: messageId });
+            return;
+        }
+        
+        // Update statistik
+        getUserCredits(userId, msg.from.username || '');
+        db.users[userId].success += 1;
+        db.total_success += 1;
+        await saveDB();
+        
+    } catch (error) {
+        console.log('Error /cekinfo:', error.message);
+        try {
+            const lang = getUserLanguage(msg.from.id);
+            const errorMsg = texts.error[lang];
+            await bot.sendMessage(msg.chat.id, errorMsg, { reply_to_message_id: msg.message_id });
+        } catch (e) {}
+    }
+});
 
-        bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
+        bot.onText(/^\/info\s+(.+)$/, async (msg, match) => {
+    // Hanya di private chat
+    if (msg.chat.type !== 'private') return;
                 
                 if (!match || !match[1]) {
                     const lang = getUserLanguage(msg.from.id);
@@ -1881,9 +1890,9 @@ if (IS_WORKER) {
             }
         });
 
-        bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
+        bot.onText(/^\/cek\s+(.+)$/, async (msg, match) => {
+    // Hanya di private chat
+    if (msg.chat.type !== 'private') return;
                 
                 if (!match || !match[1]) {
                     const lang = getUserLanguage(msg.from.id);
@@ -2024,9 +2033,9 @@ if (IS_WORKER) {
             }
         });
 
-        bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
+        bot.onText(/^\/find\s+(.+)$/, async (msg, match) => {
+    // Hanya di private chat
+    if (msg.chat.type !== 'private') return;
                 
                 if (!match || !match[1]) {
                     const lang = getUserLanguage(msg.from.id);
