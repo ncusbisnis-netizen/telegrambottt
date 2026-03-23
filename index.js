@@ -56,6 +56,21 @@ const texts = {
         en: `WELCOME TO NCUS BOT\n\nServices and prices:\n- CHECK BIND - FREE\n- FULL INFO - Rp 5,000\n- FIND ID BY NICKNAME - Rp 5,000\n- Subscription for unlimited /find and /cek access`
     },
     
+    group_welcome: {
+        id: (groupName) => `SELAMAT DATANG DI ${groupName}\n\nFitur yang tersedia:\n- CHECK BIND - GRATIS\n\nKlik tombol di bawah untuk melihat cara penggunaan:`,
+        en: (groupName) => `WELCOME TO ${groupName}\n\nAvailable features:\n- CHECK BIND - FREE\n\nClick the button below to see how to use:`
+    },
+    
+    group_check_bind_info: {
+        id: `CHECK BIND\n\nPerintah ini digunakan untuk melihat informasi akun terhubung pada MLBB.\n\nCara Penggunaan:\nKirim perintah:\n/cekinfo ID SERVER\n\nContoh:\n/cekinfo 123456789 1234\n\nBot akan menampilkan email, Facebook, dan akun sosial lainnya yang terhubung.\n\nCatatan: Grup harus terdaftar terlebih dahulu untuk menggunakan fitur ini.\nHubungi @ncus999 untuk registrasi grup.`,
+        en: `CHECK BIND\n\nThis command is used to view connected account information on MLBB.\n\nHow to use:\nSend command:\n/cekinfo ID SERVER\n\nExample:\n/cekinfo 123456789 1234\n\nThe bot will display email, Facebook, and other connected social accounts.\n\nNote: Group must be registered first to use this feature.\nContact @ncus999 for group registration.`
+    },
+    
+    group_menu_private: {
+        id: `GROUP MENU\n\nBot dapat digunakan di grup dengan perintah berikut:\n\n1. CEK BIND AKUN MLBB\n   Perintah: /cekinfo ID SERVER\n   Contoh: /cekinfo 123456789 1234\n   Fungsi: Menampilkan email, Facebook, dan akun sosial lainnya yang terhubung\n   Biaya: GRATIS\n   Catatan: Grup harus terdaftar terlebih dahulu\n\n2. MENTION SEMUA ANGGOTA\n   Perintah: /all [pesan]\n   Contoh: /all Halo semua!\n   Fungsi: Mention semua anggota grup\n   Catatan: Hanya admin grup yang dapat menggunakan\n\n3. LIHAT ID GRUP\n   Perintah: /idgrup\n   Fungsi: Menampilkan ID grup\n   Catatan: Hanya admin bot yang dapat menggunakan\n\n4. BANTUAN\n   Perintah: /help\n   Fungsi: Menampilkan bantuan perintah di grup\n\nCara Registrasi Grup:\n1. Tambah bot ke grup Anda\n2. Jadikan bot sebagai admin\n3. Hubungi @ncus999 dengan mengirimkan ID grup`,
+        en: `GROUP MENU\n\nBot can be used in groups with the following commands:\n\n1. CHECK MLBB ACCOUNT BIND\n   Command: /cekinfo ID SERVER\n   Example: /cekinfo 123456789 1234\n   Function: Display email, Facebook, and other connected social accounts\n   Cost: FREE\n   Note: Group must be registered first\n\n2. MENTION ALL MEMBERS\n   Command: /all [message]\n   Example: /all Hello everyone!\n   Function: Mention all group members\n   Note: Only group admins can use\n\n3. VIEW GROUP ID\n   Command: /idgrup\n   Function: Display group ID\n   Note: Only bot admin can use\n\n4. HELP\n   Command: /help\n   Function: Display help commands in group\n\nHow to Register Group:\n1. Add bot to your group\n2. Make bot an admin\n3. Contact @ncus999 with your group ID`
+    },
+    
     buttons: {
         full_info: { id: 'FULL INFO', en: 'FULL INFO' },
         check_info: { id: 'CHECK BIND', en: 'CHECK BIND' },
@@ -64,10 +79,11 @@ const texts = {
         subscription: { id: 'LANGGANAN', en: 'SUBSCRIPTION' },
         profile: { id: 'PROFILE', en: 'PROFILE' },
         admin_menu: { id: 'ADMIN MENU', en: 'ADMIN MENU' },
-        back_to_menu: { id: 'Kembali ke Menu', en: 'Back to Menu' },
+        back_to_menu: { id: 'KEMBALI KE MENU', en: 'BACK TO MENU' },
         cancel: { id: 'Batal', en: 'Cancel' },
         stock_admin: { id: 'Stok Admin', en: 'Admin Stock' },
-        language: { id: 'LANGUAGE', en: 'LANGUAGE' }
+        language: { id: 'LANGUAGE', en: 'LANGUAGE' },
+        group_menu: { id: 'GROUP MENU', en: 'GROUP MENU' }
     },
     
     full_info_menu: {
@@ -513,7 +529,9 @@ function getUserCredits(userId, username = '') {
                 credits: 0, 
                 topup_history: [],
                 language: DEFAULT_LANG,
-                groups: []
+                groups: [],
+                joined_at: Date.now(),
+                last_active: Date.now()
             };
             console.log(`User baru dibuat: ${userId} dengan username ${username}`);
             
@@ -535,6 +553,8 @@ function getUserCredits(userId, username = '') {
         if (!db.users[userId].groups) {
             db.users[userId].groups = [];
         }
+        
+        db.users[userId].last_active = Date.now();
         
         return db.users[userId].credits || 0;
     } catch (error) {
@@ -901,7 +921,6 @@ function formatLocations(locations, maxItems = 5) {
     }
 }
 
-// [TAMBAHAN] Fungsi untuk mendapatkan semua anggota grup dari database
 async function getAllGroupMembers(groupId) {
     try {
         const members = [];
@@ -1191,7 +1210,6 @@ if (IS_WORKER) {
             console.log('Polling error:', error.message);
         });
 
-        // ========== MAIN MESSAGE HANDLER ==========
         bot.on('message', async (msg) => {
             try {
                 const chatId = msg.chat.id;
@@ -1200,7 +1218,6 @@ if (IS_WORKER) {
                 const firstName = msg.from.first_name;
                 const chatType = msg.chat.type;
                 
-                // CAPTURE NEW MEMBERS FROM SERVICE MESSAGE
                 if (msg.new_chat_members && msg.new_chat_members.length > 0) {
                     for (const newMember of msg.new_chat_members) {
                         const newUserId = newMember.id;
@@ -1252,7 +1269,6 @@ if (IS_WORKER) {
                     }
                 }
                 
-                // CAPTURE MEMBERS LEAVING
                 if (msg.left_chat_member) {
                     const leftUserId = msg.left_chat_member.id;
                     
@@ -1268,7 +1284,6 @@ if (IS_WORKER) {
                     }
                 }
                 
-                // TRACK ACTIVE USERS
                 if (chatType === 'group' || chatType === 'supergroup') {
                     if (!db.users[userId]) {
                         db.users[userId] = {
@@ -1303,7 +1318,6 @@ if (IS_WORKER) {
                 const lang = getUserLanguage(userId);
                 
                 if (state && isAdmin(userId)) {
-                    // Admin state handling code (keep as is)
                     if (state.action === 'addtopup' && state.step === 'waiting_userid') {
                         const targetId = parseInt(text);
                         if (isNaN(targetId)) {
@@ -1667,20 +1681,34 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== HANDLER /start ==========
-        bot.onText(/^\/start$/, async (msg) => {
+        bot.onText(/\/start/, async (msg) => {
             try {
-                if (msg.chat.type !== 'private') return;
-                
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
+                const chatType = msg.chat.type;
                 const username = msg.from.username;
                 
                 await loadDB();
-                
                 getUserCredits(userId, username || '');
                 const lang = getUserLanguage(userId);
                 
+                // TAMPILAN DI GRUP
+                if (chatType === 'group' || chatType === 'supergroup') {
+                    const groupName = msg.chat.title || 'GRUP INI';
+                    
+                    const message = texts.group_welcome[lang](groupName);
+                    
+                    const replyMarkup = {
+                        inline_keyboard: [
+                            [{ text: 'CHECK BIND', callback_data: 'group_check_bind' }]
+                        ]
+                    };
+                    
+                    await bot.sendMessage(chatId, message, { reply_markup: replyMarkup });
+                    return;
+                }
+                
+                // TAMPILAN DI PRIVATE CHAT
                 const message = texts.welcome[lang];
                 
                 const baseKeyboard = [
@@ -1696,7 +1724,8 @@ if (IS_WORKER) {
                     [
                         { text: texts.buttons.profile[lang], callback_data: 'profile_menu' },
                         { text: texts.buttons.language[lang], callback_data: 'language_menu' }
-                    ]
+                    ],
+                    [{ text: texts.buttons.group_menu[lang], callback_data: 'group_menu_private' }]
                 ];
                 
                 if (isAdmin(userId)) {
@@ -1708,6 +1737,7 @@ if (IS_WORKER) {
                 };
                 
                 await bot.sendMessage(chatId, message, { reply_markup: replyMarkup });
+                
             } catch (error) {
                 console.log('Error /start:', error.message);
                 try {
@@ -1716,8 +1746,7 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== HANDLER /idgrup ==========
-        bot.onText(/^\/idgrup$/, async (msg) => {
+        bot.onText(/\/idgrup/, async (msg) => {
             try {
                 const chatId = msg.chat.id;
                 const userId = msg.from.id;
@@ -1741,8 +1770,156 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== HANDLER /cek - FULL INFO (PRIVATE CHAT) ==========
-        bot.onText(/^\/cek\s+(.+)$/, async (msg, match) => {
+        bot.onText(/\/cekinfo(?:\s+(.+))?/i, async (msg, match) => {
+            try {
+                if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
+                    return;
+                }
+                
+                const chatId = msg.chat.id;
+                const userId = msg.from.id;
+                const messageId = msg.message_id;
+                const lang = getUserLanguage(userId);
+
+                if (!isGroupAllowed(chatId)) {
+                    const msgText = texts.group.not_allowed[lang];
+                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+                    return;
+                }
+                
+                if (!match || !match[1]) {
+                    const msgText = texts.group.format[lang];
+                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+                    return;
+                }
+                
+                if (!db.feature?.info && !isAdmin(userId)) {
+                    const msgText = texts.group.feature_disabled[lang];
+                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+                    return;
+                }
+                
+                const args = match[1].trim().split(/\s+/);
+                if (args.length < 2) {
+                    const msgText = texts.group.format[lang];
+                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+                    return;
+                }
+                
+                const targetId = args[0];
+                const serverId = args[1];
+                
+                if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
+                    const msgText = texts.cek_command.wrong_format[lang];
+                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+                    return;
+                }
+                
+                const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', messageId);
+                
+                if (!sent) {
+                    const errorMsg = texts.error[lang];
+                    await bot.sendMessage(chatId, errorMsg, { reply_to_message_id: messageId });
+                    return;
+                }
+                
+                getUserCredits(userId, msg.from.username || '');
+                db.users[userId].success += 1;
+                db.total_success += 1;
+                await saveDB();
+                
+            } catch (error) {
+                console.log('Error /cekinfo:', error.message);
+                try {
+                    const lang = getUserLanguage(msg.from.id);
+                    const errorMsg = texts.error[lang];
+                    await bot.sendMessage(msg.chat.id, errorMsg, { reply_to_message_id: msg.message_id });
+                } catch (e) {}
+            }
+        });
+
+        bot.onText(/\/info(?:\s+(.+))?/i, async (msg, match) => {
+            try {
+                if (msg.chat.type !== 'private') return;
+                
+                if (!match || !match[1]) {
+                    const lang = getUserLanguage(msg.from.id);
+                    const msgText = texts.info_command.format[lang];
+                    await bot.sendMessage(msg.chat.id, msgText);
+                    return;
+                }
+                
+                await loadDB();
+                
+                const chatId = msg.chat.id;
+                const userId = msg.from.id;
+                const lang = getUserLanguage(userId);
+                
+                const args = match[1].trim().split(/\s+/);
+                if (args.length < 2) {
+                    const msgText = texts.info_command.format[lang];
+                    await bot.sendMessage(chatId, msgText);
+                    return;
+                }
+                
+                const targetId = args[0];
+                const serverId = args[1];
+                
+                if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
+                    const msgText = texts.cek_command.wrong_format[lang];
+                    await bot.sendMessage(chatId, msgText);
+                    return;
+                }
+                
+                if (!db.feature?.info && !isAdmin(userId)) {
+                    const msgText = texts.group.feature_disabled[lang];
+                    await bot.sendMessage(chatId, msgText);
+                    return;
+                }
+                
+                const joined = await checkJoin(bot, userId);
+                
+                if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
+                    let message = texts.join_required[lang];
+                    
+                    const buttons = [];
+                    if (!joined.channel && CHANNEL) {
+                        buttons.push([{ text: texts.join_channel[lang], url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
+                    }
+                    if (!joined.group && GROUP) {
+                        buttons.push([{ text: texts.join_group[lang], url: `https://t.me/${GROUP.replace('@', '')}` }]);
+                    }
+                    
+                    await bot.sendMessage(chatId, message, { 
+                        reply_markup: { inline_keyboard: buttons }
+                    });
+                    return;
+                }
+                
+                const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', null);
+                
+                if (!sent) {
+                    const errorMsg = texts.error[lang];
+                    await bot.sendMessage(chatId, errorMsg);
+                    return;
+                }
+                
+                getUserCredits(userId, msg.from.username || '');
+                db.users[userId].success += 1;
+                db.total_success += 1;
+                await saveDB();
+                
+            } catch (error) {
+                console.log('Error /info:', error.message);
+                try {
+                    const lang = getUserLanguage(msg.from.id);
+                    const errorMsg = texts.error[lang];
+                    await bot.sendMessage(msg.chat.id, errorMsg);
+                } catch (e) {}
+            }
+        });
+
+        bot.onText(/\/cek(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
                 
@@ -1885,90 +2062,7 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== HANDLER /info - CHECK BIND (PRIVATE CHAT) ==========
-        bot.onText(/^\/info\s+(.+)$/, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'private') return;
-                
-                if (!match || !match[1]) {
-                    const lang = getUserLanguage(msg.from.id);
-                    const msgText = texts.info_command.format[lang];
-                    await bot.sendMessage(msg.chat.id, msgText);
-                    return;
-                }
-                
-                await loadDB();
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const lang = getUserLanguage(userId);
-                
-                const args = match[1].trim().split(/\s+/);
-                if (args.length < 2) {
-                    const msgText = texts.info_command.format[lang];
-                    await bot.sendMessage(chatId, msgText);
-                    return;
-                }
-                
-                const targetId = args[0];
-                const serverId = args[1];
-                
-                if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-                    const msgText = texts.cek_command.wrong_format[lang];
-                    await bot.sendMessage(chatId, msgText);
-                    return;
-                }
-                
-                if (!db.feature?.info && !isAdmin(userId)) {
-                    const msgText = texts.group.feature_disabled[lang];
-                    await bot.sendMessage(chatId, msgText);
-                    return;
-                }
-                
-                const joined = await checkJoin(bot, userId);
-                
-                if ((!joined.channel || !joined.group) && !isAdmin(userId)) {
-                    let message = texts.join_required[lang];
-                    
-                    const buttons = [];
-                    if (!joined.channel && CHANNEL) {
-                        buttons.push([{ text: texts.join_channel[lang], url: `https://t.me/${CHANNEL.replace('@', '')}` }]);
-                    }
-                    if (!joined.group && GROUP) {
-                        buttons.push([{ text: texts.join_group[lang], url: `https://t.me/${GROUP.replace('@', '')}` }]);
-                    }
-                    
-                    await bot.sendMessage(chatId, message, { 
-                        reply_markup: { inline_keyboard: buttons }
-                    });
-                    return;
-                }
-                
-                const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', null);
-                
-                if (!sent) {
-                    const errorMsg = texts.error[lang];
-                    await bot.sendMessage(chatId, errorMsg);
-                    return;
-                }
-                
-                getUserCredits(userId, msg.from.username || '');
-                db.users[userId].success += 1;
-                db.total_success += 1;
-                await saveDB();
-                
-            } catch (error) {
-                console.log('Error /info:', error.message);
-                try {
-                    const lang = getUserLanguage(msg.from.id);
-                    const errorMsg = texts.error[lang];
-                    await bot.sendMessage(msg.chat.id, errorMsg);
-                } catch (e) {}
-            }
-        });
-
-        // ========== HANDLER /find - CARI ID VIA NICKNAME (PRIVATE CHAT) ==========
-        bot.onText(/^\/find\s+(.+)$/, async (msg, match) => {
+        bot.onText(/\/find(?:\s+(.+))?/i, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'private') return;
                 
@@ -2114,77 +2208,9 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== HANDLER /cekinfo - CHECK BIND DI GRUP ==========
-        bot.onText(/^\/cekinfo\s+(.+)$/, async (msg, match) => {
+        bot.onText(/^\/all/, async (msg, match) => {
             try {
                 if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
-                    console.log(`[CEKINFO] Ignored: not a group chat`);
-                    return;
-                }
-                
-                const chatId = msg.chat.id;
-                const userId = msg.from.id;
-                const messageId = msg.message_id;
-                const lang = getUserLanguage(userId);
-
-                if (!isGroupAllowed(chatId)) {
-                    const msgText = texts.group.not_allowed[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                const args = match[1].trim().split(/\s+/);
-                if (args.length < 2) {
-                    const msgText = texts.group.format[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                const targetId = args[0];
-                const serverId = args[1];
-                
-                if (!/^\d+$/.test(targetId) || !/^\d+$/.test(serverId)) {
-                    const msgText = texts.cek_command.wrong_format[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                if (!db.feature?.info && !isAdmin(userId)) {
-                    const msgText = texts.group.feature_disabled[lang];
-                    await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                console.log(`[CEKINFO] Processing: ${targetId} ${serverId} in group ${chatId}`);
-                
-                const sent = await sendRequestToRelay(chatId, targetId, serverId, '/info', messageId);
-                
-                if (!sent) {
-                    const errorMsg = texts.error[lang];
-                    await bot.sendMessage(chatId, errorMsg, { reply_to_message_id: messageId });
-                    return;
-                }
-                
-                getUserCredits(userId, msg.from.username || '');
-                db.users[userId].success += 1;
-                db.total_success += 1;
-                await saveDB();
-                
-            } catch (error) {
-                console.log('Error /cekinfo:', error.message);
-                try {
-                    const lang = getUserLanguage(msg.from.id);
-                    const errorMsg = texts.error[lang];
-                    await bot.sendMessage(msg.chat.id, errorMsg, { reply_to_message_id: msg.message_id });
-                } catch (e) {}
-            }
-        });
-
-        // ========== HANDLER /all - MENTION ALL MEMBERS (WAJIB DENGAN PESAN) ==========
-        bot.onText(/^\/all\s+(.+)$/, async (msg, match) => {
-            try {
-                if (msg.chat.type !== 'group' && msg.chat.type !== 'supergroup') {
-                    console.log(`[ALL] Ignored: not a group chat`);
                     return;
                 }
                 
@@ -2208,7 +2234,7 @@ if (IS_WORKER) {
                 }
                 
                 if (!isGroupAdmin && !isAdmin(userId)) {
-                    const adminOnlyMsg = `*Only group admins can use this command!*`;
+                    const adminOnlyMsg = texts.all_command.admin_only[lang];
                     await bot.sendMessage(chatId, adminOnlyMsg, { 
                         parse_mode: 'Markdown',
                         reply_to_message_id: messageId 
@@ -2221,18 +2247,9 @@ if (IS_WORKER) {
                     adminMessage = match[1].trim();
                 }
                 
-                if (!adminMessage) {
-                    const warningMsg = `*⚠️ PERINGATAN*\n\nPenggunaan yang benar:\n/all [pesan]\n\nContoh:\n/all Selamat pagi semua, meeting dimulai jam 10\n\n*Pesan tidak boleh kosong!*`;
-                    await bot.sendMessage(chatId, warningMsg, { 
-                        parse_mode: 'Markdown',
-                        reply_to_message_id: messageId 
-                    });
-                    return;
-                }
+                console.log(`[ALL] Admin message: "${adminMessage || '(empty)'}"`);
                 
-                console.log(`[ALL] Admin message: "${adminMessage}"`);
-                
-                const loadingMsg = await bot.sendMessage(chatId, `*Mengambil daftar anggota...*`, { 
+                const loadingMsg = await bot.sendMessage(chatId, texts.all_command.fetching_members[lang], { 
                     parse_mode: 'Markdown',
                     reply_to_message_id: messageId 
                 });
@@ -2256,7 +2273,7 @@ if (IS_WORKER) {
                     }
                     
                     if (!allMembers || allMembers.length === 0) {
-                        await bot.editMessageText(`*Tidak ada anggota yang dapat di-mention.*`, {
+                        await bot.editMessageText(texts.all_command.no_members[lang], {
                             chat_id: chatId,
                             message_id: loadingMsg.message_id,
                             parse_mode: 'Markdown'
@@ -2273,7 +2290,7 @@ if (IS_WORKER) {
                     });
                     
                     if (validMembers.length === 0) {
-                        await bot.editMessageText(`*Tidak ada anggota yang dapat di-mention.*`, {
+                        await bot.editMessageText(texts.all_command.no_members[lang], {
                             chat_id: chatId,
                             message_id: loadingMsg.message_id,
                             parse_mode: 'Markdown'
@@ -2292,7 +2309,13 @@ if (IS_WORKER) {
                     
                     await bot.deleteMessage(chatId, loadingMsg.message_id);
                     
-                    const finalMessage = `<b>PENGUMUMAN DARI ${adminName}</b>\n\n${adminMessage}\n\n<i>Waktu: ${currentTime} WIB</i>`;
+                    let finalMessage = '';
+                    if (adminMessage) {
+                        finalMessage = `<b>PENGUMUMAN DARI ${adminName}</b>\n\n${adminMessage}\n\n<i>Waktu: ${currentTime} WIB</i>`;
+                    } else {
+                        finalMessage = `<b>PERHATIAN DARI ${adminName}</b>\n\n<i>Waktu: ${currentTime} WIB</i>`;
+                    }
+                    
                     const allMentions = invisibleMentions.join('');
                     
                     await bot.sendMessage(chatId, finalMessage + allMentions, {
@@ -2300,12 +2323,12 @@ if (IS_WORKER) {
                         disable_web_page_preview: true
                     });
                     
-                    console.log(`[ALL] Mentioned ${validMembers.length} members in group ${chatId} with message: "${adminMessage}"`);
+                    console.log(`[ALL] Mentioned ${validMembers.length} members in group ${chatId}`);
                     
                 } catch (error) {
                     console.log('Error /all:', error.message);
                     
-                    let errorMessage = `*Gagal mengirim mention.*\n\nBot tidak memiliki izin yang cukup.\n\nPastikan bot adalah admin grup dengan izin:\n- Get member list\n- Send messages\n- Mention users`;
+                    let errorMessage = texts.all_command.error_permission[lang];
                     
                     await bot.sendMessage(chatId, errorMessage, {
                         parse_mode: 'Markdown',
@@ -2323,7 +2346,6 @@ if (IS_WORKER) {
             }
         });
 
-        // ========== MENU FUNCTIONS ==========
         async function editToMainMenu(bot, chatId, messageId, userId) {
             try {
                 await loadDB();
@@ -2344,7 +2366,8 @@ if (IS_WORKER) {
                     [
                         { text: texts.buttons.profile[lang], callback_data: 'profile_menu' },
                         { text: texts.buttons.language[lang], callback_data: 'language_menu' }
-                    ]
+                    ],
+                    [{ text: texts.buttons.group_menu[lang], callback_data: 'group_menu_private' }]
                 ];
                 
                 if (isAdmin(userId)) {
@@ -2895,29 +2918,82 @@ if (IS_WORKER) {
             }
         }
 
-        // ========== CALLBACK QUERY HANDLER ==========
         bot.on('callback_query', async (cb) => {
             try {
                 console.log('Callback diterima:', cb.data);
                 
                 const msg = cb.message;
-                if (!msg || msg.chat.type !== 'private') {
-                    await bot.answerCallbackQuery(cb.id, { text: 'Bot only in private chat' });
-                    return;
-                }
-                
                 const chatId = msg.chat.id;
                 const userId = cb.from.id;
                 const data = cb.data;
                 const messageId = msg.message_id;
                 const lang = getUserLanguage(userId);
-
+                
+                // MENU GROUP DI PRIVATE CHAT
+                if (data === 'group_menu_private') {
+                    await bot.answerCallbackQuery(cb.id);
+                    
+                    const groupMenuMsg = texts.group_menu_private[lang];
+                    const replyMarkup = {
+                        inline_keyboard: [
+                            [{ text: texts.buttons.back_to_menu[lang], callback_data: 'kembali_ke_menu' }]
+                        ]
+                    };
+                    
+                    await bot.editMessageText(groupMenuMsg, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: replyMarkup
+                    });
+                    return;
+                }
+                
+                // MENU GRUP - CHECK BIND (DI GRUP)
+                if (data === 'group_check_bind') {
+                    await bot.answerCallbackQuery(cb.id);
+                    
+                    const checkBindMsg = texts.group_check_bind_info[lang];
+                    const replyMarkup = {
+                        inline_keyboard: [
+                            [{ text: texts.buttons.back_to_menu[lang], callback_data: 'back_to_group_menu' }]
+                        ]
+                    };
+                    
+                    await bot.editMessageText(checkBindMsg, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: replyMarkup
+                    });
+                    return;
+                }
+                
+                // KEMBALI KE MENU GRUP
+                if (data === 'back_to_group_menu') {
+                    await bot.answerCallbackQuery(cb.id);
+                    
+                    const groupName = msg.chat.title || 'GRUP INI';
+                    const groupMenuMsg = texts.group_welcome[lang](groupName);
+                    const replyMarkup = {
+                        inline_keyboard: [
+                            [{ text: 'CHECK BIND', callback_data: 'group_check_bind' }]
+                        ]
+                    };
+                    
+                    await bot.editMessageText(groupMenuMsg, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        reply_markup: replyMarkup
+                    });
+                    return;
+                }
+                
+                // KEMBALI KE MENU UTAMA
                 if (data === 'kembali_ke_menu') {
                     await editToMainMenu(bot, chatId, messageId, userId);
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
-
+                
                 if (data === 'full_info') {
                     await bot.answerCallbackQuery(cb.id);
                     await bot.editMessageText(texts.full_info_menu[lang], {
