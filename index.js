@@ -43,23 +43,19 @@ const ADMIN_IDS = process.env.ADMIN_IDS
     ? process.env.ADMIN_IDS.split(',').map(id => parseInt(id.trim())) 
     : [];
 
-// ==================== BAHASA / LANGUAGE ====================
 const LANGUAGES = {
     id: 'id',
     en: 'en'
 };
 
-const DEFAULT_LANG = LANGUAGES.id;
+const DEFAULT_LANG = LANGUAGES.en;
 
-// Dictionary untuk teks dalam dua bahasa
 const texts = {
-    // Menu Utama
     welcome: {
-        id: `SELAMAT DATANG DI BOT NCUS\n\nDaftar layanan dan harga:\n• CHECK BIND - GRATIS\n• FULL INFO - Rp 5.000\n• CARI ID VIA NICKNAME - Rp 5.000\n• Langganan akses /find dan /cek unlimited`,
-        en: `WELCOME TO NCUS BOT\n\nServices and prices:\n• CHECK BIND - FREE\n• FULL INFO - Rp 5,000\n• FIND ID BY NICKNAME - Rp 5,000\n• Subscription for unlimited /find and /cek access`
+        id: `SELAMAT DATANG DI NCUS BOT\n\nDaftar layanan dan harga:\n- CHECK BIND - GRATIS\n- FULL INFO - Rp 5.000\n- CARI ID VIA NICKNAME - Rp 5.000\n- Langganan akses /find dan /cek unlimited`,
+        en: `WELCOME TO NCUS BOT\n\nServices and prices:\n- CHECK BIND - FREE\n- FULL INFO - Rp 5,000\n- FIND ID BY NICKNAME - Rp 5,000\n- Subscription for unlimited /find and /cek access`
     },
     
-    // Tombol Menu
     buttons: {
         full_info: { id: 'FULL INFO', en: 'FULL INFO' },
         check_info: { id: 'CHECK BIND', en: 'CHECK BIND' },
@@ -74,25 +70,21 @@ const texts = {
         language: { id: 'LANGUAGE', en: 'LANGUAGE' }
     },
     
-    // Full Info Menu
     full_info_menu: {
         id: `FULL INFO\n\nPerintah ini digunakan untuk melihat detail lengkap akun MLBB.\n\nCara Penggunaan:\nKirim perintah:\n/cek ID SERVER\n\nContoh:\n/cek 123456789 1234\n\nBot akan menampilkan informasi akun dengan detail seperti tanggal pembuatan akun dll.\n\nBiaya Rp 5.000`,
         en: `FULL INFO\n\nThis command is used to view complete MLBB account details.\n\nHow to use:\nSend command:\n/cek ID SERVER\n\nExample:\n/cek 123456789 1234\n\nThe bot will display account information with details like account creation date etc.\n\nCost Rp 5,000`
     },
     
-    // Check Info Menu
     check_info_menu: {
         id: `CHECK BIND\n\nPerintah ini digunakan untuk melihat informasi akun terhubung pada MLBB.\n\nCara Penggunaan:\nKirim perintah:\n/info ID SERVER\n\nContoh:\n/info 123456789 1234\n\nBot akan menampilkan email, Facebook, dan akun sosial lainnya yang terhubung.\n\nCHECK BIND VIA GROUP\n\nTambahkan bot @mahsuselitzbot ke group dan jadikan admin group\nCara Penggunaan di dalam group:\nKirim perintah:\n/cekinfo ID SERVER\n\nContoh:\n/cekinfo 123456789 1234\n\nBiaya Rp 0`,
         en: `CHECK BIND\n\nThis command is used to view connected account information on MLBB.\n\nHow to use:\nSend command:\n/info ID SERVER\n\nExample:\n/info 123456789 1234\n\nThe bot will display email, Facebook, and other connected social accounts.\n\nCHECK BIND VIA GROUP\n\nAdd bot @mahsuselitzbot to group and make it admin\nHow to use in group:\nSend command:\n/cekinfo ID SERVER\n\nExample:\n/cekinfo 123456789 1234\n\nCost Rp 0`
     },
     
-    // Find ID Menu
     find_id_menu: {
         id: `CARI ID VIA NICKNAME\n\nPerintah ini digunakan untuk mencari ID akun MLBB berdasarkan nickname.\n\nCara Penggunaan:\nKirim perintah:\n/find NICKNAME SERVER\n\nContoh:\n/find RRQ Jule 15707\n\nBot akan menampilkan pemain dengan format ID, lokasi dan negara terakhir login.\n\nBiaya Rp 5.000`,
         en: `FIND ID BY NICKNAME\n\nThis command is used to find MLBB account ID by nickname.\n\nHow to use:\nSend command:\n/find NICKNAME SERVER\n\nExample:\n/find RRQ Jule 15707\n\nThe bot will display players with ID, location and last login country.\n\nCost Rp 5,000`
     },
     
-    // Profile Menu
     profile: {
         title: { id: 'PROFILE USER', en: 'USER PROFILE' },
         user_id: { id: 'User ID', en: 'User ID' },
@@ -106,21 +98,18 @@ const texts = {
         times: { id: 'kali', en: 'times' }
     },
     
-    // Topup Menu
     topup: {
         title: { id: 'TOP UP SALDO', en: 'TOP UP BALANCE' },
         your_balance: { id: 'Saldo Anda', en: 'Your balance' },
         select_amount: { id: 'Pilih nominal top up:', en: 'Select top up amount:' }
     },
     
-    // Subscription Menu
     subscription: {
         title: { id: 'Akses unlimited untuk fitur /cek dan /find tanpa limit\nsilahkan pilih paket:', en: 'Unlimited access to /cek and /find features\nplease select package:' },
         days7: { id: '7 Hari (Rp 50.000)', en: '7 Days (Rp 50,000)' },
         days30: { id: '30 Hari (Rp 100.000)', en: '30 Days (Rp 100,000)' }
     },
     
-    // Subscription Messages
     subscription_messages: {
         extended: {
             id: (type, amount, balance, endDate) => `LANGGANAN DIPERPANJANG\n\nPaket: ${type === '7days' ? '7 Hari' : '30 Hari'}\nBiaya: Rp ${amount.toLocaleString()}\nSisa saldo: Rp ${balance.toLocaleString()}\nBerlaku sampai: ${endDate} WIB\n\nTerima kasih telah memperpanjang langganan!`,
@@ -140,16 +129,14 @@ const texts = {
         }
     },
     
-    // Language Menu
     language_menu: {
         title: `SELECT LANGUAGE / PILIH BAHASA:`,
-        indonesian: `🇮🇩 Indonesia`,
-        english: `🇬🇧 English`,
+        indonesian: `Indonesia`,
+        english: `English`,
         changed_id: `Bahasa diubah ke Indonesia`,
         changed_en: `Language changed to English`
     },
     
-    // Other Messages
     cancel_topup: { id: 'Pembayaran dibatalkan', en: 'Payment cancelled' },
     processing: { id: 'Memproses topup...', en: 'Processing topup...' },
     invalid_amount: { id: 'Nominal tidak valid.', en: 'Invalid amount.' },
@@ -162,7 +149,6 @@ const texts = {
     admin_only: { id: 'Hanya admin bot yang dapat menggunakan perintah ini.', en: 'Only bot admin can use this command.' },
     group_id_result: { id: (chatId) => `ID Grup ini adalah: ${chatId}`, en: (chatId) => `This Group ID is: ${chatId}` },
     
-    // Loading Messages
     loading: {
         fetching: { id: 'Mengambil data akun...', en: 'Fetching account data...' },
         searching: { id: 'Mencari akun...', en: 'Searching for accounts...' },
@@ -170,55 +156,46 @@ const texts = {
         retry: { id: (retry, max) => `Mengambil data detail... (Percobaan ${retry}/${max})`, en: (retry, max) => `Fetching details... (Attempt ${retry}/${max})` }
     },
     
-    // Info Command
     info_command: {
         title: { id: 'INFORMASI AKUN GRATIS', en: 'FREE ACCOUNT INFO' },
         format: { id: 'Format: /info ID_USER ID_SERVER\nContoh: /info 123456789 1234', en: 'Format: /info ID SERVER\nExample: /info 123456789 1234' }
     },
     
-    // Cek Command
     cek_command: {
         title: { id: 'DETAIL ACCOUNT', en: 'ACCOUNT DETAILS' },
         format: { id: 'Format: /cek ID SERVER\nContoh: /cek 123456789 1234', en: 'Format: /cek ID SERVER\nExample: /cek 123456789 1234' },
         wrong_format: { id: 'FORMAT SALAH\n\nFormat yang benar:\n/cek ID SERVER\n\nID dan Server harus berupa angka.', en: 'WRONG FORMAT\n\nCorrect format:\n/cek ID SERVER\n\nID and Server must be numbers.' }
     },
     
-    // Find Command
     find_command: {
         title: { id: 'CARI ID VIA NICKNAME', en: 'FIND ID BY NICKNAME' },
         format: { id: 'Gunakan format:\n/find NICKNAME SERVER\n\nContoh:\n/find RRQ Jule 15707', en: 'Use format:\n/find NICKNAME SERVER\n\nExample:\n/find RRQ Jule 15707' },
         wrong_format: { id: 'FORMAT SALAH\n\nFormat yang benar:\n/find NICKNAME SERVER\n\nContoh: /find RRQ Jule 15707', en: 'WRONG FORMAT\n\nCorrect format:\n/find NICKNAME SERVER\n\nExample: /find RRQ Jule 15707' }
     },
     
-    // Insufficient Balance
     insufficient_balance: {
         id: (credits, required) => `SALDO TIDAK CUKUP\n\nSaldo Anda: Rp ${credits.toLocaleString()}\nBiaya: Rp ${required.toLocaleString()}\nKekurangan: Rp ${(required - credits).toLocaleString()}\n\nSilakan isi saldo atau berlangganan:`,
         en: (credits, required) => `INSUFFICIENT BALANCE\n\nYour balance: Rp ${credits.toLocaleString()}\nCost: Rp ${required.toLocaleString()}\nShortage: Rp ${(required - credits).toLocaleString()}\n\nPlease top up or subscribe:`
     },
     
-    // Join Required
     join_required: {
         id: `AKSES DITOLAK\n\nAnda WAJIB bergabung jika menggunakan bot ini:\n\n`,
         en: `ACCESS DENIED\n\nYou MUST join to use this bot:\n\n`
     },
     
-    // Join Buttons
     join_channel: { id: 'Bergabung ke Channel', en: 'Join Channel' },
     join_group: { id: 'Bergabung ke Group', en: 'Join Group' },
     
-    // Not Found
     not_found: {
         id: (type, id, server) => `AKUN TIDAK DITEMUKAN\n\n${type}: ${id}\nServer: ${server}\n\nPastikan ID dan Server yang dimasukkan benar.`,
         en: (type, id, server) => `ACCOUNT NOT FOUND\n\n${type}: ${id}\nServer: ${server}\n\nMake sure the ID and Server are correct.`
     },
     
-    // Error Messages
     error: {
         id: 'REQUEST SEDANG ERROR\n\nSILAHKAN COBA LAGI NANTI',
         en: 'REQUEST ERROR\n\nPLEASE TRY AGAIN LATER'
     },
     
-    // Payment Messages
     payment: {
         success: { 
             id: (amount, orderId, balance) => `PEMBAYARAN BERHASIL\n\nTerima kasih! Pembayaran Anda telah kami terima.\n\nDetail Transaksi:\nOrder ID: ${orderId}\nJumlah: Rp ${amount.toLocaleString()}\nStatus: BERHASIL\n\nSaldo Anda sekarang: Rp ${balance.toLocaleString()}\n\nSilakan gunakan bot untuk melakukan pengecekan.`,
@@ -234,7 +211,6 @@ const texts = {
         }
     },
     
-    // Admin Messages
     admin: {
         access_denied: {
             id: `Akses ditolak. Anda bukan admin.`,
@@ -277,8 +253,8 @@ const texts = {
             en: (groupId) => `Group ${groupId} successfully removed.`
         },
         broadcast_start: {
-            id: `BROADCAST PESAN\n\nKirim pesan yang ingin disebarkan ke semua user.\n\nFormat yang didukung:\n• Teks biasa\n• Foto (bisa dengan caption)\n• Video (bisa dengan caption)\n• Dokumen (bisa dengan caption)\n• Audio (bisa dengan caption)\n• Voice Note\n• Sticker\n• GIF/Animation (bisa dengan caption)\n\nKetik pesan atau kirim media sekarang.`,
-            en: `BROADCAST MESSAGE\n\nSend the message you want to broadcast to all users.\n\nSupported formats:\n• Plain text\n• Photo (with caption)\n• Video (with caption)\n• Document (with caption)\n• Audio (with caption)\n• Voice Note\n• Sticker\n• GIF/Animation (with caption)\n\nType message or send media now.`
+            id: `BROADCAST PESAN\n\nKirim pesan yang ingin disebarkan ke semua user.\n\nFormat yang didukung:\n- Teks biasa\n- Foto (bisa dengan caption)\n- Video (bisa dengan caption)\n- Dokumen (bisa dengan caption)\n- Audio (bisa dengan caption)\n- Voice Note\n- Sticker\n- GIF/Animation (bisa dengan caption)\n\nKetik pesan atau kirim media sekarang.`,
+            en: `BROADCAST MESSAGE\n\nSend the message you want to broadcast to all users.\n\nSupported formats:\n- Plain text\n- Photo (with caption)\n- Video (with caption)\n- Document (with caption)\n- Audio (with caption)\n- Voice Note\n- Sticker\n- GIF/Animation (with caption)\n\nType message or send media now.`
         },
         broadcast_result: {
             id: (success, failed, mediaType, mediaInfo) => `BROADCAST SELESAI\n\nBerhasil: ${success}\nGagal: ${failed}\n\nMedia yang dikirim: ${mediaType}${mediaInfo}`,
@@ -302,7 +278,6 @@ const texts = {
         }
     },
     
-    // Group Messages
     group: {
         not_allowed: {
             id: `Grup ini belum terdaftar. Silakan minta izin ke @ncus999 untuk mendaftarkan grup ini.`,
@@ -318,7 +293,6 @@ const texts = {
         }
     },
     
-    // Admin Menu
     admin_menu: {
         title: { id: 'ADMIN MENU', en: 'ADMIN MENU' },
         stats: { id: 'STATISTIK', en: 'STATISTICS' },
@@ -327,10 +301,48 @@ const texts = {
         total_balance: { id: 'Total Saldo', en: 'Total Balance' },
         total_subscriptions: { id: 'Total Langganan Aktif', en: 'Active Subscriptions' },
         select_menu: { id: 'Pilih menu di bawah:', en: 'Select menu below:' }
+    },
+    
+    all_command: {
+        admin_only: {
+            id: `Hanya admin grup yang dapat menggunakan perintah ini!`,
+            en: `Only group admins can use this command!`
+        },
+        fetching_members: {
+            id: `Mengambil daftar anggota...`,
+            en: `Fetching members...`
+        },
+        failed_fetch: {
+            id: `Gagal mengambil daftar anggota.\n\nPastikan bot adalah admin grup dengan izin "Get member list"`,
+            en: `Failed to fetch members.\n\nMake sure bot is group admin with "Get member list" permission`
+        },
+        no_members: {
+            id: `Tidak ada anggota yang dapat di-mention.`,
+            en: `No members to mention.`
+        },
+        error_permission: {
+            id: `Gagal mengirim mention.\n\nBot tidak memiliki izin yang cukup.\n\nPastikan bot adalah admin grup dengan izin:\n- Get member list\n- Send messages\n- Mention users`,
+            en: `Failed to send mention.\n\nBot does not have sufficient permissions.\n\nMake sure bot is group admin with permissions:\n- Get member list\n- Send messages\n- Mention users`
+        },
+        announcement_format: {
+            id: (adminName, adminMessage, mentionText, time) => {
+                if (adminMessage) {
+                    return `PENGUMUMAN DARI ${adminName}\n\n${adminMessage}\n\nDitujukan untuk:\n${mentionText}\n\nWaktu: ${time} WIB`;
+                } else {
+                    return `PERHATIAN DARI ${adminName}\n\n${mentionText}\n\nWaktu: ${time} WIB`;
+                }
+            },
+            en: (adminName, adminMessage, mentionText, time) => {
+                if (adminMessage) {
+                    return `ANNOUNCEMENT FROM ${adminName}\n\n${adminMessage}\n\nAddressed to:\n${mentionText}\n\nTime: ${time} WIB`;
+                } else {
+                    return `ATTENTION FROM ${adminName}\n\n${mentionText}\n\nTime: ${time} WIB`;
+                }
+            }
+        }
     }
 };
 
-// Helper function untuk mendapatkan teks berdasarkan bahasa
 function getText(key, lang, ...args) {
     const textObj = texts[key];
     if (!textObj) return key;
@@ -346,13 +358,10 @@ function getText(key, lang, ...args) {
     return textObj;
 }
 
-// Helper function untuk mendapatkan teks tombol
 function getButtonText(key, lang) {
     const button = texts.buttons[key];
     return button ? button[lang] : key;
 }
-
-// ==================== END BAHASA ====================
 
 let db = { 
     users: {}, 
@@ -1956,7 +1965,7 @@ if (IS_WORKER) {
                     let foundAccounts = await findPlayerByName(searchQuery);
                     
                     if (!foundAccounts || foundAccounts.length === 0) {
-                        const notFoundMsg = `AKUN TIDAK DITEMUKAN\n\nTidak ada akun dengan nickname "${searchQuery}" ditemukan.`;
+                        const notFoundMsg = `ACCOUNT NOT FOUND\n\nNo account with nickname "${searchQuery}" found.`;
                         await bot.editMessageText(notFoundMsg, {
                             chat_id: chatId,
                             message_id: loadingMsg.message_id
@@ -1967,7 +1976,7 @@ if (IS_WORKER) {
                     foundAccounts = foundAccounts.filter(a => String(a.zone_id) === serverFilter);
                     
                     if (foundAccounts.length === 0) {
-                        const notFoundMsg = `AKUN TIDAK DITEMUKAN\n\nTidak ada akun dengan nickname "${searchQuery}" di server ${serverFilter}.`;
+                        const notFoundMsg = `ACCOUNT NOT FOUND\n\nNo account with nickname "${searchQuery}" on server ${serverFilter}.`;
                         await bot.editMessageText(notFoundMsg, {
                             chat_id: chatId,
                             message_id: loadingMsg.message_id
@@ -1985,7 +1994,7 @@ if (IS_WORKER) {
                     for (let i = 0; i < foundAccounts.length; i++) {
                         const acc = foundAccounts[i];
                         
-                        let output = `HASIL PENCARIAN\n\n`;
+                        let output = `SEARCH RESULT\n\n`;
                         output += `ID: ${acc.role_id}\n`;
                         output += `Server: ${acc.zone_id}\n`;
                         output += `Name: ${acc.name || acc.nickname || '-'}\n`;
@@ -2030,6 +2039,237 @@ if (IS_WORKER) {
                 console.log('Error /find:', error.message);
             }
         });
+
+        // COMMAND /all - Mention ALL members in group (not just admins)
+bot.onText(/\/all(?:\s+(.+))?/i, async (msg, match) => {
+    try {
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        const chatType = msg.chat.type;
+        const messageId = msg.message_id;
+        const lang = getUserLanguage(userId);
+        
+        // Only works in groups/supergroups
+        if (chatType !== 'group' && chatType !== 'supergroup') {
+            await bot.sendMessage(chatId, texts.group_id_instruction[lang], { reply_to_message_id: messageId });
+            return;
+        }
+        
+        // Check if group is registered
+        if (!isGroupAllowed(chatId) && !isAdmin(userId)) {
+            const msgText = texts.group.not_allowed[lang];
+            await bot.sendMessage(chatId, msgText, { reply_to_message_id: messageId });
+            return;
+        }
+        
+        // Check if user is group admin
+        let isGroupAdmin = false;
+        try {
+            const chatMember = await bot.getChatMember(chatId, userId);
+            isGroupAdmin = ['administrator', 'creator'].includes(chatMember.status);
+        } catch (e) {
+            console.log('Failed to check admin status:', e.message);
+        }
+        
+        if (!isGroupAdmin && !isAdmin(userId)) {
+            const adminOnlyMsg = texts.all_command.admin_only[lang];
+            await bot.sendMessage(chatId, adminOnlyMsg, { 
+                parse_mode: 'Markdown',
+                reply_to_message_id: messageId 
+            });
+            return;
+        }
+        
+        let adminMessage = match && match[1] ? match[1].trim() : '';
+        
+        const loadingMsg = await bot.sendMessage(chatId, texts.all_command.fetching_members[lang], { 
+            parse_mode: 'Markdown',
+            reply_to_message_id: messageId 
+        });
+        
+        try {
+            // Get all members from database (users who have interacted with bot)
+            // This is the most reliable way to get member list
+            const allMembers = await getAllGroupMembers(chatId);
+            
+            if (!allMembers || allMembers.length === 0) {
+                await bot.editMessageText(texts.all_command.no_members[lang], {
+                    chat_id: chatId,
+                    message_id: loadingMsg.message_id,
+                    parse_mode: 'Markdown'
+                });
+                return;
+            }
+            
+            // Build mentions list
+            let mentions = [];
+            const botInfo = await bot.getMe();
+            const botId = botInfo.id;
+            
+            for (const member of allMembers) {
+                const memberId = member.user_id;
+                const memberName = member.username || member.first_name || 'Member';
+                
+                if (memberId !== botId && memberId !== userId) {
+                    mentions.push(`[${memberName}](tg://user?id=${memberId})`);
+                }
+            }
+            
+            // Also add current user if not already in list
+            const currentUser = await bot.getChatMember(chatId, userId);
+            if (currentUser && currentUser.user && currentUser.user.id !== botId) {
+                const userName = currentUser.user.first_name || currentUser.user.username || 'Admin';
+                if (!mentions.some(m => m.includes(`id=${currentUser.user.id}`))) {
+                    mentions.unshift(`[${userName}](tg://user?id=${currentUser.user.id})`);
+                }
+            }
+            
+            if (mentions.length === 0) {
+                await bot.editMessageText(texts.all_command.no_members[lang], {
+                    chat_id: chatId,
+                    message_id: loadingMsg.message_id,
+                    parse_mode: 'Markdown'
+                });
+                return;
+            }
+            
+            // Split mentions into chunks to avoid message length limits
+            const chunkSize = 50;
+            const mentionChunks = [];
+            for (let i = 0; i < mentions.length; i += chunkSize) {
+                mentionChunks.push(mentions.slice(i, i + chunkSize));
+            }
+            
+            const currentTime = moment().tz('Asia/Jakarta').format('HH:mm:ss');
+            const adminName = msg.from.first_name || msg.from.username || 'Admin';
+            
+            await bot.deleteMessage(chatId, loadingMsg.message_id);
+            
+            // Send message with all mentions
+            if (adminMessage) {
+                const finalMessage = texts.all_command.announcement_format[lang](adminName, adminMessage, mentionChunks[0].join(' '), currentTime);
+                await bot.sendMessage(chatId, finalMessage, {
+                    parse_mode: 'Markdown',
+                    disable_web_page_preview: true
+                });
+            } else {
+                const finalMessage = texts.all_command.announcement_format[lang](adminName, '', mentionChunks[0].join(' '), currentTime);
+                await bot.sendMessage(chatId, finalMessage, {
+                    parse_mode: 'Markdown',
+                    disable_web_page_preview: true
+                });
+            }
+            
+            // Send remaining chunks if any
+            for (let i = 1; i < mentionChunks.length; i++) {
+                await bot.sendMessage(chatId, mentionChunks[i].join(' '), {
+                    parse_mode: 'Markdown',
+                    disable_web_page_preview: true
+                });
+            }
+            
+            console.log(`[GROUP] /all used in ${chatId} by ${userId} - mentioned ${mentions.length} members${adminMessage ? `: ${adminMessage}` : ''}`);
+            
+        } catch (error) {
+            console.log('Error /all:', error.message);
+            
+            let errorMessage = texts.all_command.error_permission[lang];
+            
+            await bot.editMessageText(errorMessage, {
+                chat_id: chatId,
+                message_id: loadingMsg.message_id,
+                parse_mode: 'Markdown'
+            });
+        }
+        
+    } catch (error) {
+        console.log('Error /all handler:', error.message);
+        try {
+            const lang = getUserLanguage(msg.from.id);
+            const errorMsg = texts.error[lang];
+            await bot.sendMessage(msg.chat.id, errorMsg);
+        } catch (e) {}
+    }
+});
+
+// Helper function to get all group members from database
+async function getAllGroupMembers(groupId) {
+    try {
+        const members = [];
+        const users = db.users || {};
+        
+        // Get all users who have interacted with the bot in this group
+        // Since we don't have direct access to all group members via Telegram API,
+        // we track users who send messages in the group
+        
+        for (const [userId, userData] of Object.entries(users)) {
+            if (userData.groups && userData.groups.includes(groupId)) {
+                members.push({
+                    user_id: parseInt(userId),
+                    username: userData.username,
+                    first_name: userData.first_name
+                });
+            }
+        }
+        
+        return members;
+    } catch (error) {
+        console.log('Error getting group members:', error.message);
+        return [];
+    }
+}
+
+// Track users who send messages in groups (add to message handler)
+// Add this to the bot.on('message') handler for groups
+bot.on('message', async (msg) => {
+    try {
+        const chatId = msg.chat.id;
+        const userId = msg.from.id;
+        const username = msg.from.username;
+        const firstName = msg.from.first_name;
+        const chatType = msg.chat.type;
+        
+        // Track users in groups
+        if (chatType === 'group' || chatType === 'supergroup') {
+            if (!db.users[userId]) {
+                db.users[userId] = {
+                    username: username || '',
+                    first_name: firstName || '',
+                    success: 0,
+                    credits: 0,
+                    topup_history: [],
+                    language: DEFAULT_LANG,
+                    groups: []
+                };
+            }
+            
+            if (!db.users[userId].groups) {
+                db.users[userId].groups = [];
+            }
+            
+            if (!db.users[userId].groups.includes(chatId)) {
+                db.users[userId].groups.push(chatId);
+                await saveDB();
+                console.log(`User ${userId} tracked in group ${chatId}`);
+            }
+            
+            if (username && db.users[userId].username !== username) {
+                db.users[userId].username = username;
+                await saveDB();
+            }
+            
+            if (firstName && db.users[userId].first_name !== firstName) {
+                db.users[userId].first_name = firstName;
+                await saveDB();
+            }
+        }
+        
+        // Rest of your existing message handler...
+        
+    } catch (error) {
+        console.log('Error tracking user:', error.message);
+    }
+});
 
         async function editToMainMenu(bot, chatId, messageId, userId) {
             try {
@@ -2285,23 +2525,23 @@ if (IS_WORKER) {
                     .filter(([_, u]) => (u.credits || 0) > 0)
                     .sort((a, b) => (b[1].credits || 0) - (a[1].credits || 0));
                 
-                let message = `DAFTAR USER DENGAN SALDO > 0\n\n`;
+                let message = `LIST OF USERS WITH BALANCE > 0\n\n`;
                 
                 if (usersWithBalance.length === 0) {
-                    message += 'Tidak ada user dengan saldo.';
+                    message += 'No users with balance.';
                 } else {
                     const totalSaldo = usersWithBalance.reduce((sum, [_, u]) => sum + (u.credits || 0), 0);
-                    message += `Total ${usersWithBalance.length} user | Total Saldo: Rp ${totalSaldo.toLocaleString()}\n\n`;
+                    message += `Total ${usersWithBalance.length} users | Total Balance: Rp ${totalSaldo.toLocaleString()}\n\n`;
                     
                     const displayCount = Math.min(usersWithBalance.length, 20);
                     for (let i = 0; i < displayCount; i++) {
                         const [id, u] = usersWithBalance[i];
                         message += `${i+1}. ${u.username || id}\n`;
-                        message += `   Saldo: Rp ${(u.credits || 0).toLocaleString()}\n\n`;
+                        message += `   Balance: Rp ${(u.credits || 0).toLocaleString()}\n\n`;
                     }
                     
                     if (usersWithBalance.length > 20) {
-                        message += `... dan ${usersWithBalance.length - 20} user lainnya.`;
+                        message += `... and ${usersWithBalance.length - 20} other users.`;
                     }
                 }
                 
@@ -2347,10 +2587,10 @@ if (IS_WORKER) {
                     }))
                     .sort((a, b) => a.end_date - b.end_date);
                 
-                let message = `LIST LANGGANAN\n\n`;
+                let message = `SUBSCRIPTION LIST\n\n`;
                 
                 if (usersWithSubscription.length === 0) {
-                    message += 'Tidak ada user dengan langganan aktif.';
+                    message += 'No users with active subscription.';
                 } else {
                     for (let i = 0; i < usersWithSubscription.length; i++) {
                         const user = usersWithSubscription[i];
@@ -2358,7 +2598,7 @@ if (IS_WORKER) {
                         message += `${user.id} > Exp: ${endDate} WIB\n`;
                         
                         if (message.length > 3500 && i < usersWithSubscription.length - 1) {
-                            message += `... dan ${usersWithSubscription.length - i - 1} user lainnya.`;
+                            message += `... and ${usersWithSubscription.length - i - 1} other users.`;
                             break;
                         }
                     }
@@ -2412,7 +2652,7 @@ if (IS_WORKER) {
                     return;
                 }
                 
-                let message = `DAFTAR GRUP TERDAFTAR:\n\n`;
+                let message = `REGISTERED GROUPS:\n\n`;
                 db.allowed_groups.forEach((id, i) => {
                     message += `${i + 1}. ${id}\n`;
                 });
@@ -2568,7 +2808,7 @@ if (IS_WORKER) {
                 output += `Popularity: ${d.popularity || 0}\n`;
                 output += `Credit Score: ${d.credits_score || 0}\n\n`;
                 
-                output += `Sisa saldo: Rp ${getUserCredits(userId).toLocaleString()}`;
+                output += `Remaining balance: Rp ${getUserCredits(userId).toLocaleString()}`;
                 
                 const stockText = texts.buttons.stock_admin[lang];
                 
@@ -2577,7 +2817,7 @@ if (IS_WORKER) {
                     if (splitPoint === -1) splitPoint = 3000;
                     
                     let part1 = output.substring(0, splitPoint);
-                    part1 += `\n\n[Lanjutan di pesan berikutnya...]`;
+                    part1 += `\n\n[Continued in next message...]`;
                     
                     await bot.sendMessage(chatId, part1, {
                         reply_markup: { 
@@ -2608,7 +2848,7 @@ if (IS_WORKER) {
                 
                 const msg = cb.message;
                 if (!msg || msg.chat.type !== 'private') {
-                    await bot.answerCallbackQuery(cb.id, { text: 'Bot hanya di private chat' });
+                    await bot.answerCallbackQuery(cb.id, { text: 'Bot only in private chat' });
                     return;
                 }
                 
@@ -2864,7 +3104,7 @@ if (IS_WORKER) {
                             }
                         });
                     } else {
-                        await bot.editMessageText(`Gagal: ${result.error}`, {
+                        await bot.editMessageText(`Failed: ${result.error}`, {
                             chat_id: chatId,
                             message_id: messageId,
                             reply_markup: {
@@ -2916,7 +3156,7 @@ if (IS_WORKER) {
                     const payment = await createPakasirTopup(amount, userId, username);
                     
                     if (!payment.success) {
-                        await bot.editMessageText(`Gagal: ${payment.error}`, {
+                        await bot.editMessageText(`Failed: ${payment.error}`, {
                             chat_id: chatId,
                             message_id: messageId,
                             reply_markup: {
@@ -2951,11 +3191,11 @@ if (IS_WORKER) {
                             db.pending_topups[payment.orderId].messageId = sentMessage.message_id;
                             db.pending_topups[payment.orderId].chatId = chatId;
                             await saveDB();
-                            console.log(`QR terkirim ke chat ${chatId} dengan messageId ${sentMessage.message_id}`);
+                            console.log(`QR sent to chat ${chatId} with messageId ${sentMessage.message_id}`);
                         }
                         
                     } catch (qrError) {
-                        console.log('Error kirim QR:', qrError.message);
+                        console.log('Error sending QR:', qrError.message);
                         const qrText = texts.payment.qr_caption[lang](amount, payment.orderId, payment.expiredAt);
                         await bot.editMessageText(
                             `${qrText}\n\nQR Code:\n${payment.qrString}`,
@@ -2992,15 +3232,15 @@ if (IS_WORKER) {
         
         listenerPool.connect((err, client, done) => {
             if (err) {
-                console.log('Gagal konek listener:', err.message);
+                console.log('Failed to connect listener:', err.message);
                 return;
             }
             client.on('notification', (msg) => {
-                console.log('NOTIFY diterima, reload database');
+                console.log('NOTIFY received, reload database');
                 loadDB().catch(e => console.log('Reload error:', e.message));
             });
             client.query('LISTEN db_updated');
-            console.log('Listener PostgreSQL aktif untuk channel db_updated');
+            console.log('PostgreSQL listener active for channel db_updated');
         });
 
         console.log('Bot started, Admin IDs:', ADMIN_IDS);
