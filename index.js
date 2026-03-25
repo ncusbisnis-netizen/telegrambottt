@@ -53,7 +53,7 @@ const DEFAULT_LANG = LANGUAGES.en;
 const texts = {
     welcome: {
         id: `SELAMAT DATANG DI 1 FOR ALL\n\nDaftar layanan dan harga:\n- CHECK BIND - GRATIS\n- GROUP MENU - GRATIS\n- FULL INFO - Rp 5.000\n- CARI ID VIA NICKNAME - Rp 5.000\n- Langganan akses /find dan /cek unlimited`,
-        en: `WELCOME TO 1FOR ALL\n\nServices and prices:\n- CHECK BIND - FREE\n- GROUP MENU - FREE\n- FULL INFO - Rp 5,000\n- FIND ID BY NICKNAME - Rp 5,000\n- Subscription for unlimited /find and /cek access`
+        en: `WELCOME TO 1 FOR ALL\n\nServices and prices:\n- CHECK BIND - FREE\n- GROUP MENU - FREE\n- FULL INFO - Rp 5,000\n- FIND ID BY NICKNAME - Rp 5,000\n- Subscription for unlimited /find and /cek access`
     },
     
     group_welcome: {
