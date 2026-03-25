@@ -343,9 +343,9 @@ const texts = {
         announcement_format: {
             id: (adminName, adminMessage, mentionText, time) => {
                 if (adminMessage) {
-                    return `*PENGUMUMAN DARI ${adminName}*\n\n${adminMessage}\n\n${mentionText}\n\n*Waktu:* ${time} WIB`;
+                    return `${adminMessage}\n\n${mentionText}`;
                 } else {
-                    return `*PERHATIAN DARI ${adminName}*\n\n${mentionText}\n\n*Waktu:* ${time} WIB`;
+                    return `${mentionText}`;
                 }
             },
             en: (adminName, adminMessage, mentionText, time) => {
@@ -2310,9 +2310,9 @@ if (IS_WORKER) {
             // Format pesan
             let finalMessage = '';
             if (adminMessage) {
-                finalMessage = `<b>PENGUMUMAN DARI ${adminName}</b>\n\n${adminMessage}\n\n<i>Waktu: ${currentTime} WIB</i>`;
+                finalMessage = `${adminMessage}`;
             } else {
-                finalMessage = `<b>PERHATIAN DARI ${adminName}</b>\n\n<i>Waktu: ${currentTime} WIB</i>`;
+                finalMessage = `Hello`;
             }
             
             // Gabungkan mentions
