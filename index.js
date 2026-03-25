@@ -67,8 +67,8 @@ const texts = {
     },
     
     group_menu_private: {
-        id: `GROUP MENU\n\nBot dapat digunakan di grup dengan perintah berikut:\n\n1. CEK BIND AKUN MLBB\n   Perintah: /cekinfo ID SERVER\n   Contoh: /cekinfo 123456789 1234\n   Fungsi: Menampilkan email, Facebook, dan akun sosial lainnya yang terhubung\n   Biaya: GRATIS\n   Catatan: Grup harus terdaftar terlebih dahulu\n\n2. MENTION SEMUA ANGGOTA\n   Perintah: /all [pesan]\n   Contoh: /all Halo semua!\n   Fungsi: Mention semua anggota grup\n   Catatan: Hanya admin grup yang dapat menggunakan\n\n3. LIHAT ID GRUP\n   Perintah: /idgrup\n   Fungsi: Menampilkan ID grup\n   Catatan: Hanya admin bot yang dapat menggunakan\n\n4. BANTUAN\n   Perintah: /help\n   Fungsi: Menampilkan bantuan perintah di grup\n\nCara Registrasi Grup:\n1. Tambah bot ke grup Anda\n2. Jadikan bot sebagai admin\n3. Hubungi @ncus999 untuk daftarkan group`,
-        en: `GROUP MENU\n\nBot can be used in groups with the following commands:\n\n1. CHECK MLBB ACCOUNT BIND\n   Command: /cekinfo ID SERVER\n   Example: /cekinfo 123456789 1234\n   Function: Display email, Facebook, and other connected social accounts\n   Cost: FREE\n   Note: Group must be registered first\n\n2. MENTION ALL MEMBERS\n   Command: /all [message]\n   Example: /all Hello everyone!\n   Function: Mention all group members\n   Note: Only group admins can use\n\n3. VIEW GROUP ID\n   Command: /idgrup\n   Function: Display group ID\n   Note: Only bot admin can use\n\n4. HELP\n   Command: /help\n   Function: Display help commands in group\n\nHow to Register Group:\n1. Add bot to your group\n2. Make bot an admin\n3. Contact @ncus999 to register a group`
+        id: `GROUP MENU\n\nBot dapat digunakan di grup dengan perintah berikut:\n\n1. CEK BIND AKUN MLBB\n   Perintah: /cekinfo ID SERVER\n   Contoh: /cekinfo 123456789 1234\n   Fungsi: Menampilkan email, Facebook, dan akun sosial lainnya yang terhubung\n   Biaya: GRATIS\n   Catatan: Grup harus terdaftar terlebih dahulu\n\nCara Registrasi Grup:\n1. Tambah bot ke grup Anda\n2. Jadikan bot sebagai admin\n3. Hubungi @ncus999 untuk daftarkan group`,
+        en: `GROUP MENU\n\nBot can be used in groups with the following commands:\n\n1. CHECK MLBB ACCOUNT BIND\n   Command: /cekinfo ID SERVER\n   Example: /cekinfo 123456789 1234\n   Function: Display email, Facebook, and other connected social accounts\n   Cost: FREE\n   Note: Group must be registered first\n\nHow to Register Group:\n1. Add bot to your group\n2. Make bot an admin\n3. Contact @ncus999 to register a group`
     },
     
     buttons: {
@@ -122,8 +122,8 @@ const texts = {
     
     subscription: {
         title: { id: 'Akses unlimited untuk fitur /cek dan /find tanpa limit\nsilahkan pilih paket:', en: 'Unlimited access to /cek and /find features\nplease select package:' },
-        days7: { id: '7 Hari (Rp 50.000)', en: '7 Days (Rp 50,000)' },
-        days30: { id: '30 Hari (Rp 100.000)', en: '30 Days (Rp 100,000)' }
+        days7: { id: '7 Hari Rp 50.000', en: '7 Days Rp 50,000' },
+        days30: { id: '30 Hari Rp 100.000', en: '30 Days Rp 100,000' }
     },
     
     subscription_messages: {
