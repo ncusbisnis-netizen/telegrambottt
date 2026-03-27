@@ -1904,43 +1904,47 @@ if (IS_WORKER) {
                         return;
                     }
                     
-                    if (state.action === 'discount_percentage' && state.step === 'waiting_percentage') {
-                        const percentage = parseInt(text);
-                        
-                        if (isNaN(percentage) || percentage < 1 || percentage > 100) {
-                            await bot.sendMessage(chatId, 'Persentase tidak valid! Masukkan angka 1-100.', {
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: texts.buttons.cancel[lang], callback_data: 'discount_cancel' }]
-                                    ]
-                                }
-                            });
-                            return;
-                        }
-                        
-                        await askDiscountDuration(bot, chatId, messageId, userId, state.data.discountType, percentage);
-                        return;
-                    }
-                    
-                    if (state.action === 'discount_duration' && state.step === 'waiting_duration') {
-                        const duration = parseInt(text);
-                        
-                        if (isNaN(duration) || duration < 1 || duration > 43200) {
-                            await bot.sendMessage(chatId, 'Durasi tidak valid! Masukkan angka 1-43200 menit (maks 30 hari).', {
-                                reply_markup: {
-                                    inline_keyboard: [
-                                        [{ text: texts.buttons.cancel[lang], callback_data: 'discount_cancel' }]
-                                    ]
-                                }
-                            });
-                            return;
-                        }
-                        
-                        await processDiscountCreate(userId, chatId, state.data.discountType, state.data.percentage, duration, bot);
-                        clearAdminState(userId);
-                        return;
-                    }
-                }
+                    if (state && isAdmin(userId) && state.action === 'discount_percentage' && state.step === 'waiting_percentage') {
+    const percentage = parseInt(text);
+    
+    if (isNaN(percentage) || percentage < 1 || percentage > 100) {
+        await bot.sendMessage(chatId, 'Persentase tidak valid! Masukkan angka 1-100.', {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: texts.buttons.cancel[lang], callback_data: 'discount_cancel' }]
+                ]
+            }
+        });
+        return;
+    }
+    
+    // Ambil messageId dari state
+    const discountState = getAdminState(userId);
+    const originalMessageId = discountState.data.messageId;
+    
+    await askDiscountDuration(bot, chatId, originalMessageId, userId, discountState.data.discountType, percentage);
+    return;
+}
+
+if (state && isAdmin(userId) && state.action === 'discount_duration' && state.step === 'waiting_duration') {
+    const duration = parseInt(text);
+    
+    if (isNaN(duration) || duration < 1 || duration > 43200) {
+        await bot.sendMessage(chatId, 'Durasi tidak valid! Masukkan angka 1-43200 menit (maks 30 hari).', {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: texts.buttons.cancel[lang], callback_data: 'discount_cancel' }]
+                ]
+            }
+        });
+        return;
+    }
+    
+    const discountState = getAdminState(userId);
+    await processDiscountCreate(userId, chatId, discountState.data.discountType, discountState.data.percentage, duration, bot);
+    clearAdminState(userId);
+    return;
+}
                 
                 if (isAdmin(userId)) return;
                 
@@ -3268,62 +3272,83 @@ if (IS_WORKER) {
         }
 
         async function askDiscountPercentage(bot, chatId, messageId, userId, discountType) {
-            const lang = getUserLanguage(userId);
-            
-            let typeText = '';
-            const typeTexts = {
-                subscription: 'LANGGANAN',
-                check: 'CEK / CEK BIND',
-                find: 'FIND / CARI ID'
-            };
-            typeText = typeTexts[discountType] || discountType;
-            
-            const message = `BUAT DISKON UNTUK ${typeText}\n\nMasukkan persentase diskon (1-100):\n\nContoh: 15 (berarti diskon 15%)`;
-            
-            const replyMarkup = {
-                inline_keyboard: [
-                    [{ text: texts.buttons.cancel[lang], callback_data: 'discount_cancel' }]
-                ]
-            };
-            
-            await bot.editMessageText(message, {
-                chat_id: chatId,
-                message_id: messageId,
-                parse_mode: 'Markdown',
-                reply_markup: replyMarkup
-            });
-            
-            await setAdminState(userId, 'discount_percentage', 'waiting_percentage', { discountType });
-        }
+    const lang = getUserLanguage(userId);
+    
+    let typeText = '';
+    const typeTexts = {
+        subscription: 'LANGGANAN',
+        check: 'CEK / CEK BIND',
+        find: 'FIND / CARI ID'
+    };
+    typeText = typeTexts[discountType] || discountType;
+    
+    const message = `BUAT DISKON UNTUK ${typeText}\n\nMasukkan persentase diskon (1-100):\n\nContoh: 15 (berarti diskon 15%)`;
+    
+    const replyMarkup = {
+        inline_keyboard: [
+            [{ text: texts.buttons.cancel[lang], callback_data: 'discount_cancel' }]
+        ]
+    };
+    
+    // Hapus pesan lama
+    try {
+        await bot.deleteMessage(chatId, messageId);
+    } catch (e) {
+        console.log('Gagal hapus pesan:', e.message);
+    }
+    
+    // Kirim pesan baru
+    const newMsg = await bot.sendMessage(chatId, message, {
+        parse_mode: 'Markdown',
+        reply_markup: replyMarkup
+    });
+    
+    // Simpan state dengan messageId baru
+    await setAdminState(userId, 'discount_percentage', 'waiting_percentage', { 
+        discountType, 
+        messageId: newMsg.message_id 
+    });
+}
 
         async function askDiscountDuration(bot, chatId, messageId, userId, discountType, percentage) {
-            const lang = getUserLanguage(userId);
-            
-            let typeText = '';
-            const typeTexts = {
-                subscription: 'LANGGANAN',
-                check: 'CEK / CEK BIND',
-                find: 'FIND / CARI ID'
-            };
-            typeText = typeTexts[discountType] || discountType;
-            
-            const message = `BUAT DISKON UNTUK ${typeText}\n\nDiskon: ${percentage}%\n\nMasukkan durasi diskon (dalam MENIT):\n\nContoh: 30 (berarti 30 menit)\nMaksimal: 43200 menit (30 hari)`;
-            
-            const replyMarkup = {
-                inline_keyboard: [
-                    [{ text: texts.buttons.cancel[lang], callback_data: 'discount_cancel' }]
-                ]
-            };
-            
-            await bot.editMessageText(message, {
-                chat_id: chatId,
-                message_id: messageId,
-                parse_mode: 'Markdown',
-                reply_markup: replyMarkup
-            });
-            
-            await setAdminState(userId, 'discount_duration', 'waiting_duration', { discountType, percentage });
-        }
+    const lang = getUserLanguage(userId);
+    
+    let typeText = '';
+    const typeTexts = {
+        subscription: 'LANGGANAN',
+        check: 'CEK / CEK BIND',
+        find: 'FIND / CARI ID'
+    };
+    typeText = typeTexts[discountType] || discountType;
+    
+    const message = `BUAT DISKON UNTUK ${typeText}\n\nDiskon: ${percentage}%\n\nMasukkan durasi diskon (dalam MENIT):\n\nContoh: 30 (berarti 30 menit)\nMaksimal: 43200 menit (30 hari)`;
+    
+    const replyMarkup = {
+        inline_keyboard: [
+            [{ text: texts.buttons.cancel[lang], callback_data: 'discount_cancel' }]
+        ]
+    };
+    
+    // Hapus pesan lama
+    try {
+        await bot.deleteMessage(chatId, messageId);
+    } catch (e) {
+        console.log('Gagal hapus pesan:', e.message);
+    }
+    
+    // Kirim pesan baru
+    const newMsg = await bot.sendMessage(chatId, message, {
+        parse_mode: 'Markdown',
+        reply_markup: replyMarkup
+    });
+    
+    // Simpan state dengan messageId baru
+    await setAdminState(userId, 'discount_duration', 'waiting_duration', { 
+        discountType, 
+        percentage,
+        messageId: newMsg.message_id 
+    });
+}
 
         async function processDiscountCreate(userId, chatId, discountType, percentage, durationMinutes, bot) {
             const lang = getUserLanguage(userId);
@@ -3900,22 +3925,38 @@ if (IS_WORKER) {
                 }
 
                 if (data === 'discount_type_subscription') {
-                    await askDiscountPercentage(bot, chatId, messageId, userId, 'subscription');
-                    await bot.answerCallbackQuery(cb.id);
-                    return;
-                }
+    // Hapus pesan callback terlebih dahulu
+    try {
+        await bot.deleteMessage(chatId, messageId);
+    } catch (e) {
+        console.log('Gagal hapus pesan:', e.message);
+    }
+    await askDiscountPercentage(bot, chatId, messageId, userId, 'subscription');
+    await bot.answerCallbackQuery(cb.id);
+    return;
+}
 
-                if (data === 'discount_type_check') {
-                    await askDiscountPercentage(bot, chatId, messageId, userId, 'check');
-                    await bot.answerCallbackQuery(cb.id);
-                    return;
-                }
+if (data === 'discount_type_check') {
+    try {
+        await bot.deleteMessage(chatId, messageId);
+    } catch (e) {
+        console.log('Gagal hapus pesan:', e.message);
+    }
+    await askDiscountPercentage(bot, chatId, messageId, userId, 'check');
+    await bot.answerCallbackQuery(cb.id);
+    return;
+}
 
-                if (data === 'discount_type_find') {
-                    await askDiscountPercentage(bot, chatId, messageId, userId, 'find');
-                    await bot.answerCallbackQuery(cb.id);
-                    return;
-                }
+if (data === 'discount_type_find') {
+    try {
+        await bot.deleteMessage(chatId, messageId);
+    } catch (e) {
+        console.log('Gagal hapus pesan:', e.message);
+    }
+    await askDiscountPercentage(bot, chatId, messageId, userId, 'find');
+    await bot.answerCallbackQuery(cb.id);
+    return;
+}
 
                 if (data === 'discount_cancel') {
                     clearAdminState(userId);
