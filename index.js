@@ -1904,7 +1904,7 @@ if (IS_WORKER) {
                         return;
                     }
                     
-                    if (state.action === 'discount_percentage' && state.step === 'waiting_percentage') {
+                    if (state && isAdmin(userId) && state.action === 'discount_percentage' && state.step === 'waiting_percentage') {
                         const percentage = parseInt(text);
                         
                         if (isNaN(percentage) || percentage < 1 || percentage > 100) {
@@ -1918,11 +1918,14 @@ if (IS_WORKER) {
                             return;
                         }
                         
-                        await askDiscountDuration(bot, chatId, messageId, userId, state.data.discountType, percentage);
+                        const discountState = getAdminState(userId);
+                        const originalMessageId = discountState.data.messageId;
+                        
+                        await askDiscountDuration(bot, chatId, originalMessageId, userId, discountState.data.discountType, percentage);
                         return;
                     }
                     
-                    if (state.action === 'discount_duration' && state.step === 'waiting_duration') {
+                    if (state && isAdmin(userId) && state.action === 'discount_duration' && state.step === 'waiting_duration') {
                         const duration = parseInt(text);
                         
                         if (isNaN(duration) || duration < 1 || duration > 43200) {
@@ -1936,7 +1939,8 @@ if (IS_WORKER) {
                             return;
                         }
                         
-                        await processDiscountCreate(userId, chatId, state.data.discountType, state.data.percentage, duration, bot);
+                        const discountState = getAdminState(userId);
+                        await processDiscountCreate(userId, chatId, discountState.data.discountType, discountState.data.percentage, duration, bot);
                         clearAdminState(userId);
                         return;
                     }
@@ -3286,14 +3290,21 @@ if (IS_WORKER) {
                 ]
             };
             
-            await bot.editMessageText(message, {
-                chat_id: chatId,
-                message_id: messageId,
+            try {
+                await bot.deleteMessage(chatId, messageId);
+            } catch (e) {
+                console.log('Gagal hapus pesan:', e.message);
+            }
+            
+            const newMsg = await bot.sendMessage(chatId, message, {
                 parse_mode: 'Markdown',
                 reply_markup: replyMarkup
             });
             
-            await setAdminState(userId, 'discount_percentage', 'waiting_percentage', { discountType });
+            await setAdminState(userId, 'discount_percentage', 'waiting_percentage', { 
+                discountType, 
+                messageId: newMsg.message_id 
+            });
         }
 
         async function askDiscountDuration(bot, chatId, messageId, userId, discountType, percentage) {
@@ -3315,14 +3326,22 @@ if (IS_WORKER) {
                 ]
             };
             
-            await bot.editMessageText(message, {
-                chat_id: chatId,
-                message_id: messageId,
+            try {
+                await bot.deleteMessage(chatId, messageId);
+            } catch (e) {
+                console.log('Gagal hapus pesan:', e.message);
+            }
+            
+            const newMsg = await bot.sendMessage(chatId, message, {
                 parse_mode: 'Markdown',
                 reply_markup: replyMarkup
             });
             
-            await setAdminState(userId, 'discount_duration', 'waiting_duration', { discountType, percentage });
+            await setAdminState(userId, 'discount_duration', 'waiting_duration', { 
+                discountType, 
+                percentage,
+                messageId: newMsg.message_id 
+            });
         }
 
         async function processDiscountCreate(userId, chatId, discountType, percentage, durationMinutes, bot) {
@@ -3900,18 +3919,33 @@ if (IS_WORKER) {
                 }
 
                 if (data === 'discount_type_subscription') {
+                    try {
+                        await bot.deleteMessage(chatId, messageId);
+                    } catch (e) {
+                        console.log('Gagal hapus pesan:', e.message);
+                    }
                     await askDiscountPercentage(bot, chatId, messageId, userId, 'subscription');
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
 
                 if (data === 'discount_type_check') {
+                    try {
+                        await bot.deleteMessage(chatId, messageId);
+                    } catch (e) {
+                        console.log('Gagal hapus pesan:', e.message);
+                    }
                     await askDiscountPercentage(bot, chatId, messageId, userId, 'check');
                     await bot.answerCallbackQuery(cb.id);
                     return;
                 }
 
                 if (data === 'discount_type_find') {
+                    try {
+                        await bot.deleteMessage(chatId, messageId);
+                    } catch (e) {
+                        console.log('Gagal hapus pesan:', e.message);
+                    }
                     await askDiscountPercentage(bot, chatId, messageId, userId, 'find');
                     await bot.answerCallbackQuery(cb.id);
                     return;
