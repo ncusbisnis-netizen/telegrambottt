@@ -1052,7 +1052,7 @@ async function getMLBBData(userId, serverId, type = 'lookup') {
             type: type
         };
         
-        const response = await axios.post("https://asikwhatsapp-002a2c0f75eb.herokuapp.com/v1/lookup?role_id=643461181&zone_id=8554", payload, {
+        const response = await axios.post("https://checkton.online/backend/info", payload, {
             headers: { 
                 "Content-Type": "application/json",
                 "x-api-key": API_KEY_CHECKTON
@@ -1099,7 +1099,7 @@ async function findPlayerByName(name) {
             type: "find"
         };
         
-        const response = await axios.post("https://asikwhatsapp-002a2c0f75eb.herokuapp.com/v1/lookup?role_id=643461181&zone_id=8554", payload, {
+        const response = await axios.post("https://checkton.online/backend/info", payload, {
             headers: { 
                 "Content-Type": "application/json",
                 "x-api-key": API_KEY_CHECKTON
